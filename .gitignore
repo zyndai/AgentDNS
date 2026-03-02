@@ -1,0 +1,44 @@
+# Binaries
+agentdns
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build output
+/bin/
+/dist/
+
+# Test
+*.test
+*.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+*.db
+*.db-wal
+*.db-shm
+
+# Node data directory
+.agentdns/
+
+# Docker
+docker-compose.override.yml
+
+# Vendor (if using vendoring)
+# vendor/
+
+# Environment
+.env
+.env.local
