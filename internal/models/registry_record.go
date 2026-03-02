@@ -1,0 +1,111 @@
+// Package models defines core data structures for the Agent DNS system.
+package models
+
+import (
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"time"
+)
+
+// RegistryRecord is the stable, lightweight record stored on the registry network.
+// It acts as a static pointer to the dynamic Agent Card hosted by the agent itself.
+// Size: ~500-800 bytes. Cheap to replicate, store, and index.
+type RegistryRecord struct {
+	AgentID      string   `json:"agent_id" db:"agent_id"`
+	Name         string   `json:"name" db:"name"`
+	Owner        string   `json:"owner" db:"owner"`
+	AgentURL     string   `json:"agent_url" db:"agent_url"`
+	Category     string   `json:"category" db:"category"`
+	Tags         []string `json:"tags" db:"-"`
+	Summary      string   `json:"summary" db:"summary"`
+	PublicKey    string   `json:"public_key" db:"public_key"`
+	HomeRegistry string   `json:"home_registry" db:"home_registry"`
+	RegisteredAt string   `json:"registered_at" db:"registered_at"`
+	UpdatedAt    string   `json:"updated_at" db:"updated_at"`
+	TTL          int      `json:"ttl" db:"ttl"`
+	Signature    string   `json:"signature" db:"signature"`
+}
+
+// RegistrationRequest is submitted by agent owners to register a new agent.
+type RegistrationRequest struct {
+	Name      string   `json:"name" validate:"required,min=1,max=100"`
+	AgentURL  string   `json:"agent_url" validate:"required,url"`
+	Category  string   `json:"category" validate:"required,min=1,max=50"`
+	Tags      []string `json:"tags" validate:"max=20"`
+	Summary   string   `json:"summary" validate:"required,max=200"`
+	PublicKey string   `json:"public_key" validate:"required"`
+	Signature string   `json:"signature" validate:"required"`
+}
+
+// UpdateRequest is submitted by agent owners to update their registry record.
+type UpdateRequest struct {
+	AgentURL  *string  `json:"agent_url,omitempty"`
+	Category  *string  `json:"category,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
+	Summary   *string  `json:"summary,omitempty"`
+	TTL       *int     `json:"ttl,omitempty"`
+	Signature string   `json:"signature" validate:"required"`
+}
+
+// GenerateAgentID derives an agent_id from an Ed25519 public key.
+// Format: agdns:<first 16 bytes of SHA-256 of public key as hex>
+func GenerateAgentID(publicKey ed25519.PublicKey) string {
+	hash := sha256.Sum256(publicKey)
+	return "agdns:" + hex.EncodeToString(hash[:16])
+}
+
+// GenerateRegistryID derives a registry_id from an Ed25519 public key.
+// Format: agdns:registry:<first 16 bytes of SHA-256 of public key as hex>
+func GenerateRegistryID(publicKey ed25519.PublicKey) string {
+	hash := sha256.Sum256(publicKey)
+	return "agdns:registry:" + hex.EncodeToString(hash[:16])
+}
+
+// SignableBytes returns the canonical JSON bytes of the record for signing,
+// excluding the signature field itself.
+func (r *RegistryRecord) SignableBytes() ([]byte, error) {
+	// Create a copy without signature
+	rec := *r
+	rec.Signature = ""
+	return json.Marshal(rec)
+}
+
+// Validate performs basic validation of a RegistryRecord.
+func (r *RegistryRecord) Validate() error {
+	if r.AgentID == "" {
+		return fmt.Errorf("agent_id is required")
+	}
+	if r.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	if len(r.Name) > 100 {
+		return fmt.Errorf("name must be 100 characters or less")
+	}
+	if r.Owner == "" {
+		return fmt.Errorf("owner is required")
+	}
+	if r.AgentURL == "" {
+		return fmt.Errorf("agent_url is required")
+	}
+	if r.Category == "" {
+		return fmt.Errorf("category is required")
+	}
+	if len(r.Summary) > 200 {
+		return fmt.Errorf("summary must be 200 characters or less")
+	}
+	if r.PublicKey == "" {
+		return fmt.Errorf("public_key is required")
+	}
+	if len(r.Tags) > 20 {
+		return fmt.Errorf("maximum 20 tags allowed")
+	}
+	return nil
+}
+
+// NowRFC3339 returns the current time in RFC3339 format.
+func NowRFC3339() string {
+	return time.Now().UTC().Format(time.RFC3339)
+}
