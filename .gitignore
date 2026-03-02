@@ -1,5 +1,5 @@
 # Binaries
-agentdns
+/agentdns
 *.exe
 *.dll
 *.so
