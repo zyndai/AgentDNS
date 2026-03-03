@@ -1,0 +1,756 @@
+basePath: /
+definitions:
+  github_com_agentdns_agent-dns_internal_models.AgentCard:
+    properties:
+      agent_id:
+        type: string
+      capabilities:
+        items:
+          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.Capability'
+        type: array
+      endpoints:
+        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.Endpoints'
+      last_heartbeat:
+        type: string
+      metadata:
+        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.CardMeta'
+      pricing:
+        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.Pricing'
+      signature:
+        type: string
+      signed_at:
+        type: string
+      status:
+        description: online, offline, degraded, maintenance
+        type: string
+      trust:
+        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.TrustInfo'
+      version:
+        type: string
+    type: object
+  github_com_agentdns_agent-dns_internal_models.Capability:
+    properties:
+      description:
+        type: string
+      examples:
+        items:
+          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.Example'
+        type: array
+      input_schema:
+        additionalProperties: true
+        type: object
+      languages:
+        description: programming languages supported
+        items:
+          type: string
+        type: array
+      latency_p95_ms:
+        type: integer
+      name:
+        type: string
+      output_schema:
+        additionalProperties: true
+        type: object
+      protocols:
+        description: a2a, mcp, jsonrpc
+        items:
+          type: string
+        type: array
+    type: object
+  github_com_agentdns_agent-dns_internal_models.CardMeta:
+    properties:
+      documentation:
+        type: string
+      framework:
+        type: string
+      model:
+        type: string
+      owner_contact:
+        type: string
+      source_code:
+        type: string
+    type: object
+  github_com_agentdns_agent-dns_internal_models.Endpoints:
+    properties:
+      health:
+        type: string
+      invoke:
+        type: string
+      websocket:
+        type: string
+    type: object
+  github_com_agentdns_agent-dns_internal_models.Example:
+    properties:
+      input:
+        type: string
+      output:
+        type: string
+    type: object
+  github_com_agentdns_agent-dns_internal_models.NetworkStats:
+    properties:
+      estimated_agents:
+        type: integer
+      estimated_registries:
+        type: integer
+      gossip_messages_per_hour:
+        type: integer
+      mesh_connectivity:
+        description: 0-1, estimated
+        type: number
+      searches_per_hour:
+        type: integer
+    type: object
+  github_com_agentdns_agent-dns_internal_models.NetworkStatus:
+    properties:
+      cached_cards:
+        type: integer
+      gossip_entries:
+        type: integer
+      local_agents:
+        type: integer
+      name:
+        type: string
+      node_type:
+        description: full, light, gateway
+        type: string
+      peer_count:
+        type: integer
+      registry_id:
+        type: string
+      uptime:
+        type: string
+      version:
+        type: string
+    type: object
+  github_com_agentdns_agent-dns_internal_models.PeerInfo:
+    properties:
+      address:
+        type: string
+      agent_count:
+        type: integer
+      bloom_filter:
+        description: tags/categories bloom filter
+        items:
+          type: integer
+        type: array
+      connected_at:
+        type: string
+      last_seen:
+        type: string
+      latency_ms:
+        description: last measured latency
+        type: integer
+      name:
+        type: string
+      public_key:
+        type: string
+      registry_id:
+        type: string
+    type: object
+  github_com_agentdns_agent-dns_internal_models.Pricing:
+    properties:
+      currency:
+        type: string
+      model:
+        description: per-request, subscription, free
+        type: string
+      payment_methods:
+        description: x402, stripe, lightning
+        items:
+          type: string
+        type: array
+      rates:
+        additionalProperties:
+          format: float64
+          type: number
+        type: object
+    type: object
+  github_com_agentdns_agent-dns_internal_models.RegistrationRequest:
+    properties:
+      agent_url:
+        type: string
+      category:
+        maxLength: 50
+        minLength: 1
+        type: string
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      public_key:
+        type: string
+      signature:
+        type: string
+      summary:
+        maxLength: 200
+        type: string
+      tags:
+        items:
+          type: string
+        maxItems: 20
+        type: array
+    required:
+    - agent_url
+    - category
+    - name
+    - public_key
+    - signature
+    - summary
+    type: object
+  github_com_agentdns_agent-dns_internal_models.RegistryRecord:
+    properties:
+      agent_id:
+        type: string
+      agent_url:
+        type: string
+      category:
+        type: string
+      home_registry:
+        type: string
+      name:
+        type: string
+      owner:
+        type: string
+      public_key:
+        type: string
+      registered_at:
+        type: string
+      signature:
+        type: string
+      summary:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      ttl:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  github_com_agentdns_agent-dns_internal_models.ScoreBreakdown:
+    properties:
+      availability:
+        type: number
+      freshness:
+        type: number
+      semantic_similarity:
+        type: number
+      text_relevance:
+        type: number
+      trust_score:
+        type: number
+    type: object
+  github_com_agentdns_agent-dns_internal_models.SearchRequest:
+    properties:
+      category:
+        type: string
+      enrich:
+        type: boolean
+      federated:
+        type: boolean
+      max_results:
+        type: integer
+      min_trust_score:
+        type: number
+      query:
+        type: string
+      status:
+        description: online, offline, any
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      timeout_ms:
+        type: integer
+    type: object
+  github_com_agentdns_agent-dns_internal_models.SearchResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.SearchResult'
+        type: array
+      search_stats:
+        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.SearchStats'
+      total_found:
+        type: integer
+    type: object
+  github_com_agentdns_agent-dns_internal_models.SearchResult:
+    properties:
+      agent_id:
+        type: string
+      agent_url:
+        type: string
+      card:
+        allOf:
+        - $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.AgentCard'
+        description: included if enrich=true
+      category:
+        type: string
+      home_registry:
+        type: string
+      name:
+        type: string
+      score:
+        type: number
+      score_breakdown:
+        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.ScoreBreakdown'
+      summary:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  github_com_agentdns_agent-dns_internal_models.SearchStats:
+    properties:
+      federated_results:
+        type: integer
+      gossip_results:
+        type: integer
+      latency_ms:
+        type: integer
+      local_results:
+        type: integer
+      peers_queried:
+        type: integer
+    type: object
+  github_com_agentdns_agent-dns_internal_models.TrustInfo:
+    properties:
+      avg_rating:
+        type: number
+      success_rate:
+        type: number
+      total_invocations:
+        type: integer
+      uptime_30d:
+        type: number
+      verifications:
+        items:
+          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.Verification'
+        type: array
+    type: object
+  github_com_agentdns_agent-dns_internal_models.UpdateRequest:
+    properties:
+      agent_url:
+        type: string
+      category:
+        type: string
+      signature:
+        type: string
+      summary:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      ttl:
+        type: integer
+    required:
+    - signature
+    type: object
+  github_com_agentdns_agent-dns_internal_models.Verification:
+    properties:
+      issued:
+        type: string
+      issuer:
+        type: string
+      type:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: Agent DNS
+    url: https://github.com/agentdns/agent-dns
+  description: Decentralized Agent Registry Network — register, discover, and resolve
+    AI agents across a federated mesh.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  title: Agent DNS Registry API
+  version: 0.2.0
+paths:
+  /health:
+    get:
+      description: Returns OK if the registry node is running.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Health status
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - Health
+  /v1/agents:
+    post:
+      consumes:
+      - application/json
+      description: Register a new AI agent on the registry network. Requires name,
+        agent_url, category, and public_key.
+      parameters:
+      - description: Agent registration payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.RegistrationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: agent_id and success message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid signature
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Agent already registered
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new agent
+      tags:
+      - Agents
+  /v1/agents/{agentID}:
+    delete:
+      description: Deregister an agent from the registry. Creates a tombstone that
+        propagates via gossip.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: agentID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Deregistration confirmation
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Missing agent_id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Agent not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete an agent
+      tags:
+      - Agents
+    get:
+      description: Retrieve a registry record for a specific agent by its agent_id.
+      parameters:
+      - description: Agent ID (e.g. agdns:7f3a9c2e...)
+        in: path
+        name: agentID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Agent registry record
+          schema:
+            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.RegistryRecord'
+        "400":
+          description: Missing agent_id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Agent not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get agent by ID
+      tags:
+      - Agents
+    put:
+      consumes:
+      - application/json
+      description: Update fields on an existing agent registry record. Only provided
+        fields are changed.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: agentID
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated agent record
+          schema:
+            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.RegistryRecord'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Agent not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update an agent
+      tags:
+      - Agents
+  /v1/agents/{agentID}/card:
+    get:
+      description: Fetch the live Agent Card from the agent's endpoint. The card contains
+        capabilities, pricing, status, and more.
+      parameters:
+      - description: Agent ID
+        in: path
+        name: agentID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Agent card
+          schema:
+            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.AgentCard'
+        "400":
+          description: Missing agent_id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Agent not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Failed to fetch agent card from remote
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get agent card
+      tags:
+      - Agents
+  /v1/categories:
+    get:
+      description: Get all agent categories currently registered in the system.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of categories
+          schema:
+            additionalProperties:
+              items:
+                type: string
+              type: array
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List categories
+      tags:
+      - Search
+  /v1/network/peers:
+    get:
+      description: Returns a list of all connected peer registries in the mesh network.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Connected peers
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.PeerInfo'
+              type: array
+            type: object
+      summary: List peers
+      tags:
+      - Network
+    post:
+      consumes:
+      - application/json
+      description: Manually add a peer registry node to the mesh network. Requires
+        at minimum the peer's address.
+      parameters:
+      - description: Peer information
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.PeerInfo'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Peer added confirmation
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request or missing address
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Add a peer
+      tags:
+      - Network
+  /v1/network/stats:
+    get:
+      description: Returns estimated global network statistics including registry
+        and agent counts.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Network statistics
+          schema:
+            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.NetworkStats'
+      summary: Get network stats
+      tags:
+      - Network
+  /v1/network/status:
+    get:
+      description: Returns the current registry node's identity, uptime, peer count,
+        and agent statistics.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Node status
+          schema:
+            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.NetworkStatus'
+      summary: Get node status
+      tags:
+      - Network
+  /v1/search:
+    post:
+      consumes:
+      - application/json
+      description: Search the registry for agents by natural language query, with
+        optional category/tag/trust filters.
+      parameters:
+      - description: Search query and filters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.SearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Search results
+          schema:
+            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.SearchResponse'
+        "400":
+          description: Invalid request or missing query
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Search failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Search for agents
+      tags:
+      - Search
+  /v1/tags:
+    get:
+      description: Get all agent tags currently in use across registered agents.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of tags
+          schema:
+            additionalProperties:
+              items:
+                type: string
+              type: array
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List tags
+      tags:
+      - Search
+schemes:
+- http
+swagger: "2.0"

@@ -1,4 +1,18 @@
 // Package main provides the CLI entry point for Agent DNS.
+//
+//	@title			Agent DNS Registry API
+//	@version		0.2.0
+//	@description	Decentralized Agent Registry Network — register, discover, and resolve AI agents across a federated mesh.
+//
+//	@contact.name	Agent DNS
+//	@contact.url	https://github.com/agentdns/agent-dns
+//
+//	@license.name	MIT
+//	@license.url	https://opensource.org/licenses/MIT
+//
+//	@host		localhost:8080
+//	@BasePath	/
+//	@schemes	http
 package main
 
 import (
@@ -13,6 +27,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	_ "github.com/agentdns/agent-dns/docs" // swagger generated docs
 
 	"github.com/agentdns/agent-dns/internal/api"
 	agcache "github.com/agentdns/agent-dns/internal/cache"

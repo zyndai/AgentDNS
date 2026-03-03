@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	httpSwagger "github.com/swaggo/http-swagger/v2"
+
 	"github.com/agentdns/agent-dns/internal/card"
 	"github.com/agentdns/agent-dns/internal/config"
 	"github.com/agentdns/agent-dns/internal/identity"
@@ -83,6 +85,11 @@ func (s *Server) Start() error {
 	// Health check
 	mux.HandleFunc("GET /health", s.handleHealth)
 
+	// Swagger UI
+	mux.Handle("GET /swagger/", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+	))
+
 	// Apply middleware
 	var handler http.Handler = mux
 	handler = CORSMiddleware(s.cfg.API.CORSOrigins)(handler)
@@ -114,6 +121,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // --- Agent Handlers ---
 
+// handleRegisterAgent registers a new agent on the registry.
+//
+//	@Summary		Register a new agent
+//	@Description	Register a new AI agent on the registry network. Requires name, agent_url, category, and public_key.
+//	@Tags			Agents
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		models.RegistrationRequest	true	"Agent registration payload"
+//	@Success		201		{object}	map[string]string			"agent_id and success message"
+//	@Failure		400		{object}	map[string]string			"Validation error"
+//	@Failure		401		{object}	map[string]string			"Invalid signature"
+//	@Failure		409		{object}	map[string]string			"Agent already registered"
+//	@Failure		500		{object}	map[string]string			"Internal server error"
+//	@Router			/v1/agents [post]
 func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	var req models.RegistrationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -205,6 +226,18 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleGetAgent retrieves a single agent by ID.
+//
+//	@Summary		Get agent by ID
+//	@Description	Retrieve a registry record for a specific agent by its agent_id.
+//	@Tags			Agents
+//	@Produce		json
+//	@Param			agentID	path		string					true	"Agent ID (e.g. agdns:7f3a9c2e...)"
+//	@Success		200		{object}	models.RegistryRecord	"Agent registry record"
+//	@Failure		400		{object}	map[string]string		"Missing agent_id"
+//	@Failure		404		{object}	map[string]string		"Agent not found"
+//	@Failure		500		{object}	map[string]string		"Internal server error"
+//	@Router			/v1/agents/{agentID} [get]
 func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("agentID")
 	if agentID == "" {
@@ -225,6 +258,20 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, agent)
 }
 
+// handleUpdateAgent updates an existing agent's registry record.
+//
+//	@Summary		Update an agent
+//	@Description	Update fields on an existing agent registry record. Only provided fields are changed.
+//	@Tags			Agents
+//	@Accept			json
+//	@Produce		json
+//	@Param			agentID	path		string					true	"Agent ID"
+//	@Param			body	body		models.UpdateRequest	true	"Fields to update"
+//	@Success		200		{object}	models.RegistryRecord	"Updated agent record"
+//	@Failure		400		{object}	map[string]string		"Invalid request body"
+//	@Failure		404		{object}	map[string]string		"Agent not found"
+//	@Failure		500		{object}	map[string]string		"Internal server error"
+//	@Router			/v1/agents/{agentID} [put]
 func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("agentID")
 	if agentID == "" {
@@ -283,6 +330,18 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, existing)
 }
 
+// handleDeleteAgent deregisters an agent from the registry.
+//
+//	@Summary		Delete an agent
+//	@Description	Deregister an agent from the registry. Creates a tombstone that propagates via gossip.
+//	@Tags			Agents
+//	@Produce		json
+//	@Param			agentID	path		string			true	"Agent ID"
+//	@Success		200		{object}	map[string]string	"Deregistration confirmation"
+//	@Failure		400		{object}	map[string]string	"Missing agent_id"
+//	@Failure		404		{object}	map[string]string	"Agent not found"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/v1/agents/{agentID} [delete]
 func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("agentID")
 	if agentID == "" {
@@ -324,6 +383,18 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "agent deregistered"})
 }
 
+// handleGetAgentCard fetches an agent's dynamic Agent Card.
+//
+//	@Summary		Get agent card
+//	@Description	Fetch the live Agent Card from the agent's endpoint. The card contains capabilities, pricing, status, and more.
+//	@Tags			Agents
+//	@Produce		json
+//	@Param			agentID	path		string				true	"Agent ID"
+//	@Success		200		{object}	models.AgentCard	"Agent card"
+//	@Failure		400		{object}	map[string]string	"Missing agent_id"
+//	@Failure		404		{object}	map[string]string	"Agent not found"
+//	@Failure		502		{object}	map[string]string	"Failed to fetch agent card from remote"
+//	@Router			/v1/agents/{agentID}/card [get]
 func (s *Server) handleGetAgentCard(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("agentID")
 	if agentID == "" {
@@ -348,6 +419,18 @@ func (s *Server) handleGetAgentCard(w http.ResponseWriter, r *http.Request) {
 
 // --- Search Handlers ---
 
+// handleSearch performs a ranked search across local and gossip indexes.
+//
+//	@Summary		Search for agents
+//	@Description	Search the registry for agents by natural language query, with optional category/tag/trust filters.
+//	@Tags			Search
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		models.SearchRequest	true	"Search query and filters"
+//	@Success		200		{object}	models.SearchResponse	"Search results"
+//	@Failure		400		{object}	map[string]string		"Invalid request or missing query"
+//	@Failure		500		{object}	map[string]string		"Search failed"
+//	@Router			/v1/search [post]
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	var req models.SearchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -369,6 +452,15 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// handleGetCategories returns all known agent categories.
+//
+//	@Summary		List categories
+//	@Description	Get all agent categories currently registered in the system.
+//	@Tags			Search
+//	@Produce		json
+//	@Success		200	{object}	map[string][]string	"List of categories"
+//	@Failure		500	{object}	map[string]string	"Internal server error"
+//	@Router			/v1/categories [get]
 func (s *Server) handleGetCategories(w http.ResponseWriter, r *http.Request) {
 	categories, err := s.store.GetAllCategories()
 	if err != nil {
@@ -381,6 +473,15 @@ func (s *Server) handleGetCategories(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]string{"categories": categories})
 }
 
+// handleGetTags returns all known agent tags.
+//
+//	@Summary		List tags
+//	@Description	Get all agent tags currently in use across registered agents.
+//	@Tags			Search
+//	@Produce		json
+//	@Success		200	{object}	map[string][]string	"List of tags"
+//	@Failure		500	{object}	map[string]string	"Internal server error"
+//	@Router			/v1/tags [get]
 func (s *Server) handleGetTags(w http.ResponseWriter, r *http.Request) {
 	tags, err := s.store.GetAllTags()
 	if err != nil {
@@ -395,6 +496,14 @@ func (s *Server) handleGetTags(w http.ResponseWriter, r *http.Request) {
 
 // --- Network Handlers ---
 
+// handleNetworkStatus returns the current node's status.
+//
+//	@Summary		Get node status
+//	@Description	Returns the current registry node's identity, uptime, peer count, and agent statistics.
+//	@Tags			Network
+//	@Produce		json
+//	@Success		200	{object}	models.NetworkStatus	"Node status"
+//	@Router			/v1/network/status [get]
 func (s *Server) handleNetworkStatus(w http.ResponseWriter, r *http.Request) {
 	agentCount, _ := s.store.CountAgents()
 	gossipCount, _ := s.store.CountGossipEntries()
@@ -414,6 +523,14 @@ func (s *Server) handleNetworkStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, status)
 }
 
+// handleGetPeers returns all connected mesh peers.
+//
+//	@Summary		List peers
+//	@Description	Returns a list of all connected peer registries in the mesh network.
+//	@Tags			Network
+//	@Produce		json
+//	@Success		200	{object}	map[string][]models.PeerInfo	"Connected peers"
+//	@Router			/v1/network/peers [get]
 func (s *Server) handleGetPeers(w http.ResponseWriter, r *http.Request) {
 	peers := s.peerManager.GetPeers()
 	if peers == nil {
@@ -422,6 +539,17 @@ func (s *Server) handleGetPeers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"peers": peers})
 }
 
+// handleAddPeer manually adds a peer to the mesh.
+//
+//	@Summary		Add a peer
+//	@Description	Manually add a peer registry node to the mesh network. Requires at minimum the peer's address.
+//	@Tags			Network
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		models.PeerInfo		true	"Peer information"
+//	@Success		201		{object}	map[string]string	"Peer added confirmation"
+//	@Failure		400		{object}	map[string]string	"Invalid request or missing address"
+//	@Router			/v1/network/peers [post]
 func (s *Server) handleAddPeer(w http.ResponseWriter, r *http.Request) {
 	var peer models.PeerInfo
 	if err := json.NewDecoder(r.Body).Decode(&peer); err != nil {
@@ -438,6 +566,14 @@ func (s *Server) handleAddPeer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]string{"message": "peer added"})
 }
 
+// handleNetworkStats returns estimated global network statistics.
+//
+//	@Summary		Get network stats
+//	@Description	Returns estimated global network statistics including registry and agent counts.
+//	@Tags			Network
+//	@Produce		json
+//	@Success		200	{object}	models.NetworkStats	"Network statistics"
+//	@Router			/v1/network/stats [get]
 func (s *Server) handleNetworkStats(w http.ResponseWriter, r *http.Request) {
 	agentCount, _ := s.store.CountAgents()
 	gossipCount, _ := s.store.CountGossipEntries()
@@ -449,6 +585,14 @@ func (s *Server) handleNetworkStats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, stats)
 }
 
+// handleHealth returns a simple health check.
+//
+//	@Summary		Health check
+//	@Description	Returns OK if the registry node is running.
+//	@Tags			Health
+//	@Produce		json
+//	@Success		200	{object}	map[string]string	"Health status"
+//	@Router			/health [get]
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
