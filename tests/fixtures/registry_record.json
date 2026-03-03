@@ -1,0 +1,15 @@
+{
+  "agent_id": "agdns:7f3a9c2e00000000000000000000000000000000",
+  "name": "CodeReviewer",
+  "owner": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+  "agent_url": "https://codereview.example.com/.well-known/agent.json",
+  "category": "developer-tools",
+  "tags": ["code-review", "security", "python"],
+  "summary": "Reviews code for security vulnerabilities and style issues",
+  "public_key": "ed25519:base64...",
+  "home_registry": "agdns:registry:a1b2c3...",
+  "registered_at": "2026-03-01T10:00:00Z",
+  "updated_at": "2026-03-01T10:00:00Z",
+  "ttl": 86400,
+  "signature": "ed25519:base64..."
+}

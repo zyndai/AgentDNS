@@ -1,0 +1,63 @@
+{
+  "agent_id": "agdns:7f3a9c2e00000000000000000000000000000000",
+  "version": "2.4.1",
+  "status": "online",
+  "last_heartbeat": "2026-03-02T15:30:00Z",
+  "capabilities": [
+    {
+      "name": "code-review",
+      "description": "Reviews pull requests for security vulnerabilities, style issues, and best practices",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "repo_url": { "type": "string" },
+          "pr_number": { "type": "integer" }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "issues": { "type": "array" },
+          "score": { "type": "number" }
+        }
+      },
+      "protocols": ["a2a", "mcp", "jsonrpc"],
+      "languages": ["python", "javascript", "rust", "go"],
+      "latency_p95_ms": 3000,
+      "examples": [
+        {
+          "input": "Review PR #42 on repo/xyz",
+          "output": "Found 3 security issues..."
+        }
+      ]
+    }
+  ],
+  "pricing": {
+    "model": "per-request",
+    "currency": "USD",
+    "rates": {
+      "code-review": 0.01
+    },
+    "payment_methods": ["x402", "stripe"]
+  },
+  "trust": {
+    "total_invocations": 154200,
+    "success_rate": 0.987,
+    "avg_rating": 4.7,
+    "uptime_30d": 0.998,
+    "verifications": []
+  },
+  "endpoints": {
+    "invoke": "https://codereview.example.com/v1/invoke",
+    "health": "https://codereview.example.com/health",
+    "websocket": "wss://codereview.example.com/ws"
+  },
+  "metadata": {
+    "framework": "langchain",
+    "model": "claude-3.5-sonnet",
+    "owner_contact": "ops@example.com",
+    "documentation": "https://docs.example.com/codereview"
+  },
+  "signature": "",
+  "signed_at": "2026-03-02T15:30:00Z"
+}
