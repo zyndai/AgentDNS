@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -21,6 +21,8 @@ RUN apk add --no-cache ca-certificates wget
 WORKDIR /app
 
 COPY --from=builder /agentdns /usr/local/bin/agentdns
+COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Create data directory
 RUN mkdir -p /data /config
@@ -33,5 +35,5 @@ EXPOSE 8080 4001
 
 VOLUME ["/data", "/config"]
 
-ENTRYPOINT ["agentdns"]
-CMD ["start", "--config", "/config/config.toml"]
+ENTRYPOINT ["entrypoint.sh"]
+CMD ["agentdns", "start", "--config", "/config/config.toml"]
