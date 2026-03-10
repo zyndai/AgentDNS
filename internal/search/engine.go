@@ -12,15 +12,21 @@ import (
 	"github.com/agentdns/agent-dns/internal/store"
 )
 
-// Engine orchestrates search across local store, gossip index, and (future) federated peers.
+// FederatedSearcher is implemented by the mesh layer to handle federated search.
+type FederatedSearcher interface {
+	Search(req *models.SearchRequest) ([]models.SearchResult, int, int)
+}
+
+// Engine orchestrates search across local store, gossip index, and federated peers.
 type Engine struct {
-	store    store.Store
-	keyword  *KeywordIndex
-	semantic *SemanticIndex
-	embedder Embedder
-	ranker   *ranking.Ranker
-	fetcher  *card.Fetcher
-	cfg      config.SearchConfig
+	store     store.Store
+	keyword   *KeywordIndex
+	semantic  *SemanticIndex
+	embedder  Embedder
+	ranker    *ranking.Ranker
+	fetcher   *card.Fetcher
+	cfg       config.SearchConfig
+	federated FederatedSearcher
 }
 
 // NewEngine creates a new search engine.
@@ -40,6 +46,11 @@ func NewEngine(
 		fetcher:  fetcher,
 		cfg:      cfg,
 	}
+}
+
+// SetFederatedSearcher registers the federated search handler from the mesh layer.
+func (e *Engine) SetFederatedSearcher(fs FederatedSearcher) {
+	e.federated = fs
 }
 
 // IndexAgent adds an agent to the keyword and semantic indexes.
@@ -113,10 +124,33 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 
 	wg.Wait()
 
-	// Step 3: Federated search (placeholder for Phase 2+)
+	// Step 3: Federated search
 	federatedCount := 0
 	peersQueried := 0
-	// TODO: Implement federated search fan-out in Phase 3
+	if req.Federated && e.federated != nil {
+		fedResults, peers, fedCount := e.federated.Search(req)
+		peersQueried = peers
+		federatedCount = fedCount
+		// Convert federated results to candidates
+		for _, r := range fedResults {
+			mu.Lock()
+			allCandidates = append(allCandidates, &ranking.CandidateResult{
+				AgentID:            r.AgentID,
+				Name:               r.Name,
+				Summary:            r.Summary,
+				Category:           r.Category,
+				Tags:               r.Tags,
+				AgentURL:           r.AgentURL,
+				HomeRegistry:       r.HomeRegistry,
+				TextRelevance:      0.0,
+				SemanticSimilarity: 0.0,
+				TrustScore:         0.3,
+				Availability:       0.7,
+				FinalScore:         r.Score, // preserve the remote score as a baseline
+			})
+			mu.Unlock()
+		}
+	}
 
 	// Step 4: Deduplicate and rank
 	allCandidates = ranking.Deduplicate(allCandidates)

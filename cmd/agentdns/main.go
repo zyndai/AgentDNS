@@ -248,6 +248,33 @@ func cmdStart() {
 		log.Printf("warning: failed to rebuild indexes: %v", err)
 	}
 
+	// Start mesh transport
+	transport := mesh.NewTransport(cfg.Mesh, cfg.Bloom, cfg.Node.Name, peerMgr, gossipHandler, kp, st)
+
+	// Wire federated search into the search engine
+	fedSearch := mesh.NewFederatedSearch(transport, peerMgr, cfg.Search)
+	engine.SetFederatedSearcher(fedSearch)
+
+	// Wire the transport's local search handler (for incoming federated queries)
+	transport.SetSearchHandler(engine.Search)
+
+	// Wire gossip broadcasting into the gossip handler
+	gossipHandler.SetBroadcastFunc(transport.Broadcast)
+
+	// Start mesh listener
+	if err := transport.Listen(); err != nil {
+		log.Fatalf("failed to start mesh listener: %v", err)
+	}
+
+	// Bootstrap connect to peers (in background)
+	go transport.BootstrapConnect()
+
+	// Start heartbeat loop (in background)
+	go transport.HeartbeatLoop()
+
+	// Start reconnect loop (in background)
+	go transport.ReconnectLoop()
+
 	// Start the API server
 	server := api.NewServer(cfg, st, engine, fetcher, peerMgr, gossipHandler, eigenTrust, kp)
 
@@ -261,6 +288,7 @@ func cmdStart() {
 	go func() {
 		<-sigCh
 		fmt.Println("\nShutting down...")
+		transport.Stop()
 		shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 10*time.Second)
 		defer shutdownCancel()
 		server.Shutdown(shutdownCtx)
@@ -271,11 +299,15 @@ func cmdStart() {
 	fmt.Printf("  Registry ID: %s\n", kp.RegistryID())
 	fmt.Printf("  Node name:   %s\n", cfg.Node.Name)
 	fmt.Printf("  API:         http://%s\n", cfg.API.Listen)
+	fmt.Printf("  Mesh:        0.0.0.0:%d\n", cfg.Mesh.ListenPort)
 	fmt.Printf("  Storage:     PostgreSQL\n")
 	if redisCache != nil {
 		fmt.Printf("  Redis:       %s\n", cfg.Redis.URL)
 	} else {
 		fmt.Printf("  Redis:       disabled (in-process cache only)\n")
+	}
+	if len(cfg.Mesh.BootstrapPeers) > 0 {
+		fmt.Printf("  Bootstrap:   %v\n", cfg.Mesh.BootstrapPeers)
 	}
 	fmt.Println()
 

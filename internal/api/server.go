@@ -216,9 +216,9 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	// Index in search engine
 	s.searchEngine.IndexAgent(record)
 
-	// Gossip the announcement
+	// Gossip the announcement to mesh peers
 	ann := s.gossip.CreateAnnouncement(record, "register", s.nodeIdentity.RegistryID(), s.nodeIdentity.Sign)
-	_ = ann // TODO: broadcast to peers in Phase 2
+	s.gossip.BroadcastAnnouncement(ann)
 
 	writeJSON(w, http.StatusCreated, map[string]string{
 		"agent_id": agentID,
@@ -323,9 +323,9 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	// Re-index
 	s.searchEngine.IndexAgent(existing)
 
-	// Gossip the update
+	// Gossip the update to mesh peers
 	ann := s.gossip.CreateAnnouncement(existing, "update", s.nodeIdentity.RegistryID(), s.nodeIdentity.Sign)
-	_ = ann
+	s.gossip.BroadcastAnnouncement(ann)
 
 	writeJSON(w, http.StatusOK, existing)
 }
@@ -376,9 +376,9 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	s.store.CreateTombstone(tombstone)
 
-	// Gossip the tombstone
+	// Gossip the tombstone to mesh peers
 	ann := s.gossip.CreateAnnouncement(agent, "deregister", s.nodeIdentity.RegistryID(), s.nodeIdentity.Sign)
-	_ = ann
+	s.gossip.BroadcastAnnouncement(ann)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "agent deregistered"})
 }

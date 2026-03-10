@@ -13,11 +13,12 @@ import (
 
 // GossipHandler processes incoming and outgoing gossip announcements.
 type GossipHandler struct {
-	mu         sync.RWMutex
-	store      store.Store
-	cfg        config.GossipConfig
-	seen       map[string]time.Time             // dedup: agent_id+timestamp -> received_at
-	onAnnounce func(*models.GossipAnnouncement) // callback for indexing
+	mu          sync.RWMutex
+	store       store.Store
+	cfg         config.GossipConfig
+	seen        map[string]time.Time             // dedup: agent_id+timestamp -> received_at
+	onAnnounce  func(*models.GossipAnnouncement) // callback for indexing
+	onBroadcast func(*models.GossipAnnouncement) // callback to broadcast to peers
 }
 
 // NewGossipHandler creates a new gossip protocol handler.
@@ -40,6 +41,33 @@ func (gh *GossipHandler) SetAnnounceCallback(fn func(*models.GossipAnnouncement)
 	gh.mu.Lock()
 	gh.onAnnounce = fn
 	gh.mu.Unlock()
+}
+
+// SetBroadcastFunc registers the function used to broadcast announcements
+// to connected mesh peers. This is typically Transport.Broadcast.
+func (gh *GossipHandler) SetBroadcastFunc(fn func(*models.GossipAnnouncement)) {
+	gh.mu.Lock()
+	gh.onBroadcast = fn
+	gh.mu.Unlock()
+}
+
+// BroadcastAnnouncement sends a locally-created announcement to all mesh peers.
+// Call this after creating an announcement via CreateAnnouncement.
+func (gh *GossipHandler) BroadcastAnnouncement(ann *models.GossipAnnouncement) {
+	if ann == nil {
+		return
+	}
+
+	// Mark as seen locally to prevent processing our own announcement if echoed back
+	dedupKey := ann.AgentID + ":" + ann.Timestamp
+	gh.mu.Lock()
+	gh.seen[dedupKey] = time.Now()
+	broadcastFn := gh.onBroadcast
+	gh.mu.Unlock()
+
+	if broadcastFn != nil {
+		broadcastFn(ann)
+	}
 }
 
 // HandleAnnouncement processes an incoming gossip announcement.
