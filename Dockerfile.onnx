@@ -1,0 +1,82 @@
+# Multi-stage Dockerfile for Agent DNS with ONNX embedder support
+# This builds the tokenizers library from source and Agent DNS with CGO enabled
+
+# Stage 1: Build tokenizers library
+FROM rust:1.75-slim AS tokenizers-builder
+
+WORKDIR /build
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone and build tokenizers
+RUN git clone https://github.com/daulet/tokenizers.git . && \
+    cargo build --release
+
+# Stage 2: Build Agent DNS with CGO
+FROM golang:1.24 AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy tokenizers library from previous stage
+COPY --from=tokenizers-builder /build/target/release/libtokenizers.so /usr/local/lib/
+COPY --from=tokenizers-builder /build/bindings.h /usr/local/include/tokenizers.h
+
+# Update library cache
+RUN ldconfig
+
+# Copy dependency files first for caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build with CGO enabled for ONNX support
+RUN CGO_ENABLED=1 go build -o /agentdns -ldflags="-s -w" ./cmd/agentdns
+
+# Stage 3: Runtime
+FROM ubuntu:22.04
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    wget \
+    postgresql-client \
+    redis-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy tokenizers library
+COPY --from=tokenizers-builder /build/target/release/libtokenizers.so /usr/local/lib/
+RUN ldconfig
+
+# Copy Agent DNS binary
+COPY --from=builder /agentdns /usr/local/bin/agentdns
+COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Create directories
+RUN mkdir -p /data /config /data/models
+
+# Environment variables
+ENV AGENTDNS_DATA_DIR=/data
+ENV AGENTDNS_CONFIG=/config/config.toml
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+EXPOSE 8080 4001
+
+VOLUME ["/data", "/config"]
+
+ENTRYPOINT ["entrypoint.sh"]
+CMD ["agentdns", "start", "--config", "/config/config.toml"]

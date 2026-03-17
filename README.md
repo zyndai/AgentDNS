@@ -4,6 +4,31 @@ A decentralized registry and discovery network for AI agents. Like DNS maps doma
 
 Register agents with cryptographic identity, discover them via hybrid search, and resolve live Agent Cards -- all through a single Go binary backed by PostgreSQL and Redis.
 
+## 🚀 Quick Start
+
+```bash
+# 1. Clone and install
+git clone https://github.com/agentdns/agent-dns.git
+cd agent-dns
+./install.sh
+
+# 2. Initialize and start
+agentdns init
+agentdns start
+
+# 3. Register your first agent
+agentdns register \
+  --name "MyAgent" \
+  --agent-url "https://example.com/.well-known/agent.json" \
+  --category "tools" \
+  --summary "Does useful things"
+
+# 4. Search the network
+agentdns search "my query"
+```
+
+**That's it!** See [INSTALL.md](INSTALL.md) for detailed installation options.
+
 ## Architecture
 
 ```
@@ -59,33 +84,83 @@ Register agents with cryptographic identity, discover them via hybrid search, an
 
 ## Prerequisites
 
-- **Go 1.24+** (for building from source)
-- **PostgreSQL 16+**
-- **Redis 7+** (optional, for caching)
-- **Docker & Docker Compose** (for containerized deployment)
+### For Installation Script (Recommended)
+- **Go 1.24+** - [Download](https://go.dev/dl/)
+- **Git** - For cloning the repository
+- **sudo access** - For installing to /usr/local/bin
+
+### For ONNX Embedder (Optional, Recommended)
+- **Rust** - Installer can install this automatically
+- **C Compiler** - Usually pre-installed (gcc/clang)
+
+### For Running the Registry
+- **PostgreSQL 16+** - Database for agent records
+- **Redis 7+** - Optional, for caching
 
 ## Installation
 
-### From Source
+### Automated Installation (Recommended)
+
+The installation script detects your OS/architecture, installs dependencies, and builds Agent DNS with your choice of embedding backend.
 
 ```bash
 git clone https://github.com/agentdns/agent-dns.git
 cd agent-dns
 
-go build -o agentdns ./cmd/agentdns
+# Interactive installation (choose embedder and model)
+./install.sh
+
+# Quick install with recommended defaults (ONNX + bge-small-en-v1.5)
+./quick-install.sh
 ```
 
-For a production build with stripped symbols:
+**What the installer does:**
+- ✅ Detects OS (Linux/macOS/Windows) and architecture (amd64/arm64)
+- ✅ Checks Go installation (requires Go 1.24+)
+- ✅ Prompts for embedding backend (Hash/ONNX/HTTP)
+- ✅ Installs Rust and tokenizers library (for ONNX)
+- ✅ Builds and installs Agent DNS to `/usr/local/bin`
+- ✅ Creates default config at `~/.agentdns/config.toml`
+
+### Manual Installation
+
+#### Option 1: Without ONNX (Simple, No Dependencies)
 
 ```bash
 CGO_ENABLED=0 go build -o agentdns -ldflags="-s -w" ./cmd/agentdns
+sudo mv agentdns /usr/local/bin/
 ```
+
+#### Option 2: With ONNX (Requires Rust + Tokenizers)
+
+See [BUILD_GUIDE.md](BUILD_GUIDE.md) for detailed instructions.
 
 ### With Docker
 
+#### Hash Embedder (Fast, Simple)
 ```bash
 docker build -t agentdns .
+docker run -p 8080:8080 -p 4001:4001 agentdns
 ```
+
+#### ONNX Embedder (Best Quality)
+```bash
+docker build -f Dockerfile.onnx -t agentdns:onnx .
+docker run -p 8080:8080 -p 4001:4001 \
+  -e LD_LIBRARY_PATH=/usr/local/lib \
+  agentdns:onnx
+```
+
+#### 3-Node Cluster
+```bash
+# Hash embedder
+docker compose up -d
+
+# ONNX embedder
+docker compose -f docker-compose.onnx.yml up -d
+```
+
+See [DOCKER.md](DOCKER.md) for complete Docker deployment guide.
 
 ## Quick Start
 

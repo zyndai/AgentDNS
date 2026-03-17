@@ -36,6 +36,7 @@ type MeshConfig struct {
 	ListenPort     int      `toml:"listen_port"`
 	MaxPeers       int      `toml:"max_peers"`
 	BootstrapPeers []string `toml:"bootstrap_peers"`
+	TLSEnabled     bool     `toml:"tls_enabled"`
 }
 
 // GossipConfig tunes gossip behavior.
@@ -53,16 +54,29 @@ type RegistryConfig struct {
 
 // SearchConfig configures the search engine.
 type SearchConfig struct {
-	EmbeddingModel      string        `toml:"embedding_model"`
-	EmbeddingDimensions int           `toml:"embedding_dimensions"`
-	MaxFederatedPeers   int           `toml:"max_federated_peers"`
-	FederatedTimeoutMs  int           `toml:"federated_timeout_ms"`
-	DefaultMaxResults   int           `toml:"default_max_results"`
-	Ranking             RankingConfig `toml:"ranking"`
+	// EmbeddingBackend selects the embedder: "hash" (default), "onnx", "http",
+	// or any name registered via search.RegisterEmbedder.
+	EmbeddingBackend    string `toml:"embedding_backend"`
+	EmbeddingModel      string `toml:"embedding_model"`
+	EmbeddingDimensions int    `toml:"embedding_dimensions"`
+	// EmbeddingModelDir is the directory containing model.onnx + tokenizer.json (for "onnx" backend).
+	EmbeddingModelDir string `toml:"embedding_model_dir"`
+	// EmbeddingEndpoint is the HTTP URL for the embedding service (for "http" backend).
+	EmbeddingEndpoint string `toml:"embedding_endpoint"`
+	// UseImprovedKeyword enables advanced BM25 with field boosting, stemming, and synonyms.
+	UseImprovedKeyword bool          `toml:"use_improved_keyword"`
+	MaxFederatedPeers  int           `toml:"max_federated_peers"`
+	FederatedTimeoutMs int           `toml:"federated_timeout_ms"`
+	DefaultMaxResults  int           `toml:"default_max_results"`
+	Ranking            RankingConfig `toml:"ranking"`
 }
 
 // RankingConfig defines weights for the scoring algorithm.
 type RankingConfig struct {
+	// Method selects the ranking algorithm: "weighted" (default) or "rrf".
+	// "weighted" uses a linear combination of signals with the weights below.
+	// "rrf" uses Reciprocal Rank Fusion — no weight tuning needed, works well out of the box.
+	Method                   string  `toml:"method"`
 	TextRelevanceWeight      float64 `toml:"text_relevance_weight"`
 	SemanticSimilarityWeight float64 `toml:"semantic_similarity_weight"`
 	TrustWeight              float64 `toml:"trust_weight"`
@@ -124,6 +138,7 @@ func DefaultConfig() *Config {
 			ListenPort:     4001,
 			MaxPeers:       15,
 			BootstrapPeers: []string{},
+			TLSEnabled:     true,
 		},
 		Gossip: GossipConfig{
 			MaxHops:                   10,
@@ -135,12 +150,15 @@ func DefaultConfig() *Config {
 			MaxLocalAgents: 100000,
 		},
 		Search: SearchConfig{
+			EmbeddingBackend:    "hash",
 			EmbeddingModel:      "all-MiniLM-L6-v2",
 			EmbeddingDimensions: 384,
+			UseImprovedKeyword:  true,
 			MaxFederatedPeers:   10,
 			FederatedTimeoutMs:  1500,
 			DefaultMaxResults:   20,
 			Ranking: RankingConfig{
+				Method:                   "weighted",
 				TextRelevanceWeight:      0.30,
 				SemanticSimilarityWeight: 0.30,
 				TrustWeight:              0.20,

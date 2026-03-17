@@ -125,6 +125,9 @@ func (s *PostgresStore) migrate() error {
 		key   TEXT PRIMARY KEY,
 		value TEXT NOT NULL
 	);
+
+	-- Schema evolution: add schema_version column if not present
+	ALTER TABLE agents ADD COLUMN IF NOT EXISTS schema_version TEXT NOT NULL DEFAULT '1.0';
 	`
 
 	_, err := s.pool.Exec(context.Background(), schema)
@@ -145,13 +148,18 @@ func (s *PostgresStore) CreateAgent(agent *models.RegistryRecord) error {
 		return fmt.Errorf("failed to marshal tags: %w", err)
 	}
 
+	schemaVersion := agent.SchemaVersion
+	if schemaVersion == "" {
+		schemaVersion = models.CurrentSchemaVersion
+	}
+
 	_, err = s.pool.Exec(context.Background(), `
 		INSERT INTO agents (agent_id, name, owner, agent_url, category, tags, summary,
-			public_key, home_registry, registered_at, updated_at, ttl, signature)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
 		agent.AgentID, agent.Name, agent.Owner, agent.AgentURL, agent.Category,
 		string(tagsJSON), agent.Summary, agent.PublicKey, agent.HomeRegistry,
-		agent.RegisteredAt, agent.UpdatedAt, agent.TTL, agent.Signature,
+		schemaVersion, agent.RegisteredAt, agent.UpdatedAt, agent.TTL, agent.Signature,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert agent: %w", err)
@@ -162,7 +170,7 @@ func (s *PostgresStore) CreateAgent(agent *models.RegistryRecord) error {
 func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error) {
 	row := s.pool.QueryRow(context.Background(), `
 		SELECT agent_id, name, owner, agent_url, category, tags, summary,
-			public_key, home_registry, registered_at, updated_at, ttl, signature
+			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature
 		FROM agents WHERE agent_id = $1`, agentID)
 
 	agent := &models.RegistryRecord{}
@@ -171,7 +179,7 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	err := row.Scan(
 		&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
 		&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
-		&agent.HomeRegistry, &registeredAt, &updatedAt,
+		&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
 		&agent.TTL, &agent.Signature,
 	)
 	if err == pgx.ErrNoRows {
@@ -199,11 +207,11 @@ func (s *PostgresStore) UpdateAgent(agent *models.RegistryRecord) error {
 
 	ct, err := s.pool.Exec(context.Background(), `
 		UPDATE agents SET name=$1, agent_url=$2, category=$3, tags=$4, summary=$5,
-			updated_at=$6, ttl=$7, signature=$8
-		WHERE agent_id = $9 AND owner = $10`,
+			updated_at=$6, ttl=$7, signature=$8, schema_version=$9
+		WHERE agent_id = $10 AND owner = $11`,
 		agent.Name, agent.AgentURL, agent.Category, string(tagsJSON),
 		agent.Summary, agent.UpdatedAt, agent.TTL, agent.Signature,
-		agent.AgentID, agent.Owner,
+		agent.SchemaVersion, agent.AgentID, agent.Owner,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update agent: %w", err)
@@ -235,13 +243,13 @@ func (s *PostgresStore) ListAgents(category string, limit, offset int) ([]*model
 	if category != "" {
 		query = `
 			SELECT agent_id, name, owner, agent_url, category, tags, summary,
-				public_key, home_registry, registered_at, updated_at, ttl, signature
+				public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature
 			FROM agents WHERE category = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`
 		args = []interface{}{category, limit, offset}
 	} else {
 		query = `
 			SELECT agent_id, name, owner, agent_url, category, tags, summary,
-				public_key, home_registry, registered_at, updated_at, ttl, signature
+				public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature
 			FROM agents ORDER BY updated_at DESC LIMIT $1 OFFSET $2`
 		args = []interface{}{limit, offset}
 	}
@@ -260,7 +268,7 @@ func (s *PostgresStore) ListAgents(category string, limit, offset int) ([]*model
 		if err := rows.Scan(
 			&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
 			&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
-			&agent.HomeRegistry, &registeredAt, &updatedAt,
+			&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
 			&agent.TTL, &agent.Signature,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan agent: %w", err)
@@ -286,7 +294,7 @@ func (s *PostgresStore) SearchAgentsByKeyword(query string, category string, tag
 
 	baseQuery := `
 		SELECT agent_id, name, owner, agent_url, category, tags, summary,
-			public_key, home_registry, registered_at, updated_at, ttl, signature
+			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature
 		FROM agents
 		WHERE (LOWER(name) LIKE $1 OR LOWER(summary) LIKE $1 OR tags::text ILIKE $1)`
 
@@ -324,7 +332,7 @@ func (s *PostgresStore) SearchAgentsByKeyword(query string, category string, tag
 		if err := rows.Scan(
 			&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
 			&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
-			&agent.HomeRegistry, &registeredAt, &updatedAt,
+			&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
 			&agent.TTL, &agent.Signature,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan agent: %w", err)

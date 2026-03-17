@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -64,15 +66,19 @@ func NewServer(
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
 
+	// Rate limiters for endpoint groups
+	searchRL := NewRateLimiter(s.cfg.API.RateLimitSearch)
+	registerRL := NewRateLimiter(s.cfg.API.RateLimitRegister)
+
 	// Agent management
-	mux.HandleFunc("POST /v1/agents", s.handleRegisterAgent)
+	mux.HandleFunc("POST /v1/agents", rateLimited(registerRL, s.handleRegisterAgent))
 	mux.HandleFunc("GET /v1/agents/{agentID}", s.handleGetAgent)
 	mux.HandleFunc("PUT /v1/agents/{agentID}", s.handleUpdateAgent)
 	mux.HandleFunc("DELETE /v1/agents/{agentID}", s.handleDeleteAgent)
 	mux.HandleFunc("GET /v1/agents/{agentID}/card", s.handleGetAgentCard)
 
 	// Search
-	mux.HandleFunc("POST /v1/search", s.handleSearch)
+	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))
 	mux.HandleFunc("GET /v1/categories", s.handleGetCategories)
 	mux.HandleFunc("GET /v1/tags", s.handleGetTags)
 
@@ -93,13 +99,6 @@ func (s *Server) Start() error {
 	// Apply middleware
 	var handler http.Handler = mux
 	handler = CORSMiddleware(s.cfg.API.CORSOrigins)(handler)
-
-	// Different rate limiters for different endpoint groups
-	searchRL := NewRateLimiter(s.cfg.API.RateLimitSearch)
-	registerRL := NewRateLimiter(s.cfg.API.RateLimitRegister)
-	_ = searchRL
-	_ = registerRL
-
 	handler = LoggingMiddleware(handler)
 
 	s.httpServer = &http.Server{
@@ -179,19 +178,20 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 
 	now := models.NowRFC3339()
 	record := &models.RegistryRecord{
-		AgentID:      agentID,
-		Name:         req.Name,
-		Owner:        "did:key:" + pubKeyStr[:20],
-		AgentURL:     req.AgentURL,
-		Category:     req.Category,
-		Tags:         req.Tags,
-		Summary:      req.Summary,
-		PublicKey:    req.PublicKey,
-		HomeRegistry: s.nodeIdentity.RegistryID(),
-		RegisteredAt: now,
-		UpdatedAt:    now,
-		TTL:          86400,
-		Signature:    req.Signature,
+		AgentID:       agentID,
+		Name:          req.Name,
+		Owner:         "did:key:" + pubKeyStr[:20],
+		AgentURL:      req.AgentURL,
+		Category:      req.Category,
+		Tags:          req.Tags,
+		Summary:       req.Summary,
+		PublicKey:     req.PublicKey,
+		HomeRegistry:  s.nodeIdentity.RegistryID(),
+		SchemaVersion: models.CurrentSchemaVersion,
+		RegisteredAt:  now,
+		UpdatedAt:     now,
+		TTL:           86400,
+		Signature:     req.Signature,
 	}
 
 	if record.Tags == nil {
@@ -217,7 +217,7 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	s.searchEngine.IndexAgent(record)
 
 	// Gossip the announcement to mesh peers
-	ann := s.gossip.CreateAnnouncement(record, "register", s.nodeIdentity.RegistryID(), s.nodeIdentity.Sign)
+	ann := s.gossip.CreateAnnouncement(record, "register", s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
 	s.gossip.BroadcastAnnouncement(ann)
 
 	writeJSON(w, http.StatusCreated, map[string]string{
@@ -290,8 +290,21 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Read body for signature verification and decoding
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "failed to read request body")
+		return
+	}
+
+	// Verify ownership signature
+	if err := verifyOwnership(existing.PublicKey, bodyBytes, r.Header.Get("Authorization")); err != nil {
+		writeError(w, http.StatusUnauthorized, "ownership verification failed: "+err.Error())
+		return
+	}
+
 	var req models.UpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -324,7 +337,7 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	s.searchEngine.IndexAgent(existing)
 
 	// Gossip the update to mesh peers
-	ann := s.gossip.CreateAnnouncement(existing, "update", s.nodeIdentity.RegistryID(), s.nodeIdentity.Sign)
+	ann := s.gossip.CreateAnnouncement(existing, "update", s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
 	s.gossip.BroadcastAnnouncement(ann)
 
 	writeJSON(w, http.StatusOK, existing)
@@ -356,7 +369,11 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: verify ownership signature from Authorization header
+	// Verify ownership signature
+	if err := verifyOwnership(agent.PublicKey, []byte(agentID), r.Header.Get("Authorization")); err != nil {
+		writeError(w, http.StatusUnauthorized, "ownership verification failed: "+err.Error())
+		return
+	}
 
 	if err := s.store.DeleteAgent(agentID, agent.Owner); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete agent: "+err.Error())
@@ -377,7 +394,7 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	s.store.CreateTombstone(tombstone)
 
 	// Gossip the tombstone to mesh peers
-	ann := s.gossip.CreateAnnouncement(agent, "deregister", s.nodeIdentity.RegistryID(), s.nodeIdentity.Sign)
+	ann := s.gossip.CreateAnnouncement(agent, "deregister", s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
 	s.gossip.BroadcastAnnouncement(ann)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "agent deregistered"})
@@ -612,4 +629,42 @@ func writeError(w http.ResponseWriter, status int, message string) {
 func hashString(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
+}
+
+// verifyOwnership checks that the Authorization header contains a valid
+// signature over data, signed by the private key matching publicKey.
+func verifyOwnership(publicKey string, data []byte, authHeader string) error {
+	if authHeader == "" {
+		return fmt.Errorf("missing Authorization header")
+	}
+	signature := strings.TrimPrefix(authHeader, "Bearer ")
+	if signature == authHeader {
+		return fmt.Errorf("Authorization header must use Bearer scheme")
+	}
+
+	pubKey := publicKey
+	if strings.HasPrefix(pubKey, "ed25519:") {
+		pubKey = pubKey[8:]
+	}
+
+	valid, err := identity.Verify(pubKey, data, signature)
+	if err != nil {
+		return fmt.Errorf("signature verification failed: %w", err)
+	}
+	if !valid {
+		return fmt.Errorf("invalid ownership signature")
+	}
+	return nil
+}
+
+// rateLimited wraps an http.HandlerFunc with per-IP rate limiting.
+func rateLimited(rl *RateLimiter, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip := extractIP(r)
+		if !rl.Allow(ip) {
+			writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
+			return
+		}
+		next(w, r)
+	}
 }

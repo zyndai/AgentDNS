@@ -4,11 +4,15 @@ package identity
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/agentdns/agent-dns/internal/models"
 )
@@ -123,4 +127,41 @@ func (kp *Keypair) RegistryID() string {
 // PublicKeyString returns the public key in "ed25519:<base64>" format.
 func (kp *Keypair) PublicKeyString() string {
 	return "ed25519:" + kp.PublicKeyB64
+}
+
+// GenerateTLSConfig creates a TLS configuration using a self-signed certificate
+// derived from this Ed25519 keypair. The certificate is used for mutual TLS
+// between mesh peers; identity is verified at the application layer via HELLO.
+func (kp *Keypair) GenerateTLSConfig() (*tls.Config, error) {
+	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate serial number: %w", err)
+	}
+
+	template := &x509.Certificate{
+		SerialNumber: serialNumber,
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, kp.PublicKey, kp.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create certificate: %w", err)
+	}
+
+	cert := tls.Certificate{
+		Certificate: [][]byte{certDER},
+		PrivateKey:  kp.PrivateKey,
+	}
+
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientAuth:   tls.RequireAnyClientCert,
+		// Identity is verified at the application layer via HELLO handshake,
+		// not via the certificate chain.
+		InsecureSkipVerify: true,
+		MinVersion:         tls.VersionTLS13,
+	}, nil
 }

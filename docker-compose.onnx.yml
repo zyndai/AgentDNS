@@ -1,0 +1,123 @@
+version: "3.8"
+
+# Agent DNS with ONNX Embedder Support
+# This compose file uses Dockerfile.onnx which includes tokenizers library
+
+services:
+  # PostgreSQL for durable storage
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: agentdns
+      POSTGRES_PASSWORD: agentdns
+      POSTGRES_DB: agentdns
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentdns"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Registry Node A (primary seed node) with ONNX
+  registry-a:
+    build:
+      context: .
+      dockerfile: Dockerfile.onnx
+    ports:
+      - "8080:8080"
+      - "4001:4001"
+    volumes:
+      - registry-a-data:/data
+      - ./config/node-a-onnx.toml:/config/config.toml:ro
+    environment:
+      - AGENTDNS_NODE_NAME=registry-a
+      - LD_LIBRARY_PATH=/usr/local/lib
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Registry Node B with ONNX
+  registry-b:
+    build:
+      context: .
+      dockerfile: Dockerfile.onnx
+    ports:
+      - "8081:8080"
+      - "4002:4001"
+    volumes:
+      - registry-b-data:/data
+      - ./config/node-b-onnx.toml:/config/config.toml:ro
+    environment:
+      - AGENTDNS_NODE_NAME=registry-b
+      - LD_LIBRARY_PATH=/usr/local/lib
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      registry-a:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Registry Node C with ONNX
+  registry-c:
+    build:
+      context: .
+      dockerfile: Dockerfile.onnx
+    ports:
+      - "8082:8080"
+      - "4003:4001"
+    volumes:
+      - registry-c-data:/data
+      - ./config/node-c-onnx.toml:/config/config.toml:ro
+    environment:
+      - AGENTDNS_NODE_NAME=registry-c
+      - LD_LIBRARY_PATH=/usr/local/lib
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      registry-a:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres-data:
+  redis-data:
+  registry-a-data:
+  registry-b-data:
+  registry-c-data:

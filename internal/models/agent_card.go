@@ -5,6 +5,7 @@ package models
 // Size: 2-10KB. Updated freely by the agent without touching the registry.
 type AgentCard struct {
 	AgentID       string       `json:"agent_id"`
+	SchemaVersion string       `json:"schema_version"`
 	Version       string       `json:"version"`
 	Status        string       `json:"status"` // online, offline, degraded, maintenance
 	LastHeartbeat string       `json:"last_heartbeat"`

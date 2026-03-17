@@ -19,32 +19,51 @@ type FederatedSearcher interface {
 
 // Engine orchestrates search across local store, gossip index, and federated peers.
 type Engine struct {
-	store     store.Store
-	keyword   *KeywordIndex
-	semantic  *SemanticIndex
-	embedder  Embedder
-	ranker    *ranking.Ranker
-	fetcher   *card.Fetcher
-	cfg       config.SearchConfig
-	federated FederatedSearcher
+	store           store.Store
+	keyword         *KeywordIndex
+	improvedKeyword *ImprovedKeywordIndex
+	semantic        *SemanticIndex
+	embedder        Embedder
+	ranker          *ranking.Ranker
+	fetcher         *card.Fetcher
+	cfg             config.SearchConfig
+	federated       FederatedSearcher
+	useImprovedKW   bool
 }
 
 // NewEngine creates a new search engine.
+// embedder is the embedding backend to use; build one with NewEmbedderFromConfig
+// and pass it here so the embedder lifecycle is managed by the caller.
 func NewEngine(
 	st store.Store,
 	fetcher *card.Fetcher,
 	cfg config.SearchConfig,
+	embedder Embedder,
 ) *Engine {
-	embedder := NewHashEmbedder(cfg.EmbeddingDimensions)
+	if embedder == nil {
+		embedder = NewHashEmbedder(cfg.EmbeddingDimensions)
+	}
+
+	var keyword *KeywordIndex
+	var improvedKeyword *ImprovedKeywordIndex
+	useImproved := cfg.UseImprovedKeyword
+
+	if useImproved {
+		improvedKeyword = NewImprovedKeywordIndex()
+	} else {
+		keyword = NewKeywordIndex()
+	}
 
 	return &Engine{
-		store:    st,
-		keyword:  NewKeywordIndex(),
-		semantic: NewSemanticIndex(cfg.EmbeddingDimensions),
-		embedder: embedder,
-		ranker:   ranking.NewRanker(cfg.Ranking),
-		fetcher:  fetcher,
-		cfg:      cfg,
+		store:           st,
+		keyword:         keyword,
+		improvedKeyword: improvedKeyword,
+		semantic:        NewSemanticIndex(embedder.Dimensions()),
+		embedder:        embedder,
+		ranker:          ranking.NewRanker(cfg.Ranking),
+		fetcher:         fetcher,
+		cfg:             cfg,
+		useImprovedKW:   useImproved,
 	}
 }
 
@@ -56,7 +75,11 @@ func (e *Engine) SetFederatedSearcher(fs FederatedSearcher) {
 // IndexAgent adds an agent to the keyword and semantic indexes.
 func (e *Engine) IndexAgent(agent *models.RegistryRecord) {
 	// Index in keyword search
-	e.keyword.IndexDocument(agent.AgentID, agent.Name, agent.Summary, agent.Category, agent.Tags)
+	if e.useImprovedKW {
+		e.improvedKeyword.IndexDocument(agent.AgentID, agent.Name, agent.Summary, agent.Category, agent.Tags)
+	} else {
+		e.keyword.IndexDocument(agent.AgentID, agent.Name, agent.Summary, agent.Category, agent.Tags)
+	}
 
 	// Index in semantic search
 	text := agent.Name + " " + agent.Summary + " " + strings.Join(agent.Tags, " ")
@@ -66,7 +89,11 @@ func (e *Engine) IndexAgent(agent *models.RegistryRecord) {
 
 // IndexGossipEntry adds a gossip entry to the search indexes.
 func (e *Engine) IndexGossipEntry(entry *models.GossipEntry) {
-	e.keyword.IndexDocument(entry.AgentID, entry.Name, entry.Summary, entry.Category, entry.Tags)
+	if e.useImprovedKW {
+		e.improvedKeyword.IndexDocument(entry.AgentID, entry.Name, entry.Summary, entry.Category, entry.Tags)
+	} else {
+		e.keyword.IndexDocument(entry.AgentID, entry.Name, entry.Summary, entry.Category, entry.Tags)
+	}
 
 	text := entry.Name + " " + entry.Summary + " " + strings.Join(entry.Tags, " ")
 	vec := e.embedder.Embed(text)
@@ -75,7 +102,11 @@ func (e *Engine) IndexGossipEntry(entry *models.GossipEntry) {
 
 // RemoveAgent removes an agent from all indexes.
 func (e *Engine) RemoveAgent(agentID string) {
-	e.keyword.RemoveDocument(agentID)
+	if e.useImprovedKW {
+		e.improvedKeyword.RemoveDocument(agentID)
+	} else {
+		e.keyword.RemoveDocument(agentID)
+	}
 	e.semantic.Remove(agentID)
 }
 
@@ -154,7 +185,21 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 
 	// Step 4: Deduplicate and rank
 	allCandidates = ranking.Deduplicate(allCandidates)
-	allCandidates = e.ranker.RankWeighted(allCandidates)
+	allCandidates = e.ranker.Rank(allCandidates)
+
+	totalFound := localCount + gossipCount + federatedCount
+
+	// Apply offset for pagination
+	if req.Offset > 0 {
+		if req.Offset >= len(allCandidates) {
+			allCandidates = nil
+		} else {
+			allCandidates = allCandidates[req.Offset:]
+		}
+	}
+
+	// Check if there are more results beyond this page
+	hasMore := len(allCandidates) > maxResults
 
 	// Trim to max results
 	if len(allCandidates) > maxResults {
@@ -174,7 +219,9 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 	latencyMs := int(time.Since(startTime).Milliseconds())
 	return &models.SearchResponse{
 		Results:    ranking.ToSearchResults(allCandidates),
-		TotalFound: localCount + gossipCount + federatedCount,
+		TotalFound: totalFound,
+		Offset:     req.Offset,
+		HasMore:    hasMore,
 		SearchStats: &models.SearchStats{
 			LocalResults:     localCount,
 			GossipResults:    gossipCount,
@@ -188,7 +235,12 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 // searchLocal searches local agents using both keyword and semantic search.
 func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.CandidateResult {
 	// Keyword search
-	keywordResults := e.keyword.Search(req.Query, limit)
+	var keywordResults []KeywordResult
+	if e.useImprovedKW {
+		keywordResults = e.improvedKeyword.Search(req.Query, limit)
+	} else {
+		keywordResults = e.keyword.Search(req.Query, limit)
+	}
 
 	// Semantic search
 	queryVec := e.embedder.Embed(req.Query)
@@ -295,7 +347,12 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 	var candidates []*ranking.CandidateResult
 	for _, entry := range entries {
 		// Get keyword score from the index
-		keywordResults := e.keyword.Search(req.Query, 1)
+		var keywordResults []KeywordResult
+		if e.useImprovedKW {
+			keywordResults = e.improvedKeyword.Search(req.Query, 1)
+		} else {
+			keywordResults = e.keyword.Search(req.Query, 1)
+		}
 		textScore := 0.0
 		for _, kr := range keywordResults {
 			if kr.DocID == entry.AgentID {

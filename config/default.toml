@@ -22,8 +22,17 @@ postgres_url = "postgres://agentdns:agentdns@localhost:5432/agentdns?sslmode=dis
 max_local_agents = 100000
 
 [search]
+# Embedding backend: "hash" (fast, no ML), "onnx" (local ML model), "http" (external API)
+embedding_backend = "hash"
+# Model name (for ONNX): "all-MiniLM-L6-v2" (fast), "bge-small-en-v1.5" (balanced), "e5-small-v2" (quality)
 embedding_model = "all-MiniLM-L6-v2"
 embedding_dimensions = 384
+# Model directory (auto-download if not present)
+embedding_model_dir = "~/.agentdns/models"
+# HTTP endpoint (for "http" backend, e.g., Ollama, OpenAI)
+embedding_endpoint = ""
+# Use improved BM25 with field boosting, stemming, and synonyms
+use_improved_keyword = true
 max_federated_peers = 10
 federated_timeout_ms = 1500
 default_max_results = 20

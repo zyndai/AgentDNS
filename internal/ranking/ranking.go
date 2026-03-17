@@ -12,12 +12,23 @@ import (
 
 // Ranker computes final scores for search results using weighted scoring or RRF.
 type Ranker struct {
-	weights config.RankingConfig
+	cfg config.RankingConfig
 }
 
 // NewRanker creates a new Ranker with the given weight configuration.
-func NewRanker(weights config.RankingConfig) *Ranker {
-	return &Ranker{weights: weights}
+func NewRanker(cfg config.RankingConfig) *Ranker {
+	return &Ranker{cfg: cfg}
+}
+
+// Rank dispatches to the ranking method selected in config.
+// Supported methods: "weighted" (default), "rrf".
+func (r *Ranker) Rank(candidates []*CandidateResult) []*CandidateResult {
+	switch r.cfg.Method {
+	case "rrf":
+		return r.RankRRF(candidates)
+	default:
+		return r.RankWeighted(candidates)
+	}
 }
 
 // CandidateResult holds intermediate scoring data for a search candidate.
@@ -50,11 +61,11 @@ type CandidateResult struct {
 func (r *Ranker) RankWeighted(candidates []*CandidateResult) []*CandidateResult {
 	for _, c := range candidates {
 		c.Freshness = computeFreshness(c.UpdatedAt)
-		c.FinalScore = r.weights.TextRelevanceWeight*c.TextRelevance +
-			r.weights.SemanticSimilarityWeight*c.SemanticSimilarity +
-			r.weights.TrustWeight*c.TrustScore +
-			r.weights.FreshnessWeight*c.Freshness +
-			r.weights.AvailabilityWeight*c.Availability
+		c.FinalScore = r.cfg.TextRelevanceWeight*c.TextRelevance +
+			r.cfg.SemanticSimilarityWeight*c.SemanticSimilarity +
+			r.cfg.TrustWeight*c.TrustScore +
+			r.cfg.FreshnessWeight*c.Freshness +
+			r.cfg.AvailabilityWeight*c.Availability
 	}
 
 	sort.Slice(candidates, func(i, j int) bool {

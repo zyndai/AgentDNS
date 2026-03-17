@@ -71,6 +71,10 @@ func main() {
 		cmdPeers()
 	case "deregister":
 		cmdDeregister()
+	case "models":
+		cmdModels()
+	case "test":
+		cmdTest()
 	case "version":
 		fmt.Printf("agent-dns %s\n", version)
 	case "help", "--help", "-h":
@@ -98,6 +102,8 @@ Commands:
   status        Show node status
   peers         Show connected peers
   deregister    Remove an agent from the registry
+  models        Manage embedding models (list, download, info)
+  test          Load testing (register/deregister N agents)
   version       Print version
   help          Show this help
 
@@ -223,7 +229,14 @@ func cmdStart() {
 	// Initialize components
 	lruCache := card.NewLRUCache(cfg.Cache.MaxAgentCards, cfg.Cache.AgentCardTTLSeconds)
 	fetcher := card.NewFetcher(lruCache, redisCache, cfg.Cache.AgentCardTTLSeconds)
-	engine := search.NewEngine(st, fetcher, cfg.Search)
+	embedder := search.NewEmbedderFromConfig(
+		cfg.Search.EmbeddingBackend,
+		cfg.Search.EmbeddingModel,
+		cfg.Search.EmbeddingModelDir,
+		cfg.Search.EmbeddingEndpoint,
+		cfg.Search.EmbeddingDimensions,
+	)
+	engine := search.NewEngine(st, fetcher, cfg.Search, embedder)
 	peerMgr := mesh.NewPeerManager(cfg.Mesh, cfg.Bloom)
 	gossipHandler := mesh.NewGossipHandler(st, cfg.Gossip)
 	eigenTrust := trust.NewEigenTrust(st, cfg.Trust.EigentrustIterations)
@@ -275,6 +288,20 @@ func cmdStart() {
 	// Start reconnect loop (in background)
 	go transport.ReconnectLoop()
 
+	// Start tombstone garbage collection (in background)
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			count, err := st.CleanExpiredTombstones()
+			if err != nil {
+				log.Printf("tombstone GC error: %v", err)
+			} else if count > 0 {
+				log.Printf("tombstone GC: cleaned %d expired entries", count)
+			}
+		}
+	}()
+
 	// Start the API server
 	server := api.NewServer(cfg, st, engine, fetcher, peerMgr, gossipHandler, eigenTrust, kp)
 
@@ -301,6 +328,8 @@ func cmdStart() {
 	fmt.Printf("  API:         http://%s\n", cfg.API.Listen)
 	fmt.Printf("  Mesh:        0.0.0.0:%d\n", cfg.Mesh.ListenPort)
 	fmt.Printf("  Storage:     PostgreSQL\n")
+	fmt.Printf("  Embedder:    %s (dims=%d, ranking=%s)\n",
+		cfg.Search.EmbeddingBackend, cfg.Search.EmbeddingDimensions, cfg.Search.Ranking.Method)
 	if redisCache != nil {
 		fmt.Printf("  Redis:       %s\n", cfg.Redis.URL)
 	} else {
@@ -408,13 +437,14 @@ func cmdRegister() {
 
 func cmdSearch() {
 	if len(os.Args) < 3 {
-		fmt.Fprintln(os.Stderr, "Usage: agentdns search QUERY [--category CAT] [--min-trust SCORE] [--status STATUS] [--max-results N]")
+		fmt.Fprintln(os.Stderr, "Usage: agentdns search QUERY [--category CAT] [--min-trust SCORE] [--status STATUS] [--max-results N] [--offset N]")
 		os.Exit(1)
 	}
 
 	query := os.Args[2]
 	var category, status string
 	maxResults := 20
+	offset := 0
 	minTrust := 0.0
 
 	for i := 3; i < len(os.Args); i++ {
@@ -439,6 +469,11 @@ func cmdSearch() {
 				fmt.Sscanf(os.Args[i+1], "%d", &maxResults)
 				i++
 			}
+		case "--offset":
+			if i+1 < len(os.Args) {
+				fmt.Sscanf(os.Args[i+1], "%d", &offset)
+				i++
+			}
 		}
 	}
 
@@ -448,6 +483,7 @@ func cmdSearch() {
 		MinTrustScore: minTrust,
 		Status:        status,
 		MaxResults:    maxResults,
+		Offset:        offset,
 		Federated:     true,
 		Enrich:        false,
 	}
@@ -614,10 +650,21 @@ func cmdDeregister() {
 
 	agentID := os.Args[2]
 
+	// Load keypair for signing the deregister request
+	homeDir, _ := os.UserHomeDir()
+	kp, err := identity.LoadKeypair(filepath.Join(homeDir, ".agentdns", "identity.json"))
+	if err != nil {
+		log.Fatalf("failed to load identity: %v", err)
+	}
+
 	req, err := http.NewRequest(http.MethodDelete, "http://localhost:8080/v1/agents/"+agentID, nil)
 	if err != nil {
 		log.Fatalf("failed to create request: %v", err)
 	}
+
+	// Sign the agent ID to prove ownership
+	sig := kp.Sign([]byte(agentID))
+	req.Header.Set("Authorization", "Bearer "+sig)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

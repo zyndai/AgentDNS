@@ -1,3 +1,6 @@
+# Dockerfile for Agent DNS (Hash + HTTP embedders only)
+# For ONNX embedder support, use Dockerfile.onnx
+
 # Build stage
 FROM golang:1.24-alpine AS builder
 
@@ -10,7 +13,7 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build (no CGO needed — pure Go PostgreSQL driver via pgx)
+# Build without CGO (Hash and HTTP embedders only, no ONNX)
 RUN CGO_ENABLED=0 GOOS=linux go build -o /agentdns -ldflags="-s -w" ./cmd/agentdns
 
 # Runtime stage — use alpine for minimal image

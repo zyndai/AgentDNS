@@ -3,10 +3,12 @@ package mesh
 import (
 	"encoding/json"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/agentdns/agent-dns/internal/config"
+	"github.com/agentdns/agent-dns/internal/identity"
 	"github.com/agentdns/agent-dns/internal/models"
 	"github.com/agentdns/agent-dns/internal/store"
 )
@@ -78,6 +80,28 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 		return false
 	}
 
+	// Verify signature
+	if ann.Signature == "" || ann.OriginPublicKey == "" {
+		log.Printf("gossip: rejecting unsigned announcement for %s", ann.AgentID)
+		return false
+	}
+	annCopy := *ann
+	annCopy.Signature = ""
+	data, err := json.Marshal(&annCopy)
+	if err != nil {
+		log.Printf("gossip: failed to marshal announcement for verification: %v", err)
+		return false
+	}
+	pubKey := ann.OriginPublicKey
+	if strings.HasPrefix(pubKey, "ed25519:") {
+		pubKey = pubKey[8:]
+	}
+	valid, err := identity.Verify(pubKey, data, ann.Signature)
+	if err != nil || !valid {
+		log.Printf("gossip: invalid signature on announcement for %s: %v", ann.AgentID, err)
+		return false
+	}
+
 	// Dedup check
 	dedupKey := ann.AgentID + ":" + ann.Timestamp
 	gh.mu.RLock()
@@ -134,24 +158,26 @@ func (gh *GossipHandler) CreateAnnouncement(
 	agent *models.RegistryRecord,
 	action string,
 	registryID string,
+	pubKey string,
 	signFn func([]byte) string,
 ) *models.GossipAnnouncement {
 	ann := &models.GossipAnnouncement{
-		Type:         "agent_announce",
-		AgentID:      agent.AgentID,
-		Name:         agent.Name,
-		Category:     agent.Category,
-		Tags:         agent.Tags,
-		Summary:      agent.Summary,
-		HomeRegistry: registryID,
-		AgentURL:     agent.AgentURL,
-		Action:       action,
-		Timestamp:    time.Now().UTC().Format(time.RFC3339),
-		HopCount:     0,
-		MaxHops:      gh.cfg.MaxHops,
+		Type:            "agent_announce",
+		AgentID:         agent.AgentID,
+		Name:            agent.Name,
+		Category:        agent.Category,
+		Tags:            agent.Tags,
+		Summary:         agent.Summary,
+		HomeRegistry:    registryID,
+		AgentURL:        agent.AgentURL,
+		Action:          action,
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		OriginPublicKey: pubKey,
+		HopCount:        0,
+		MaxHops:         gh.cfg.MaxHops,
 	}
 
-	// Sign the announcement
+	// Sign the announcement (with Signature empty so verification can reproduce this)
 	data, _ := json.Marshal(ann)
 	ann.Signature = signFn(data)
 

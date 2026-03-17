@@ -1,6 +1,6 @@
-# Registry Node A - Primary seed node
+# Registry Node C - Peers with Node A, uses ONNX embedder
 [node]
-name = "registry-a"
+name = "registry-c"
 type = "full"
 data_dir = "/data"
 external_ip = "auto"
@@ -8,7 +8,7 @@ external_ip = "auto"
 [mesh]
 listen_port = 4001
 max_peers = 15
-bootstrap_peers = []
+bootstrap_peers = ["registry-a:4001"]
 
 [gossip]
 max_hops = 10
@@ -16,12 +16,12 @@ max_announcements_per_second = 100
 dedup_window_seconds = 300
 
 [registry]
-postgres_url = "postgres://agentdns:agentdns@postgres:5432/agentdns?sslmode=disable"
+postgres_url = "postgres://agentdns:agentdns@postgres:5432/agentdns_c?sslmode=disable"
 max_local_agents = 100000
 
 [search]
-embedding_backend = "hash"
-embedding_model = "all-MiniLM-L6-v2"
+embedding_backend = "onnx"
+embedding_model = "bge-small-en-v1.5"
 embedding_dimensions = 384
 embedding_model_dir = "/data/models"
 use_improved_keyword = true
@@ -42,8 +42,8 @@ agent_card_ttl_seconds = 3600
 max_gossip_entries = 2000000
 
 [redis]
-url = "redis://redis:6379/0"
-prefix = "agdns:a:"
+url = "redis://redis:6379/2"
+prefix = "agdns:c:"
 
 [trust]
 min_display_score = 0.1

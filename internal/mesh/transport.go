@@ -1,6 +1,7 @@
 package mesh
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net"
@@ -81,7 +82,17 @@ func (t *Transport) SetSearchHandler(fn func(*models.SearchRequest) (*models.Sea
 // Listen starts the TCP listener on the configured mesh port.
 func (t *Transport) Listen() error {
 	addr := fmt.Sprintf("0.0.0.0:%d", t.cfg.ListenPort)
-	ln, err := net.Listen("tcp", addr)
+	var ln net.Listener
+	var err error
+	if t.cfg.TLSEnabled {
+		tlsConfig, tlsErr := t.kp.GenerateTLSConfig()
+		if tlsErr != nil {
+			return fmt.Errorf("mesh TLS config: %w", tlsErr)
+		}
+		ln, err = tls.Listen("tcp", addr, tlsConfig)
+	} else {
+		ln, err = net.Listen("tcp", addr)
+	}
 	if err != nil {
 		return fmt.Errorf("mesh listen on %s: %w", addr, err)
 	}
@@ -196,7 +207,17 @@ func (t *Transport) handleInbound(conn net.Conn) {
 // the read loop in the background.
 // Returns the peer's registry ID on success, or an error.
 func (t *Transport) ConnectTo(address string) (string, error) {
-	conn, err := net.DialTimeout("tcp", address, 10*time.Second)
+	var conn net.Conn
+	var err error
+	if t.cfg.TLSEnabled {
+		tlsConfig, tlsErr := t.kp.GenerateTLSConfig()
+		if tlsErr != nil {
+			return "", fmt.Errorf("mesh TLS config: %w", tlsErr)
+		}
+		conn, err = tls.DialWithDialer(&net.Dialer{Timeout: 10 * time.Second}, "tcp", address, tlsConfig)
+	} else {
+		conn, err = net.DialTimeout("tcp", address, 10*time.Second)
+	}
 	if err != nil {
 		return "", fmt.Errorf("dial %s: %w", address, err)
 	}

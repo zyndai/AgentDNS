@@ -10,44 +10,64 @@ import (
 	"time"
 )
 
+// CurrentSchemaVersion is the current schema version for registry records and agent cards.
+const CurrentSchemaVersion = "1.0"
+
 // RegistryRecord is the stable, lightweight record stored on the registry network.
 // It acts as a static pointer to the dynamic Agent Card hosted by the agent itself.
-// Size: ~500-800 bytes. Cheap to replicate, store, and index.
+// Size: ~500-800 bytes (without capabilities) or ~800-1200 bytes (with capability summary).
+// Cheap to replicate, store, and index.
 type RegistryRecord struct {
-	AgentID      string   `json:"agent_id" db:"agent_id"`
-	Name         string   `json:"name" db:"name"`
-	Owner        string   `json:"owner" db:"owner"`
-	AgentURL     string   `json:"agent_url" db:"agent_url"`
-	Category     string   `json:"category" db:"category"`
-	Tags         []string `json:"tags" db:"-"`
-	Summary      string   `json:"summary" db:"summary"`
-	PublicKey    string   `json:"public_key" db:"public_key"`
-	HomeRegistry string   `json:"home_registry" db:"home_registry"`
-	RegisteredAt string   `json:"registered_at" db:"registered_at"`
-	UpdatedAt    string   `json:"updated_at" db:"updated_at"`
-	TTL          int      `json:"ttl" db:"ttl"`
-	Signature    string   `json:"signature" db:"signature"`
+	AgentID           string             `json:"agent_id" db:"agent_id"`
+	Name              string             `json:"name" db:"name"`
+	Owner             string             `json:"owner" db:"owner"`
+	AgentURL          string             `json:"agent_url" db:"agent_url"`
+	Category          string             `json:"category" db:"category"`
+	Tags              []string           `json:"tags" db:"-"`
+	Summary           string             `json:"summary" db:"summary"`
+	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty" db:"-"`
+	PublicKey         string             `json:"public_key" db:"public_key"`
+	HomeRegistry      string             `json:"home_registry" db:"home_registry"`
+	SchemaVersion     string             `json:"schema_version" db:"schema_version"`
+	RegisteredAt      string             `json:"registered_at" db:"registered_at"`
+	UpdatedAt         string             `json:"updated_at" db:"updated_at"`
+	TTL               int                `json:"ttl" db:"ttl"`
+	Signature         string             `json:"signature" db:"signature"`
+}
+
+// CapabilitySummary provides searchable metadata about agent capabilities.
+// This is a lightweight summary stored in the registry (500 bytes max).
+// Full capability details (schemas, examples, etc.) remain in the Agent Card.
+type CapabilitySummary struct {
+	Skills      []string `json:"skills,omitempty"`       // e.g., ["code-review", "linting", "security-audit"]
+	Protocols   []string `json:"protocols,omitempty"`    // e.g., ["a2a", "mcp", "jsonrpc"]
+	Languages   []string `json:"languages,omitempty"`    // e.g., ["python", "javascript", "go"]
+	Models      []string `json:"models,omitempty"`       // e.g., ["gpt-4", "claude-3.5-sonnet"]
+	InputTypes  []string `json:"input_types,omitempty"`  // e.g., ["text", "code", "image"]
+	OutputTypes []string `json:"output_types,omitempty"` // e.g., ["text", "json", "markdown"]
 }
 
 // RegistrationRequest is submitted by agent owners to register a new agent.
 type RegistrationRequest struct {
-	Name      string   `json:"name" validate:"required,min=1,max=100"`
-	AgentURL  string   `json:"agent_url" validate:"required,url"`
-	Category  string   `json:"category" validate:"required,min=1,max=50"`
-	Tags      []string `json:"tags" validate:"max=20"`
-	Summary   string   `json:"summary" validate:"required,max=200"`
-	PublicKey string   `json:"public_key" validate:"required"`
-	Signature string   `json:"signature" validate:"required"`
+	Name              string             `json:"name" validate:"required,min=1,max=100"`
+	AgentURL          string             `json:"agent_url" validate:"required,url"`
+	Category          string             `json:"category" validate:"required,min=1,max=50"`
+	Tags              []string           `json:"tags" validate:"max=20"`
+	Summary           string             `json:"summary" validate:"required,max=200"`
+	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty"`
+	PublicKey         string             `json:"public_key" validate:"required"`
+	Signature         string             `json:"signature" validate:"required"`
 }
 
 // UpdateRequest is submitted by agent owners to update their registry record.
 type UpdateRequest struct {
-	AgentURL  *string  `json:"agent_url,omitempty"`
-	Category  *string  `json:"category,omitempty"`
-	Tags      []string `json:"tags,omitempty"`
-	Summary   *string  `json:"summary,omitempty"`
-	TTL       *int     `json:"ttl,omitempty"`
-	Signature string   `json:"signature" validate:"required"`
+	AgentURL          *string            `json:"agent_url,omitempty"`
+	Category          *string            `json:"category,omitempty"`
+	Tags              []string           `json:"tags,omitempty"`
+	Summary           *string            `json:"summary,omitempty"`
+	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty"`
+	TTL               *int               `json:"ttl,omitempty"`
+	Signature         string             `json:"signature" validate:"required"`
 }
 
 // GenerateAgentID derives an agent_id from an Ed25519 public key.

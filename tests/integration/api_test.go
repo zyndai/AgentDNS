@@ -49,7 +49,8 @@ func setupTestServer(t *testing.T) (*api.Server, *config.Config, *identity.Keypa
 	// Initialize components (no Redis for tests)
 	lruCache := card.NewLRUCache(1000, 3600)
 	fetcher := card.NewFetcher(lruCache, nil, 3600)
-	engine := search.NewEngine(st, fetcher, cfg.Search)
+	embedder := search.NewHashEmbedder(384) // Use simple hash embedder for tests
+	engine := search.NewEngine(st, fetcher, cfg.Search, embedder)
 	peerMgr := mesh.NewPeerManager(cfg.Mesh, cfg.Bloom)
 	gossipHandler := mesh.NewGossipHandler(st, cfg.Gossip)
 	eigenTrust := trust.NewEigenTrust(st, cfg.Trust.EigentrustIterations)

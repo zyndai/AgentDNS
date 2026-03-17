@@ -20,8 +20,11 @@ postgres_url = "postgres://agentdns:agentdns@postgres:5432/agentdns_c?sslmode=di
 max_local_agents = 100000
 
 [search]
+embedding_backend = "hash"
 embedding_model = "all-MiniLM-L6-v2"
 embedding_dimensions = 384
+embedding_model_dir = "/data/models"
+use_improved_keyword = true
 max_federated_peers = 10
 federated_timeout_ms = 1500
 default_max_results = 20
