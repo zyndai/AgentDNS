@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/agentdns/agent-dns/internal/config"
+	"github.com/agentdns/agent-dns/internal/events"
 	"github.com/agentdns/agent-dns/internal/identity"
 	"github.com/agentdns/agent-dns/internal/models"
 )
@@ -47,6 +48,8 @@ type Transport struct {
 	// Callbacks set by higher-level components.
 	onSearch func(*models.SearchRequest) (*models.SearchResponse, error)
 
+	eventBus *events.Bus
+
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 }
@@ -77,6 +80,11 @@ func NewTransport(
 // SetSearchHandler registers the callback invoked for incoming federated search requests.
 func (t *Transport) SetSearchHandler(fn func(*models.SearchRequest) (*models.SearchResponse, error)) {
 	t.onSearch = fn
+}
+
+// SetEventBus attaches an event bus for publishing peer connect/disconnect events.
+func (t *Transport) SetEventBus(bus *events.Bus) {
+	t.eventBus = bus
 }
 
 // Listen starts the TCP listener on the configured mesh port.
@@ -301,6 +309,14 @@ func (t *Transport) registerPeer(hello HelloMessage, address string, conn net.Co
 		idPrefix = idPrefix[:24]
 	}
 	log.Printf("mesh: peer connected: %s (%s) at %s", hello.Name, idPrefix, address)
+
+	if t.eventBus != nil {
+		t.eventBus.Publish(events.EventPeerConnected, events.PeerEventData{
+			RegistryID: hello.RegistryID,
+			Name:       hello.Name,
+			Address:    address,
+		})
+	}
 }
 
 // unregisterPeer removes a peer connection.
@@ -308,6 +324,7 @@ func (t *Transport) unregisterPeer(registryID string, conn net.Conn) {
 	conn.Close()
 
 	t.mu.Lock()
+	pc := t.conns[registryID]
 	delete(t.conns, registryID)
 	t.mu.Unlock()
 
@@ -318,6 +335,20 @@ func (t *Transport) unregisterPeer(registryID string, conn net.Conn) {
 		idPrefix = idPrefix[:24]
 	}
 	log.Printf("mesh: peer disconnected: %s", idPrefix)
+
+	if t.eventBus != nil {
+		name := ""
+		address := ""
+		if pc != nil {
+			name = pc.name
+			address = pc.address
+		}
+		t.eventBus.Publish(events.EventPeerDisconnected, events.PeerEventData{
+			RegistryID: registryID,
+			Name:       name,
+			Address:    address,
+		})
+	}
 }
 
 // readLoop reads and dispatches messages from a peer connection.

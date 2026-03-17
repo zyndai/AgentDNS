@@ -305,6 +305,12 @@ func cmdStart() {
 	// Start the API server
 	server := api.NewServer(cfg, st, engine, fetcher, peerMgr, gossipHandler, eigenTrust, kp)
 
+	// Wire event bus into mesh and search components
+	bus := server.EventBus()
+	gossipHandler.SetEventBus(bus)
+	transport.SetEventBus(bus)
+	fedSearch.SetEventBus(bus)
+
 	// Graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

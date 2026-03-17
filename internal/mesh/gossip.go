@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/agentdns/agent-dns/internal/config"
+	"github.com/agentdns/agent-dns/internal/events"
 	"github.com/agentdns/agent-dns/internal/identity"
 	"github.com/agentdns/agent-dns/internal/models"
 	"github.com/agentdns/agent-dns/internal/store"
@@ -21,6 +22,7 @@ type GossipHandler struct {
 	seen        map[string]time.Time             // dedup: agent_id+timestamp -> received_at
 	onAnnounce  func(*models.GossipAnnouncement) // callback for indexing
 	onBroadcast func(*models.GossipAnnouncement) // callback to broadcast to peers
+	eventBus    *events.Bus
 }
 
 // NewGossipHandler creates a new gossip protocol handler.
@@ -42,6 +44,13 @@ func NewGossipHandler(st store.Store, cfg config.GossipConfig) *GossipHandler {
 func (gh *GossipHandler) SetAnnounceCallback(fn func(*models.GossipAnnouncement)) {
 	gh.mu.Lock()
 	gh.onAnnounce = fn
+	gh.mu.Unlock()
+}
+
+// SetEventBus attaches an event bus for publishing gossip activity.
+func (gh *GossipHandler) SetEventBus(bus *events.Bus) {
+	gh.mu.Lock()
+	gh.eventBus = bus
 	gh.mu.Unlock()
 }
 
@@ -69,6 +78,20 @@ func (gh *GossipHandler) BroadcastAnnouncement(ann *models.GossipAnnouncement) {
 
 	if broadcastFn != nil {
 		broadcastFn(ann)
+	}
+
+	gh.mu.RLock()
+	bus := gh.eventBus
+	gh.mu.RUnlock()
+	if bus != nil {
+		bus.Publish(events.EventGossipOutgoing, events.GossipEventData{
+			AgentID:      ann.AgentID,
+			Name:         ann.Name,
+			Action:       ann.Action,
+			HomeRegistry: ann.HomeRegistry,
+			HopCount:     ann.HopCount,
+			Direction:    "outgoing",
+		})
 	}
 }
 
@@ -145,6 +168,21 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 		if err := gh.store.TombstoneGossipEntry(ann.AgentID); err != nil {
 			log.Printf("failed to tombstone gossip entry: %v", err)
 		}
+	}
+
+	// Emit incoming gossip event
+	gh.mu.RLock()
+	bus := gh.eventBus
+	gh.mu.RUnlock()
+	if bus != nil {
+		bus.Publish(events.EventGossipIncoming, events.GossipEventData{
+			AgentID:      ann.AgentID,
+			Name:         ann.Name,
+			Action:       ann.Action,
+			HomeRegistry: ann.HomeRegistry,
+			HopCount:     ann.HopCount,
+			Direction:    "incoming",
+		})
 	}
 
 	// Increment hop count for forwarding

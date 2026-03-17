@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -12,13 +14,21 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/agentdns/agent-dns/internal/identity"
 )
 
-// testAgentStore persists registered agent IDs for deregister.
+// testAgentEntry holds an agent ID and its private key for deregistration.
+type testAgentEntry struct {
+	AgentID    string `json:"agent_id"`
+	PrivateKey string `json:"private_key"` // base64-encoded Ed25519 private key
+}
+
+// testAgentStore persists registered agents (ID + keypair) for deregister.
 type testAgentStore struct {
-	IDs         []string `json:"ids"`
-	RegistryURL string   `json:"registry_url"`
-	RegisteredAt string  `json:"registered_at"`
+	Agents       []testAgentEntry `json:"agents"`
+	RegistryURL  string           `json:"registry_url"`
+	RegisteredAt string           `json:"registered_at"`
 }
 
 func cmdTest() {
@@ -105,7 +115,7 @@ func cmdTestRegister() {
 		successCount int64
 		failCount    int64
 		mu           sync.Mutex
-		agentIDs     []string
+		agents       []testAgentEntry
 		latencies    []float64
 	)
 
@@ -119,7 +129,7 @@ func cmdTestRegister() {
 			defer wg.Done()
 			for i := range jobs {
 				reqStart := time.Now()
-				id, err := registerTestAgent(client, registryURL, i)
+				entry, err := registerTestAgent(client, registryURL, i)
 				latencyMs := float64(time.Since(reqStart).Milliseconds())
 
 				if err != nil {
@@ -127,7 +137,7 @@ func cmdTestRegister() {
 				} else {
 					atomic.AddInt64(&successCount, 1)
 					mu.Lock()
-					agentIDs = append(agentIDs, id)
+					agents = append(agents, entry)
 					latencies = append(latencies, latencyMs)
 					mu.Unlock()
 				}
@@ -153,12 +163,12 @@ func cmdTestRegister() {
 	sort.Float64s(latencies)
 	printLatencyStats(latencies, elapsed, successCount, failCount, count)
 
-	// Persist IDs for deregister
-	if len(agentIDs) > 0 {
-		if err := saveTestAgents(agentIDs, registryURL); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not save agent IDs: %v\n", err)
+	// Persist agents (ID + private key) for deregister
+	if len(agents) > 0 {
+		if err := saveTestAgents(agents, registryURL); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not save agent data: %v\n", err)
 		} else {
-			fmt.Printf("  Saved %d agent IDs to ~/.agentdns/test-agents.json\n", len(agentIDs))
+			fmt.Printf("  Saved %d agents to ~/.agentdns/test-agents.json\n", len(agents))
 			fmt.Printf("  Run 'agentdns test deregister' to clean up.\n")
 		}
 	}
@@ -189,7 +199,7 @@ func cmdTestDeregister() {
 		registryURL = "http://localhost:8080"
 	}
 
-	total := len(store.IDs)
+	total := len(store.Agents)
 	if total == 0 {
 		fmt.Println("No agents to deregister.")
 		return
@@ -199,9 +209,9 @@ func cmdTestDeregister() {
 	fmt.Printf("  Registry: %s\n", registryURL)
 	fmt.Printf("  Agents:   %d\n\n", total)
 
-	jobs := make(chan string, total)
-	for _, id := range store.IDs {
-		jobs <- id
+	jobs := make(chan testAgentEntry, total)
+	for _, a := range store.Agents {
+		jobs <- a
 	}
 	close(jobs)
 
@@ -215,8 +225,16 @@ func cmdTestDeregister() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for id := range jobs {
-				req, _ := http.NewRequest(http.MethodDelete, registryURL+"/v1/agents/"+id, nil)
+			for entry := range jobs {
+				privBytes, _ := base64.StdEncoding.DecodeString(entry.PrivateKey)
+				kp := &identity.Keypair{
+					PrivateKey:    ed25519.PrivateKey(privBytes),
+					PrivateKeyB64: entry.PrivateKey,
+				}
+				sig := kp.Sign([]byte(entry.AgentID))
+
+				req, _ := http.NewRequest(http.MethodDelete, registryURL+"/v1/agents/"+entry.AgentID, nil)
+				req.Header.Set("Authorization", "Bearer "+sig)
 				resp, err := client.Do(req)
 				if err != nil || resp.StatusCode != http.StatusOK {
 					atomic.AddInt64(&failCount, 1)
@@ -277,7 +295,7 @@ var (
 	testNouns      = []string{"Analyzer", "Processor", "Assistant", "Engine", "Bot", "Agent", "Worker", "Resolver", "Optimizer", "Scanner"}
 )
 
-func registerTestAgent(client *http.Client, registryURL string, idx int) (string, error) {
+func registerTestAgent(client *http.Client, registryURL string, idx int) (testAgentEntry, error) {
 	r := rand.New(rand.NewSource(int64(idx)))
 	catIdx := r.Intn(len(testCategories))
 	category := testCategories[catIdx]
@@ -286,32 +304,40 @@ func registerTestAgent(client *http.Client, registryURL string, idx int) (string
 	agentURL := fmt.Sprintf("https://agents.example.com/agent-%d/.well-known/agent.json", idx)
 	summary := fmt.Sprintf("Test agent #%d: a %s %s for %s tasks.", idx, testAdjectives[r.Intn(len(testAdjectives))], testNouns[r.Intn(len(testNouns))], category)
 
-	body := map[string]interface{}{
-		"name":      name,
-		"agent_url": agentURL,
-		"category":  category,
-		"tags":      tags,
-		"summary":   summary,
+	kp, err := identity.GenerateKeypair()
+	if err != nil {
+		return testAgentEntry{}, fmt.Errorf("keygen: %w", err)
 	}
 
-	data, _ := json.Marshal(body)
+	payload := map[string]interface{}{
+		"name":       name,
+		"agent_url":  agentURL,
+		"category":   category,
+		"tags":       tags,
+		"summary":    summary,
+		"public_key": kp.PublicKeyString(),
+	}
+	signable, _ := json.Marshal(payload)
+	payload["signature"] = kp.Sign(signable)
+
+	data, _ := json.Marshal(payload)
 	resp, err := client.Post(registryURL+"/v1/agents", "application/json", bytes.NewReader(data))
 	if err != nil {
-		return "", err
+		return testAgentEntry{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		return "", fmt.Errorf("status %d", resp.StatusCode)
+		return testAgentEntry{}, fmt.Errorf("status %d", resp.StatusCode)
 	}
 
 	var result map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&result)
 	id, _ := result["agent_id"].(string)
 	if id == "" {
-		return "", fmt.Errorf("no agent_id in response")
+		return testAgentEntry{}, fmt.Errorf("no agent_id in response")
 	}
-	return id, nil
+	return testAgentEntry{AgentID: id, PrivateKey: kp.PrivateKeyB64}, nil
 }
 
 func printLatencyStats(latencies []float64, elapsed time.Duration, success, fail int64, total int) {
@@ -341,22 +367,23 @@ func percentile(sorted []float64, p float64) float64 {
 	return sorted[idx]
 }
 
-func saveTestAgents(ids []string, registryURL string) error {
+func saveTestAgents(agents []testAgentEntry, registryURL string) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
-	store := testAgentStore{
-		IDs:          ids,
+	s := testAgentStore{
+		Agents:       agents,
 		RegistryURL:  registryURL,
 		RegisteredAt: time.Now().UTC().Format(time.RFC3339),
 	}
-	data, err := json.MarshalIndent(store, "", "  ")
+	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(homeDir, ".agentdns", "test-agents.json"), data, 0644)
+	return os.WriteFile(filepath.Join(homeDir, ".agentdns", "test-agents.json"), data, 0600)
 }
+
 
 func loadTestAgents() (*testAgentStore, error) {
 	homeDir, err := os.UserHomeDir()

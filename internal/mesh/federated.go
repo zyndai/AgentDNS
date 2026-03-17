@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/agentdns/agent-dns/internal/config"
+	"github.com/agentdns/agent-dns/internal/events"
 	"github.com/agentdns/agent-dns/internal/models"
 )
 
@@ -19,6 +20,7 @@ type FederatedSearch struct {
 	transport *Transport
 	peerMgr   *PeerManager
 	cfg       config.SearchConfig
+	eventBus  *events.Bus
 }
 
 // NewFederatedSearch creates a federated search handler.
@@ -28,6 +30,11 @@ func NewFederatedSearch(transport *Transport, peerMgr *PeerManager, cfg config.S
 		peerMgr:   peerMgr,
 		cfg:       cfg,
 	}
+}
+
+// SetEventBus attaches an event bus for publishing federated search activity.
+func (fs *FederatedSearch) SetEventBus(bus *events.Bus) {
+	fs.eventBus = bus
 }
 
 // Search fans out the query to relevant peers and merges their results.
@@ -76,7 +83,16 @@ func (fs *FederatedSearch) Search(req *models.SearchRequest) ([]models.SearchRes
 		go func(p *models.PeerInfo) {
 			defer wg.Done()
 
-			// Create a per-peer timeout
+			// Emit outgoing search event
+			if fs.eventBus != nil {
+				fs.eventBus.Publish(events.EventSearchOutgoing, events.SearchEventData{
+					Query:     req.Query,
+					PeerID:    p.RegistryID,
+					Direction: "outgoing",
+				})
+			}
+
+			start := time.Now()
 			done := make(chan peerResult, 1)
 			go func() {
 				ack, err := fs.transport.SendSearchRequest(p.RegistryID, msg)
@@ -89,6 +105,15 @@ func (fs *FederatedSearch) Search(req *models.SearchRequest) ([]models.SearchRes
 
 			select {
 			case r := <-done:
+				if fs.eventBus != nil && r.err == nil {
+					fs.eventBus.Publish(events.EventSearchIncoming, events.SearchEventData{
+						Query:       req.Query,
+						PeerID:      p.RegistryID,
+						ResultCount: len(r.results),
+						LatencyMs:   time.Since(start).Milliseconds(),
+						Direction:   "incoming",
+					})
+				}
 				resultCh <- r
 			case <-time.After(timeout):
 				resultCh <- peerResult{err: fmt.Errorf("timeout")}

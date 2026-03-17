@@ -12,10 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/websocket"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	"github.com/agentdns/agent-dns/internal/card"
 	"github.com/agentdns/agent-dns/internal/config"
+	"github.com/agentdns/agent-dns/internal/events"
 	"github.com/agentdns/agent-dns/internal/identity"
 	"github.com/agentdns/agent-dns/internal/mesh"
 	"github.com/agentdns/agent-dns/internal/models"
@@ -23,6 +25,12 @@ import (
 	"github.com/agentdns/agent-dns/internal/store"
 	"github.com/agentdns/agent-dns/internal/trust"
 )
+
+var wsUpgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin:     func(r *http.Request) bool { return true },
+}
 
 // Server is the HTTP API server for a registry node.
 type Server struct {
@@ -36,6 +44,7 @@ type Server struct {
 	nodeIdentity *identity.Keypair
 	httpServer   *http.Server
 	startTime    time.Time
+	eventBus     *events.Bus
 }
 
 // NewServer creates a new API server with all dependencies.
@@ -59,7 +68,13 @@ func NewServer(
 		eigentrust:   eigentrust,
 		nodeIdentity: nodeIdentity,
 		startTime:    time.Now(),
+		eventBus:     events.NewBus(),
 	}
+}
+
+// EventBus returns the server's event bus so callers can wire it into other components.
+func (s *Server) EventBus() *events.Bus {
+	return s.eventBus
 }
 
 // Start begins serving the HTTP API.
@@ -90,6 +105,9 @@ func (s *Server) Start() error {
 
 	// Health check
 	mux.HandleFunc("GET /health", s.handleHealth)
+
+	// WebSocket activity stream
+	mux.HandleFunc("GET /v1/ws/activity", s.handleActivityStream)
 
 	// Swagger UI
 	mux.Handle("GET /swagger/", httpSwagger.Handler(
@@ -219,6 +237,15 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	// Gossip the announcement to mesh peers
 	ann := s.gossip.CreateAnnouncement(record, "register", s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
 	s.gossip.BroadcastAnnouncement(ann)
+
+	// Publish registration event
+	s.eventBus.Publish(events.EventAgentRegistered, events.AgentEventData{
+		AgentID:  agentID,
+		Name:     record.Name,
+		Category: record.Category,
+		Tags:     record.Tags,
+		Summary:  record.Summary,
+	})
 
 	writeJSON(w, http.StatusCreated, map[string]string{
 		"agent_id": agentID,
@@ -396,6 +423,14 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	// Gossip the tombstone to mesh peers
 	ann := s.gossip.CreateAnnouncement(agent, "deregister", s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
 	s.gossip.BroadcastAnnouncement(ann)
+
+	// Publish deregistration event
+	s.eventBus.Publish(events.EventAgentDeregistered, events.AgentEventData{
+		AgentID:  agentID,
+		Name:     agent.Name,
+		Category: agent.Category,
+		Tags:     agent.Tags,
+	})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "agent deregistered"})
 }
@@ -612,6 +647,60 @@ func (s *Server) handleNetworkStats(w http.ResponseWriter, r *http.Request) {
 //	@Router			/health [get]
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// handleActivityStream upgrades to a WebSocket and streams real-time network
+// activity events: agent registrations/deregistrations, gossip in/out,
+// federated search in/out, and peer connect/disconnect.
+func (s *Server) handleActivityStream(w http.ResponseWriter, r *http.Request) {
+	conn, err := wsUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("ws: upgrade failed: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	ch := s.eventBus.Subscribe()
+	defer s.eventBus.Unsubscribe(ch)
+
+	// Send a welcome event so clients know they're connected
+	welcome := events.Event{
+		Type:      "connected",
+		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+		Data: map[string]string{
+			"registry_id": s.nodeIdentity.RegistryID(),
+			"message":     "streaming network activity",
+		},
+	}
+	if err := conn.WriteJSON(welcome); err != nil {
+		return
+	}
+
+	// Handle client disconnection in background
+	closeCh := make(chan struct{})
+	go func() {
+		defer close(closeCh)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-closeCh:
+			return
+		case ev, ok := <-ch:
+			if !ok {
+				return
+			}
+			conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			if err := conn.WriteJSON(ev); err != nil {
+				return
+			}
+		}
+	}
 }
 
 // --- Helpers ---
