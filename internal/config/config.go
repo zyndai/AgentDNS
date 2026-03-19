@@ -11,16 +11,28 @@ import (
 
 // Config is the top-level configuration for an Agent DNS node.
 type Config struct {
-	Node     NodeConfig     `toml:"node"`
-	Mesh     MeshConfig     `toml:"mesh"`
-	Gossip   GossipConfig   `toml:"gossip"`
-	Registry RegistryConfig `toml:"registry"`
-	Search   SearchConfig   `toml:"search"`
-	Cache    CacheConfig    `toml:"cache"`
-	Redis    RedisConfig    `toml:"redis"`
-	Trust    TrustConfig    `toml:"trust"`
-	API      APIConfig      `toml:"api"`
-	Bloom    BloomConfig    `toml:"bloom"`
+	Node      NodeConfig      `toml:"node"`
+	Mesh      MeshConfig      `toml:"mesh"`
+	Gossip    GossipConfig    `toml:"gossip"`
+	Registry  RegistryConfig  `toml:"registry"`
+	Search    SearchConfig    `toml:"search"`
+	Cache     CacheConfig     `toml:"cache"`
+	Redis     RedisConfig     `toml:"redis"`
+	Trust     TrustConfig     `toml:"trust"`
+	API       APIConfig       `toml:"api"`
+	Bloom     BloomConfig     `toml:"bloom"`
+	Heartbeat HeartbeatConfig `toml:"heartbeat"`
+}
+
+// HeartbeatConfig configures the agent liveness heartbeat protocol.
+type HeartbeatConfig struct {
+	// TimeoutSeconds is how long after the last heartbeat before an agent is marked inactive.
+	TimeoutSeconds int `toml:"timeout_seconds"` // default 300 (5 min)
+	// SweepIntervalSeconds is how often the monitor checks for inactive agents.
+	SweepIntervalSeconds int `toml:"sweep_interval_seconds"` // default 30
+	// ClockSkewToleranceSeconds is the maximum allowed difference between
+	// the heartbeat timestamp and server time.
+	ClockSkewToleranceSeconds int `toml:"clock_skew_tolerance_seconds"` // default 60
 }
 
 // NodeConfig describes the node identity and type.
@@ -190,6 +202,11 @@ func DefaultConfig() *Config {
 			ExpectedTokens:        500000,
 			FalsePositiveRate:     0.01,
 			UpdateIntervalSeconds: 300,
+		},
+		Heartbeat: HeartbeatConfig{
+			TimeoutSeconds:            300,
+			SweepIntervalSeconds:      30,
+			ClockSkewToleranceSeconds: 60,
 		},
 	}
 }

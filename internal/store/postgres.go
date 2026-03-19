@@ -172,6 +172,15 @@ func (s *PostgresStore) migrate() error {
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_gossip_developers_public_key ON gossip_developers(public_key);
+
+	-- Heartbeat liveness columns
+	ALTER TABLE agents ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'unknown';
+	ALTER TABLE agents ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMPTZ;
+
+	CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
+	CREATE INDEX IF NOT EXISTS idx_agents_last_heartbeat ON agents(last_heartbeat);
+
+	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'unknown';
 	`
 
 	_, err := s.pool.Exec(context.Background(), schema)
@@ -225,7 +234,8 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	row := s.pool.QueryRow(context.Background(), `
 		SELECT agent_id, name, owner, agent_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-			developer_id, agent_index, developer_proof
+			developer_id, agent_index, developer_proof,
+			status, last_heartbeat
 		FROM agents WHERE agent_id = $1`, agentID)
 
 	agent := &models.RegistryRecord{}
@@ -234,12 +244,15 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	var developerID *string
 	var agentIndex *int
 	var developerProofJSON []byte
+	var status *string
+	var lastHeartbeat *time.Time
 	err := row.Scan(
 		&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
 		&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
 		&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
 		&agent.TTL, &agent.Signature,
 		&developerID, &agentIndex, &developerProofJSON,
+		&status, &lastHeartbeat,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -264,6 +277,13 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	if len(developerProofJSON) > 0 {
 		agent.DeveloperProof = &models.DeveloperProof{}
 		json.Unmarshal(developerProofJSON, agent.DeveloperProof)
+	}
+
+	if status != nil {
+		agent.Status = *status
+	}
+	if lastHeartbeat != nil {
+		agent.LastHeartbeat = lastHeartbeat.UTC().Format(time.RFC3339)
 	}
 
 	return agent, nil
@@ -720,7 +740,8 @@ func (s *PostgresStore) ListAgentsByDeveloper(developerID string, limit, offset 
 	rows, err := s.pool.Query(context.Background(), `
 		SELECT agent_id, name, owner, agent_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-			developer_id, agent_index, developer_proof
+			developer_id, agent_index, developer_proof,
+			status, last_heartbeat
 		FROM agents WHERE developer_id = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`,
 		developerID, limit, offset)
 	if err != nil {
@@ -807,12 +828,15 @@ func scanAgentRows(rows pgx.Rows) ([]*models.RegistryRecord, error) {
 		var developerID *string
 		var agentIndex *int
 		var developerProofJSON []byte
+		var status *string
+		var lastHeartbeat *time.Time
 		if err := rows.Scan(
 			&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
 			&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
 			&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
 			&agent.TTL, &agent.Signature,
 			&developerID, &agentIndex, &developerProofJSON,
+			&status, &lastHeartbeat,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan agent: %w", err)
 		}
@@ -831,9 +855,86 @@ func scanAgentRows(rows pgx.Rows) ([]*models.RegistryRecord, error) {
 			agent.DeveloperProof = &models.DeveloperProof{}
 			json.Unmarshal(developerProofJSON, agent.DeveloperProof)
 		}
+		if status != nil {
+			agent.Status = *status
+		}
+		if lastHeartbeat != nil {
+			agent.LastHeartbeat = lastHeartbeat.UTC().Format(time.RFC3339)
+		}
 		agents = append(agents, agent)
 	}
 	return agents, nil
+}
+
+// --- Heartbeat / Liveness ---
+
+func (s *PostgresStore) UpdateAgentHeartbeat(agentID string, heartbeatTime time.Time) error {
+	ct, err := s.pool.Exec(context.Background(), `
+		UPDATE agents SET last_heartbeat = $1, status = 'online'
+		WHERE agent_id = $2`,
+		heartbeatTime.UTC(), agentID)
+	if err != nil {
+		return fmt.Errorf("failed to update heartbeat: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("agent not found")
+	}
+	return nil
+}
+
+func (s *PostgresStore) MarkInactiveAgents(cutoff time.Time) ([]string, error) {
+	rows, err := s.pool.Query(context.Background(), `
+		UPDATE agents SET status = 'inactive'
+		WHERE status = 'online' AND last_heartbeat IS NOT NULL AND last_heartbeat < $1
+		RETURNING agent_id`,
+		cutoff.UTC())
+	if err != nil {
+		return nil, fmt.Errorf("failed to mark inactive agents: %w", err)
+	}
+	defer rows.Close()
+
+	var agentIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			continue
+		}
+		agentIDs = append(agentIDs, id)
+	}
+	return agentIDs, nil
+}
+
+func (s *PostgresStore) UpdateGossipEntryStatus(agentID string, status string) error {
+	_, err := s.pool.Exec(context.Background(), `
+		UPDATE gossip_entries SET status = $1 WHERE agent_id = $2`,
+		status, agentID)
+	return err
+}
+
+func (s *PostgresStore) CountAgentsByStatus() (online, inactive, unknown int, err error) {
+	rows, err := s.pool.Query(context.Background(), `
+		SELECT status, COUNT(*) FROM agents GROUP BY status`)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			continue
+		}
+		switch status {
+		case "online":
+			online = count
+		case "inactive":
+			inactive = count
+		default:
+			unknown += count
+		}
+	}
+	return
 }
 
 func (s *PostgresStore) GetAllTags() ([]string, error) {

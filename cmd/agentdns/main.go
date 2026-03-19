@@ -331,6 +331,10 @@ func cmdStart() {
 	transport.SetEventBus(bus)
 	fedSearch.SetEventBus(bus)
 
+	// Start the liveness monitor (checks for inactive agents)
+	monitor := api.NewLivenessMonitor(st, cfg.Heartbeat, gossipHandler, bus, kp)
+	go monitor.Start()
+
 	// Graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -714,7 +718,8 @@ func cmdStatus() {
 	fmt.Printf("  Type:           %s\n", status.NodeType)
 	fmt.Printf("  Uptime:         %s\n", status.Uptime)
 	fmt.Printf("  Peers:          %d\n", status.PeerCount)
-	fmt.Printf("  Local agents:   %d\n", status.LocalAgents)
+	fmt.Printf("  Local agents:   %d (online: %d, inactive: %d)\n",
+		status.LocalAgents, status.OnlineAgents, status.InactiveAgents)
 	fmt.Printf("  Gossip entries: %d\n", status.GossipEntries)
 	fmt.Printf("  Cached cards:   %d\n", status.CachedCards)
 }

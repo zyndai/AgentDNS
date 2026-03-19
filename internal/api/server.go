@@ -101,6 +101,10 @@ func (s *Server) Start() error {
 	mux.HandleFunc("DELETE /v1/agents/{agentID}", s.handleDeleteAgent)
 	mux.HandleFunc("GET /v1/agents/{agentID}/card", s.handleGetAgentCard)
 
+	// Agent heartbeat / liveness
+	mux.HandleFunc("POST /v1/agents/{agentID}/heartbeat", s.handleAgentHeartbeat)
+	mux.HandleFunc("GET /v1/agents/{agentID}/status", s.handleGetAgentStatus)
+
 	// Search
 	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))
 	mux.HandleFunc("GET /v1/categories", s.handleGetCategories)
@@ -777,6 +781,168 @@ func (s *Server) handleGetAgentCard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, card)
 }
 
+// --- Heartbeat Handlers ---
+
+// handleAgentHeartbeat processes a heartbeat from an agent to prove liveness.
+//
+//	@Summary		Agent heartbeat
+//	@Description	Agents send periodic heartbeats to prove they are alive. The heartbeat must include a signed timestamp.
+//	@Tags			Heartbeat
+//	@Accept			json
+//	@Produce		json
+//	@Param			agentID	path		string					true	"Agent ID"
+//	@Param			body	body		models.HeartbeatRequest	true	"Heartbeat payload"
+//	@Success		200		{object}	models.HeartbeatResponse	"Heartbeat acknowledged"
+//	@Failure		400		{object}	map[string]string		"Invalid request"
+//	@Failure		401		{object}	map[string]string		"Invalid signature"
+//	@Failure		404		{object}	map[string]string		"Agent not found"
+//	@Router			/v1/agents/{agentID}/heartbeat [post]
+func (s *Server) handleAgentHeartbeat(w http.ResponseWriter, r *http.Request) {
+	agentID := r.PathValue("agentID")
+	if agentID == "" {
+		writeError(w, http.StatusBadRequest, "agent_id is required")
+		return
+	}
+
+	// Get the agent
+	agent, err := s.store.GetAgent(agentID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get agent")
+		return
+	}
+	if agent == nil {
+		writeError(w, http.StatusNotFound, "agent not found")
+		return
+	}
+
+	// Read body
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "failed to read request body")
+		return
+	}
+
+	// Verify signature (agent key or developer key)
+	authErr := verifyDualKeyOwnership(s.store, agent, bodyBytes, r.Header.Get("Authorization"))
+	if authErr != nil {
+		writeError(w, http.StatusUnauthorized, "heartbeat verification failed: "+authErr.Error())
+		return
+	}
+
+	// Parse heartbeat request
+	var req models.HeartbeatRequest
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Timestamp == "" {
+		writeError(w, http.StatusBadRequest, "timestamp is required")
+		return
+	}
+
+	// Validate timestamp freshness (clock skew tolerance)
+	ts, err := time.Parse(time.RFC3339, req.Timestamp)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid timestamp format, expected RFC3339")
+		return
+	}
+
+	skew := time.Duration(s.cfg.Heartbeat.ClockSkewToleranceSeconds) * time.Second
+	if skew <= 0 {
+		skew = 60 * time.Second
+	}
+	diff := time.Since(ts)
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > skew {
+		writeError(w, http.StatusBadRequest, "timestamp too far from server time")
+		return
+	}
+
+	// Was the agent previously inactive?
+	wasInactive := agent.Status == models.AgentStatusInactive
+
+	// Update heartbeat in store
+	if err := s.store.UpdateAgentHeartbeat(agentID, time.Now()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update heartbeat: "+err.Error())
+		return
+	}
+
+	// If agent was inactive and is now online, gossip the status change
+	if wasInactive {
+		ann := &models.GossipAnnouncement{
+			Type:            "agent_status",
+			AgentID:         agentID,
+			Action:          models.AgentStatusOnline,
+			Status:          models.AgentStatusOnline,
+			HomeRegistry:    s.nodeIdentity.RegistryID(),
+			Timestamp:       time.Now().UTC().Format(time.RFC3339),
+			OriginPublicKey: s.nodeIdentity.PublicKeyString(),
+			HopCount:        0,
+			MaxHops:         10,
+		}
+		ann.Signature = s.nodeIdentity.Sign([]byte(agentID + ":" + models.AgentStatusOnline + ":" + ann.Timestamp))
+		s.gossip.BroadcastAnnouncement(ann)
+
+		// Emit event
+		s.eventBus.Publish(events.EventAgentOnline, events.HeartbeatEventData{
+			AgentID:  agentID,
+			Name:     agent.Name,
+			Status:   models.AgentStatusOnline,
+			Category: agent.Category,
+		})
+	}
+
+	// Emit heartbeat event
+	s.eventBus.Publish(events.EventAgentHeartbeat, events.HeartbeatEventData{
+		AgentID: agentID,
+		Name:    agent.Name,
+		Status:  models.AgentStatusOnline,
+	})
+
+	writeJSON(w, http.StatusOK, models.HeartbeatResponse{
+		Status:               "ok",
+		NextHeartbeatSeconds: s.cfg.Heartbeat.TimeoutSeconds / 5, // suggest interval = timeout/5
+	})
+}
+
+// handleGetAgentStatus returns the liveness status of an agent.
+//
+//	@Summary		Get agent status
+//	@Description	Returns the liveness status and last heartbeat time for an agent.
+//	@Tags			Heartbeat
+//	@Produce		json
+//	@Param			agentID	path		string			true	"Agent ID"
+//	@Success		200		{object}	map[string]string	"Agent status"
+//	@Failure		404		{object}	map[string]string	"Agent not found"
+//	@Router			/v1/agents/{agentID}/status [get]
+func (s *Server) handleGetAgentStatus(w http.ResponseWriter, r *http.Request) {
+	agentID := r.PathValue("agentID")
+	if agentID == "" {
+		writeError(w, http.StatusBadRequest, "agent_id is required")
+		return
+	}
+
+	agent, err := s.store.GetAgent(agentID)
+	if err != nil || agent == nil {
+		writeError(w, http.StatusNotFound, "agent not found")
+		return
+	}
+
+	status := agent.Status
+	if status == "" {
+		status = models.AgentStatusUnknown
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"agent_id":       agentID,
+		"status":         status,
+		"last_heartbeat": agent.LastHeartbeat,
+	})
+}
+
 // --- Search Handlers ---
 
 // handleSearch performs a ranked search across local and gossip indexes.
@@ -867,17 +1033,20 @@ func (s *Server) handleGetTags(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleNetworkStatus(w http.ResponseWriter, r *http.Request) {
 	agentCount, _ := s.store.CountAgents()
 	gossipCount, _ := s.store.CountGossipEntries()
+	online, inactive, _, _ := s.store.CountAgentsByStatus()
 
 	status := models.NetworkStatus{
-		RegistryID:    s.nodeIdentity.RegistryID(),
-		Name:          s.cfg.Node.Name,
-		Version:       "0.1.0",
-		Uptime:        time.Since(s.startTime).String(),
-		PeerCount:     s.peerManager.PeerCount(),
-		LocalAgents:   agentCount,
-		GossipEntries: gossipCount,
-		CachedCards:   s.cardFetcher.CacheSize(),
-		NodeType:      s.cfg.Node.Type,
+		RegistryID:     s.nodeIdentity.RegistryID(),
+		Name:           s.cfg.Node.Name,
+		Version:        "0.2.0",
+		Uptime:         time.Since(s.startTime).String(),
+		PeerCount:      s.peerManager.PeerCount(),
+		LocalAgents:    agentCount,
+		OnlineAgents:   online,
+		InactiveAgents: inactive,
+		GossipEntries:  gossipCount,
+		CachedCards:    s.cardFetcher.CacheSize(),
+		NodeType:       s.cfg.Node.Type,
 	}
 
 	writeJSON(w, http.StatusOK, status)

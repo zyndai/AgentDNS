@@ -9,6 +9,8 @@
 package store
 
 import (
+	"time"
+
 	"github.com/agentdns/agent-dns/internal/models"
 )
 
@@ -117,6 +119,22 @@ type Store interface {
 	// GetMeta retrieves a value from node metadata.
 	// Returns empty string if key not found.
 	GetMeta(key string) (string, error)
+
+	// --- Heartbeat / Liveness ---
+
+	// UpdateAgentHeartbeat updates the last_heartbeat timestamp and sets status to 'online'.
+	UpdateAgentHeartbeat(agentID string, heartbeatTime time.Time) error
+
+	// MarkInactiveAgents sets status='inactive' for all agents whose last_heartbeat
+	// is older than the given cutoff time and are currently 'online'.
+	// Returns the list of agent IDs that were marked inactive.
+	MarkInactiveAgents(cutoff time.Time) ([]string, error)
+
+	// UpdateGossipEntryStatus updates the status field on a gossip entry.
+	UpdateGossipEntryStatus(agentID string, status string) error
+
+	// CountAgentsByStatus returns the count of agents for each status.
+	CountAgentsByStatus() (online, inactive, unknown int, err error)
 
 	// --- Tags & Categories ---
 

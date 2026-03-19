@@ -26,15 +26,17 @@ type TrustScore struct {
 
 // NetworkStatus describes the current state of the local registry node.
 type NetworkStatus struct {
-	RegistryID    string `json:"registry_id"`
-	Name          string `json:"name"`
-	Version       string `json:"version"`
-	Uptime        string `json:"uptime"`
-	PeerCount     int    `json:"peer_count"`
-	LocalAgents   int    `json:"local_agents"`
-	GossipEntries int    `json:"gossip_entries"`
-	CachedCards   int    `json:"cached_cards"`
-	NodeType      string `json:"node_type"` // full, light, gateway
+	RegistryID     string `json:"registry_id"`
+	Name           string `json:"name"`
+	Version        string `json:"version"`
+	Uptime         string `json:"uptime"`
+	PeerCount      int    `json:"peer_count"`
+	LocalAgents    int    `json:"local_agents"`
+	OnlineAgents   int    `json:"online_agents"`
+	InactiveAgents int    `json:"inactive_agents"`
+	GossipEntries  int    `json:"gossip_entries"`
+	CachedCards    int    `json:"cached_cards"`
+	NodeType       string `json:"node_type"` // full, light, gateway
 }
 
 // NetworkStats provides estimated global network statistics.

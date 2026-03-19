@@ -29,6 +29,9 @@ type GossipAnnouncement struct {
 	ProfileURL string `json:"profile_url,omitempty"`
 	GitHub     string `json:"github,omitempty"`
 	PublicKey  string `json:"public_key,omitempty"` // developer's own public key (for developer_announce)
+
+	// Liveness status (for agent_status type)
+	Status string `json:"status,omitempty"` // online, inactive
 }
 
 // GossipEntry is stored in the local gossip index -- a lightweight version
@@ -50,6 +53,9 @@ type GossipEntry struct {
 	DeveloperID        string          `json:"developer_id,omitempty" db:"developer_id"`
 	DeveloperPublicKey string          `json:"developer_public_key,omitempty" db:"developer_public_key"`
 	DeveloperProof     *DeveloperProof `json:"developer_proof,omitempty" db:"-"` // stored as JSONB
+
+	// Liveness status
+	Status string `json:"status,omitempty" db:"status"` // online, inactive, unknown
 }
 
 // PeerInfo describes a connected peer registry in the mesh.

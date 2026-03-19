@@ -166,6 +166,14 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 			}
 		}
 
+	case "agent_status":
+		// Update the gossip entry's status field
+		if ann.AgentID != "" && ann.Status != "" {
+			if err := gh.store.UpdateGossipEntryStatus(ann.AgentID, ann.Status); err != nil {
+				log.Printf("failed to update gossip entry status for %s: %v", ann.AgentID, err)
+			}
+		}
+
 	default: // agent_announce
 		switch ann.Action {
 		case "register", "update":

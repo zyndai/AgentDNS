@@ -13,6 +13,9 @@ type EventType string
 const (
 	EventAgentRegistered   EventType = "agent_registered"
 	EventAgentDeregistered EventType = "agent_deregistered"
+	EventAgentHeartbeat    EventType = "agent_heartbeat"
+	EventAgentOnline       EventType = "agent_online"
+	EventAgentInactive     EventType = "agent_inactive"
 	EventGossipOutgoing    EventType = "gossip_outgoing"
 	EventGossipIncoming    EventType = "gossip_incoming"
 	EventSearchOutgoing    EventType = "search_outgoing"
@@ -35,6 +38,14 @@ type AgentEventData struct {
 	Category string   `json:"category"`
 	Tags     []string `json:"tags,omitempty"`
 	Summary  string   `json:"summary,omitempty"`
+}
+
+// HeartbeatEventData is the payload for agent_heartbeat / agent_online / agent_inactive events.
+type HeartbeatEventData struct {
+	AgentID  string `json:"agent_id"`
+	Name     string `json:"name,omitempty"`
+	Status   string `json:"status"` // online, inactive
+	Category string `json:"category,omitempty"`
 }
 
 // GossipEventData is the payload for gossip_incoming / gossip_outgoing events.

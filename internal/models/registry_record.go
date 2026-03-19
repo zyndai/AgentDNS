@@ -38,6 +38,10 @@ type RegistryRecord struct {
 	DeveloperID    string          `json:"developer_id,omitempty" db:"developer_id"`
 	AgentIndex     *int            `json:"agent_index,omitempty" db:"agent_index"`
 	DeveloperProof *DeveloperProof `json:"developer_proof,omitempty" db:"-"` // stored as JSONB
+
+	// Liveness fields (managed by heartbeat protocol)
+	Status        string `json:"status,omitempty" db:"status"`                 // online, inactive, unknown
+	LastHeartbeat string `json:"last_heartbeat,omitempty" db:"last_heartbeat"` // RFC3339
 }
 
 // CapabilitySummary provides searchable metadata about agent capabilities.

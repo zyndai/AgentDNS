@@ -74,3 +74,11 @@ cors_origins = ["*"]
 expected_tokens = 500000
 false_positive_rate = 0.01
 update_interval_seconds = 300
+
+# Agent heartbeat liveness protocol
+# Agents send HTTP POST heartbeats to prove they're alive.
+# After timeout_seconds without a heartbeat, agents are marked inactive.
+[heartbeat]
+timeout_seconds = 300                   # 5 minutes
+sweep_interval_seconds = 30             # how often to check for inactive agents
+clock_skew_tolerance_seconds = 60       # max allowed timestamp drift

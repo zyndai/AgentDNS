@@ -274,9 +274,29 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			continue
 		}
 
-		// Apply category/tag filters
+		// Apply category/tag/status filters
 		if req.Category != "" && agent.Category != req.Category {
 			continue
+		}
+		if len(req.Tags) > 0 && !hasAnyTag(agent.Tags, req.Tags) {
+			continue
+		}
+		if !matchesStatusFilter(agent.Status, req.Status) {
+			continue
+		}
+
+		candidateMap[kr.DocID] = &ranking.CandidateResult{
+			AgentID:       agent.AgentID,
+			Name:          agent.Name,
+			Summary:       agent.Summary,
+			Category:      agent.Category,
+			Tags:          agent.Tags,
+			AgentURL:      agent.AgentURL,
+			HomeRegistry:  agent.HomeRegistry,
+			UpdatedAt:     agent.UpdatedAt,
+			TextRelevance: normalizedScore,
+			TrustScore:    0.5,                                     // default until trust system is active
+			Availability:  agentStatusToAvailability(agent.Status), // real status from heartbeat
 		}
 		if len(req.Tags) > 0 && !hasAnyTag(agent.Tags, req.Tags) {
 			continue
@@ -292,8 +312,8 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			HomeRegistry:  agent.HomeRegistry,
 			UpdatedAt:     agent.UpdatedAt,
 			TextRelevance: normalizedScore,
-			TrustScore:    0.5, // default until trust system is active
-			Availability:  1.0, // assume available for local agents
+			TrustScore:    0.5,                                     // default until trust system is active
+			Availability:  agentStatusToAvailability(agent.Status), // real status from heartbeat
 		}
 	}
 
@@ -312,6 +332,9 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			if len(req.Tags) > 0 && !hasAnyTag(agent.Tags, req.Tags) {
 				continue
 			}
+			if !matchesStatusFilter(agent.Status, req.Status) {
+				continue
+			}
 
 			candidateMap[sr.DocID] = &ranking.CandidateResult{
 				AgentID:            agent.AgentID,
@@ -324,7 +347,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 				UpdatedAt:          agent.UpdatedAt,
 				SemanticSimilarity: sr.Score,
 				TrustScore:         0.5,
-				Availability:       1.0,
+				Availability:       agentStatusToAvailability(agent.Status),
 			}
 		}
 	}
@@ -367,6 +390,9 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 		docVec := e.embedder.Embed(text)
 		semanticScore := cosineSimilarity(queryVec, docVec)
 
+		// Use gossip entry's status if available, otherwise assume 0.8
+		gossipAvail := gossipStatusToAvailability(entry.Status)
+
 		candidates = append(candidates, &ranking.CandidateResult{
 			AgentID:            entry.AgentID,
 			Name:               entry.Name,
@@ -379,7 +405,7 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 			TextRelevance:      textScore,
 			SemanticSimilarity: semanticScore,
 			TrustScore:         0.3, // lower default for remote agents
-			Availability:       0.8, // slightly less confident about availability
+			Availability:       gossipAvail,
 		})
 	}
 
@@ -430,6 +456,42 @@ func (e *Engine) RebuildIndexes() error {
 	}
 
 	return nil
+}
+
+// agentStatusToAvailability converts a local agent's heartbeat status to an availability score.
+func agentStatusToAvailability(status string) float64 {
+	switch status {
+	case "online":
+		return 1.0
+	case "inactive":
+		return 0.0
+	default: // "unknown" or empty -- agent hasn't heartbeated yet
+		return 0.5
+	}
+}
+
+// gossipStatusToAvailability converts a gossip entry's status to an availability score.
+// Gossip entries are slightly less reliable than local agents.
+func gossipStatusToAvailability(status string) float64 {
+	switch status {
+	case "online":
+		return 0.9
+	case "inactive":
+		return 0.0
+	default: // "unknown" or empty
+		return 0.7
+	}
+}
+
+// matchesStatusFilter checks if an agent's status matches the requested filter.
+func matchesStatusFilter(agentStatus, filterStatus string) bool {
+	if filterStatus == "" || filterStatus == "any" {
+		return true
+	}
+	if agentStatus == "" {
+		agentStatus = "unknown"
+	}
+	return agentStatus == filterStatus
 }
 
 func hasAnyTag(agentTags, filterTags []string) bool {
