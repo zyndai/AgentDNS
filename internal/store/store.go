@@ -42,6 +42,31 @@ type Store interface {
 	// SearchAgentsByKeyword performs a keyword search on local agents.
 	SearchAgentsByKeyword(query string, category string, tags []string, limit int) ([]*models.RegistryRecord, error)
 
+	// ListAgentsByDeveloper returns all agents registered by a specific developer.
+	ListAgentsByDeveloper(developerID string, limit, offset int) ([]*models.RegistryRecord, error)
+
+	// --- Developer CRUD ---
+
+	// CreateDeveloper inserts a new developer identity record.
+	CreateDeveloper(dev *models.DeveloperRecord) error
+
+	// GetDeveloper retrieves a developer by ID from local storage.
+	// Returns nil, nil if the developer is not found.
+	GetDeveloper(developerID string) (*models.DeveloperRecord, error)
+
+	// GetDeveloperByPublicKey retrieves a developer by their public key.
+	// Returns nil, nil if not found.
+	GetDeveloperByPublicKey(publicKey string) (*models.DeveloperRecord, error)
+
+	// UpdateDeveloper updates an existing developer's record.
+	UpdateDeveloper(dev *models.DeveloperRecord) error
+
+	// DeleteDeveloper removes a developer from local storage.
+	DeleteDeveloper(developerID string) error
+
+	// CountDevelopers returns the number of locally registered developers.
+	CountDevelopers() (int, error)
+
 	// --- Gossip Entries ---
 
 	// UpsertGossipEntry inserts or updates a gossip entry from a remote registry.
@@ -55,6 +80,17 @@ type Store interface {
 
 	// CountGossipEntries returns the number of active (non-tombstoned) gossip entries.
 	CountGossipEntries() (int, error)
+
+	// --- Gossip Developer Entries ---
+
+	// UpsertGossipDeveloper inserts or updates a developer identity from gossip.
+	UpsertGossipDeveloper(entry *models.GossipDeveloperEntry) error
+
+	// GetGossipDeveloper retrieves a gossip developer entry by ID.
+	GetGossipDeveloper(developerID string) (*models.GossipDeveloperEntry, error)
+
+	// TombstoneGossipDeveloper marks a gossip developer entry as tombstoned.
+	TombstoneGossipDeveloper(developerID string) error
 
 	// --- Tombstones ---
 

@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -85,6 +87,13 @@ func (s *Server) Start() error {
 	searchRL := NewRateLimiter(s.cfg.API.RateLimitSearch)
 	registerRL := NewRateLimiter(s.cfg.API.RateLimitRegister)
 
+	// Developer identity management
+	mux.HandleFunc("POST /v1/developers", rateLimited(registerRL, s.handleRegisterDeveloper))
+	mux.HandleFunc("GET /v1/developers/{developerID}", s.handleGetDeveloper)
+	mux.HandleFunc("PUT /v1/developers/{developerID}", s.handleUpdateDeveloper)
+	mux.HandleFunc("DELETE /v1/developers/{developerID}", s.handleDeleteDeveloper)
+	mux.HandleFunc("GET /v1/developers/{developerID}/agents", s.handleListDeveloperAgents)
+
 	// Agent management
 	mux.HandleFunc("POST /v1/agents", rateLimited(registerRL, s.handleRegisterAgent))
 	mux.HandleFunc("GET /v1/agents/{agentID}", s.handleGetAgent)
@@ -136,12 +145,246 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
 }
 
+// --- Developer Handlers ---
+
+// handleRegisterDeveloper registers a new developer identity.
+func (s *Server) handleRegisterDeveloper(w http.ResponseWriter, r *http.Request) {
+	var req models.DeveloperRegistrationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+
+	if req.Name == "" || req.PublicKey == "" {
+		writeError(w, http.StatusBadRequest, "name and public_key are required")
+		return
+	}
+
+	// Strip ed25519: prefix for verification
+	pubKeyStr := req.PublicKey
+	if strings.HasPrefix(pubKeyStr, "ed25519:") {
+		pubKeyStr = pubKeyStr[8:]
+	}
+
+	// Verify the registration signature
+	if req.Signature == "" {
+		writeError(w, http.StatusBadRequest, "signature is required")
+		return
+	}
+	signable, _ := json.Marshal(map[string]interface{}{
+		"name":        req.Name,
+		"public_key":  req.PublicKey,
+		"profile_url": req.ProfileURL,
+		"github":      req.GitHub,
+	})
+	valid, err := identity.Verify(pubKeyStr, signable, req.Signature)
+	if err != nil || !valid {
+		writeError(w, http.StatusUnauthorized, "invalid signature")
+		return
+	}
+
+	// Generate developer_id from public key bytes
+	pubKeyBytes, err := base64.StdEncoding.DecodeString(pubKeyStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid public key encoding")
+		return
+	}
+	developerID := models.GenerateDeveloperID(ed25519.PublicKey(pubKeyBytes))
+
+	now := models.NowRFC3339()
+	dev := &models.DeveloperRecord{
+		DeveloperID:   developerID,
+		Name:          req.Name,
+		PublicKey:     req.PublicKey,
+		ProfileURL:    req.ProfileURL,
+		GitHub:        req.GitHub,
+		HomeRegistry:  s.nodeIdentity.RegistryID(),
+		SchemaVersion: models.CurrentSchemaVersion,
+		RegisteredAt:  now,
+		UpdatedAt:     now,
+		Signature:     req.Signature,
+	}
+
+	if err := dev.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := s.store.CreateDeveloper(dev); err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") {
+			writeError(w, http.StatusConflict, "developer already registered")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to register developer: "+err.Error())
+		return
+	}
+
+	// Gossip the developer identity to mesh peers
+	ann := s.gossip.CreateDeveloperAnnouncement(dev, "register", s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+	s.gossip.BroadcastAnnouncement(ann)
+
+	writeJSON(w, http.StatusCreated, map[string]string{
+		"developer_id": developerID,
+		"message":      "developer registered successfully",
+	})
+}
+
+// handleGetDeveloper retrieves a developer by ID.
+func (s *Server) handleGetDeveloper(w http.ResponseWriter, r *http.Request) {
+	developerID := r.PathValue("developerID")
+	if developerID == "" {
+		writeError(w, http.StatusBadRequest, "developer_id is required")
+		return
+	}
+
+	dev, err := s.store.GetDeveloper(developerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get developer: "+err.Error())
+		return
+	}
+	if dev == nil {
+		// Check gossip entries for remote developers
+		gossipDev, err := s.store.GetGossipDeveloper(developerID)
+		if err != nil || gossipDev == nil {
+			writeError(w, http.StatusNotFound, "developer not found")
+			return
+		}
+		// Convert gossip entry to developer record for consistent response
+		dev = &models.DeveloperRecord{
+			DeveloperID:  gossipDev.DeveloperID,
+			Name:         gossipDev.Name,
+			PublicKey:    gossipDev.PublicKey,
+			ProfileURL:   gossipDev.ProfileURL,
+			GitHub:       gossipDev.GitHub,
+			HomeRegistry: gossipDev.HomeRegistry,
+		}
+	}
+
+	writeJSON(w, http.StatusOK, dev)
+}
+
+// handleUpdateDeveloper updates a developer's profile.
+func (s *Server) handleUpdateDeveloper(w http.ResponseWriter, r *http.Request) {
+	developerID := r.PathValue("developerID")
+	if developerID == "" {
+		writeError(w, http.StatusBadRequest, "developer_id is required")
+		return
+	}
+
+	existing, err := s.store.GetDeveloper(developerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get developer")
+		return
+	}
+	if existing == nil {
+		writeError(w, http.StatusNotFound, "developer not found")
+		return
+	}
+
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "failed to read request body")
+		return
+	}
+
+	// Verify ownership -- must be signed by the developer's key
+	if err := verifyOwnership(existing.PublicKey, bodyBytes, r.Header.Get("Authorization")); err != nil {
+		writeError(w, http.StatusUnauthorized, "ownership verification failed: "+err.Error())
+		return
+	}
+
+	var req models.DeveloperUpdateRequest
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Name != nil {
+		existing.Name = *req.Name
+	}
+	if req.ProfileURL != nil {
+		existing.ProfileURL = *req.ProfileURL
+	}
+	if req.GitHub != nil {
+		existing.GitHub = *req.GitHub
+	}
+	existing.UpdatedAt = models.NowRFC3339()
+	existing.Signature = req.Signature
+
+	if err := s.store.UpdateDeveloper(existing); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update developer: "+err.Error())
+		return
+	}
+
+	// Gossip the update
+	ann := s.gossip.CreateDeveloperAnnouncement(existing, "update", s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+	s.gossip.BroadcastAnnouncement(ann)
+
+	writeJSON(w, http.StatusOK, existing)
+}
+
+// handleDeleteDeveloper deregisters a developer identity.
+func (s *Server) handleDeleteDeveloper(w http.ResponseWriter, r *http.Request) {
+	developerID := r.PathValue("developerID")
+	if developerID == "" {
+		writeError(w, http.StatusBadRequest, "developer_id is required")
+		return
+	}
+
+	existing, err := s.store.GetDeveloper(developerID)
+	if err != nil || existing == nil {
+		writeError(w, http.StatusNotFound, "developer not found")
+		return
+	}
+
+	// Verify ownership
+	if err := verifyOwnership(existing.PublicKey, []byte(developerID), r.Header.Get("Authorization")); err != nil {
+		writeError(w, http.StatusUnauthorized, "ownership verification failed: "+err.Error())
+		return
+	}
+
+	if err := s.store.DeleteDeveloper(developerID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete developer: "+err.Error())
+		return
+	}
+
+	// Gossip the deregistration
+	ann := s.gossip.CreateDeveloperAnnouncement(existing, "deregister", s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+	s.gossip.BroadcastAnnouncement(ann)
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "developer deregistered"})
+}
+
+// handleListDeveloperAgents lists all agents registered by a developer.
+func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Request) {
+	developerID := r.PathValue("developerID")
+	if developerID == "" {
+		writeError(w, http.StatusBadRequest, "developer_id is required")
+		return
+	}
+
+	agents, err := s.store.ListAgentsByDeveloper(developerID, 100, 0)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list agents: "+err.Error())
+		return
+	}
+	if agents == nil {
+		agents = []*models.RegistryRecord{}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"developer_id": developerID,
+		"agents":       agents,
+		"count":        len(agents),
+	})
+}
+
 // --- Agent Handlers ---
 
 // handleRegisterAgent registers a new agent on the registry.
 //
 //	@Summary		Register a new agent
-//	@Description	Register a new AI agent on the registry network. Requires name, agent_url, category, and public_key.
+//	@Description	Register a new AI agent on the registry network. Requires name, agent_url, category, and public_key. Optionally includes developer_id and developer_proof for developer chain of trust.
 //	@Tags			Agents
 //	@Accept			json
 //	@Produce		json
@@ -165,51 +408,115 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Decode public key to generate agent_id
+	// Strip ed25519: prefix for cryptographic operations
 	pubKeyStr := req.PublicKey
 	if strings.HasPrefix(pubKeyStr, "ed25519:") {
 		pubKeyStr = pubKeyStr[8:]
 	}
 
-	// Verify the registration signature
-	if req.Signature != "" {
-		signable, _ := json.Marshal(map[string]interface{}{
-			"name":       req.Name,
-			"agent_url":  req.AgentURL,
-			"category":   req.Category,
-			"tags":       req.Tags,
-			"summary":    req.Summary,
-			"public_key": req.PublicKey,
-		})
-		valid, err := identity.Verify(pubKeyStr, signable, req.Signature)
-		if err != nil || !valid {
-			writeError(w, http.StatusUnauthorized, "invalid signature")
-			return
-		}
+	// Verify the registration signature (agent key signs the payload)
+	if req.Signature == "" {
+		writeError(w, http.StatusBadRequest, "signature is required")
+		return
+	}
+	signable, _ := json.Marshal(map[string]interface{}{
+		"name":       req.Name,
+		"agent_url":  req.AgentURL,
+		"category":   req.Category,
+		"tags":       req.Tags,
+		"summary":    req.Summary,
+		"public_key": req.PublicKey,
+	})
+	valid, err := identity.Verify(pubKeyStr, signable, req.Signature)
+	if err != nil || !valid {
+		writeError(w, http.StatusUnauthorized, "invalid agent signature")
+		return
 	}
 
-	// Generate agent_id from public key
-	import_b64 := pubKeyStr
-	_ = import_b64
-	// For now, generate a deterministic ID from the public key string
-	agentID := "agdns:" + hashString(pubKeyStr)[:32]
+	// Generate agent_id from public key bytes (canonical derivation)
+	pubKeyBytes, err := base64.StdEncoding.DecodeString(pubKeyStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid public key encoding")
+		return
+	}
+	agentID := models.GenerateAgentID(ed25519.PublicKey(pubKeyBytes))
+
+	// Determine owner and verify developer proof if provided
+	var developerID string
+	var agentIndex *int
+	var developerProof *models.DeveloperProof
+	owner := developerID // will be set below
+
+	if req.DeveloperID != "" && req.DeveloperProof != nil {
+		// Verify developer exists (locally or via gossip)
+		dev, devErr := s.store.GetDeveloper(req.DeveloperID)
+		if devErr != nil {
+			writeError(w, http.StatusInternalServerError, "failed to look up developer")
+			return
+		}
+		if dev == nil {
+			// Check gossip entries
+			gossipDev, gErr := s.store.GetGossipDeveloper(req.DeveloperID)
+			if gErr != nil || gossipDev == nil {
+				writeError(w, http.StatusBadRequest, "developer_id not found; register developer first")
+				return
+			}
+			// Verify the developer public key matches gossip
+			if gossipDev.PublicKey != req.DeveloperProof.DeveloperPublicKey {
+				writeError(w, http.StatusBadRequest, "developer_proof.developer_public_key does not match registered developer")
+				return
+			}
+		} else {
+			// Verify the developer public key matches
+			if dev.PublicKey != req.DeveloperProof.DeveloperPublicKey {
+				writeError(w, http.StatusBadRequest, "developer_proof.developer_public_key does not match registered developer")
+				return
+			}
+		}
+
+		// Verify the derivation proof
+		proofValid, proofErr := identity.VerifyDerivationProof(
+			&identity.DeveloperProof{
+				DeveloperPublicKey: req.DeveloperProof.DeveloperPublicKey,
+				AgentIndex:         req.DeveloperProof.AgentIndex,
+				DeveloperSignature: req.DeveloperProof.DeveloperSignature,
+			},
+			req.PublicKey,
+		)
+		if proofErr != nil || !proofValid {
+			writeError(w, http.StatusUnauthorized, "invalid developer derivation proof")
+			return
+		}
+
+		developerID = req.DeveloperID
+		idx := req.DeveloperProof.AgentIndex
+		agentIndex = &idx
+		developerProof = req.DeveloperProof
+		owner = developerID
+	} else {
+		// No developer -- agent is self-sovereign
+		owner = "did:key:" + pubKeyStr[:20]
+	}
 
 	now := models.NowRFC3339()
 	record := &models.RegistryRecord{
-		AgentID:       agentID,
-		Name:          req.Name,
-		Owner:         "did:key:" + pubKeyStr[:20],
-		AgentURL:      req.AgentURL,
-		Category:      req.Category,
-		Tags:          req.Tags,
-		Summary:       req.Summary,
-		PublicKey:     req.PublicKey,
-		HomeRegistry:  s.nodeIdentity.RegistryID(),
-		SchemaVersion: models.CurrentSchemaVersion,
-		RegisteredAt:  now,
-		UpdatedAt:     now,
-		TTL:           86400,
-		Signature:     req.Signature,
+		AgentID:        agentID,
+		Name:           req.Name,
+		Owner:          owner,
+		AgentURL:       req.AgentURL,
+		Category:       req.Category,
+		Tags:           req.Tags,
+		Summary:        req.Summary,
+		PublicKey:      req.PublicKey,
+		HomeRegistry:   s.nodeIdentity.RegistryID(),
+		SchemaVersion:  models.CurrentSchemaVersion,
+		RegisteredAt:   now,
+		UpdatedAt:      now,
+		TTL:            86400,
+		Signature:      req.Signature,
+		DeveloperID:    developerID,
+		AgentIndex:     agentIndex,
+		DeveloperProof: developerProof,
 	}
 
 	if record.Tags == nil {
@@ -223,7 +530,7 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 
 	// Store the record
 	if err := s.store.CreateAgent(record); err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint") {
+		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
 			writeError(w, http.StatusConflict, "agent already registered")
 			return
 		}
@@ -324,9 +631,10 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify ownership signature
-	if err := verifyOwnership(existing.PublicKey, bodyBytes, r.Header.Get("Authorization")); err != nil {
-		writeError(w, http.StatusUnauthorized, "ownership verification failed: "+err.Error())
+	// Dual-key authorization: accept either agent key OR developer key
+	authErr := verifyDualKeyOwnership(s.store, existing, bodyBytes, r.Header.Get("Authorization"))
+	if authErr != nil {
+		writeError(w, http.StatusUnauthorized, "ownership verification failed: "+authErr.Error())
 		return
 	}
 
@@ -396,9 +704,9 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify ownership signature
-	if err := verifyOwnership(agent.PublicKey, []byte(agentID), r.Header.Get("Authorization")); err != nil {
-		writeError(w, http.StatusUnauthorized, "ownership verification failed: "+err.Error())
+	// Dual-key authorization: accept either agent key OR developer key
+	if authErr := verifyDualKeyOwnership(s.store, agent, []byte(agentID), r.Header.Get("Authorization")); authErr != nil {
+		writeError(w, http.StatusUnauthorized, "ownership verification failed: "+authErr.Error())
 		return
 	}
 
@@ -722,13 +1030,20 @@ func hashString(s string) string {
 
 // verifyOwnership checks that the Authorization header contains a valid
 // signature over data, signed by the private key matching publicKey.
+// Accepts: "Authorization: Bearer ed25519:<base64sig>"
 func verifyOwnership(publicKey string, data []byte, authHeader string) error {
 	if authHeader == "" {
 		return fmt.Errorf("missing Authorization header")
 	}
-	signature := strings.TrimPrefix(authHeader, "Bearer ")
-	if signature == authHeader {
-		return fmt.Errorf("Authorization header must use Bearer scheme")
+
+	var signature string
+	if strings.HasPrefix(authHeader, "Bearer-Dev ") {
+		signature = strings.TrimPrefix(authHeader, "Bearer-Dev ")
+	} else {
+		signature = strings.TrimPrefix(authHeader, "Bearer ")
+		if signature == authHeader {
+			return fmt.Errorf("Authorization header must use Bearer or Bearer-Dev scheme")
+		}
 	}
 
 	pubKey := publicKey
@@ -744,6 +1059,42 @@ func verifyOwnership(publicKey string, data []byte, authHeader string) error {
 		return fmt.Errorf("invalid ownership signature")
 	}
 	return nil
+}
+
+// verifyDualKeyOwnership checks authorization using either the agent's key
+// or the developer's key. This enables two authorization paths:
+//   - "Authorization: Bearer ed25519:<sig>" -- verified against agent's public key
+//   - "Authorization: Bearer-Dev ed25519:<sig>" -- verified against developer's public key
+//
+// If the agent has a developer_id, the developer key is looked up from the store.
+func verifyDualKeyOwnership(st store.Store, agent *models.RegistryRecord, data []byte, authHeader string) error {
+	if authHeader == "" {
+		return fmt.Errorf("missing Authorization header")
+	}
+
+	// Try developer key first if Bearer-Dev scheme is used
+	if strings.HasPrefix(authHeader, "Bearer-Dev ") {
+		if agent.DeveloperID == "" {
+			return fmt.Errorf("agent has no developer; cannot use Bearer-Dev auth")
+		}
+		// Look up developer's public key
+		dev, err := st.GetDeveloper(agent.DeveloperID)
+		if err != nil {
+			return fmt.Errorf("failed to look up developer: %w", err)
+		}
+		if dev == nil {
+			// Try gossip developers
+			gossipDev, gErr := st.GetGossipDeveloper(agent.DeveloperID)
+			if gErr != nil || gossipDev == nil {
+				return fmt.Errorf("developer not found")
+			}
+			return verifyOwnership(gossipDev.PublicKey, data, authHeader)
+		}
+		return verifyOwnership(dev.PublicKey, data, authHeader)
+	}
+
+	// Default: verify against agent's own key
+	return verifyOwnership(agent.PublicKey, data, authHeader)
 }
 
 // rateLimited wraps an http.HandlerFunc with per-IP rate limiting.

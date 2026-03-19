@@ -1,17 +1,20 @@
-// Package identity manages Ed25519 keypairs for agents and registries.
+// Package identity manages Ed25519 keypairs for agents, developers, and registries.
 package identity
 
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha512"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/agentdns/agent-dns/internal/models"
@@ -127,6 +130,120 @@ func (kp *Keypair) RegistryID() string {
 // PublicKeyString returns the public key in "ed25519:<base64>" format.
 func (kp *Keypair) PublicKeyString() string {
 	return "ed25519:" + kp.PublicKeyB64
+}
+
+// DeveloperID returns the developer_id derived from this keypair's public key.
+// Format: agdns:dev:<first 16 bytes of SHA-256 of public key as hex>
+func (kp *Keypair) DeveloperID() string {
+	return models.GenerateDeveloperID(kp.PublicKey)
+}
+
+// DeriveAgentKeypair deterministically derives an agent Ed25519 keypair
+// from a developer's private key and an index. This uses HD-style derivation:
+//
+//	agent_seed = SHA-512(developer_private_key_seed || "agdns:agent:" || uint32_be(index))[:32]
+//	agent_keypair = Ed25519_from_seed(agent_seed)
+//
+// The derivation is deterministic: same developer key + same index always
+// produces the same agent keypair. If the developer loses agent key files,
+// they can re-derive them.
+func DeriveAgentKeypair(developerPrivateKey ed25519.PrivateKey, index uint32) (*Keypair, error) {
+	if len(developerPrivateKey) != ed25519.PrivateKeySize {
+		return nil, fmt.Errorf("invalid developer private key size: %d", len(developerPrivateKey))
+	}
+
+	// Build derivation input: developer seed || domain separator || index
+	seed := developerPrivateKey.Seed()
+	indexBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(indexBytes, index)
+
+	input := make([]byte, 0, len(seed)+len("agdns:agent:")+4)
+	input = append(input, seed...)
+	input = append(input, []byte("agdns:agent:")...)
+	input = append(input, indexBytes...)
+
+	// SHA-512 for full entropy, take first 32 bytes as Ed25519 seed
+	hash := sha512.Sum512(input)
+	agentSeed := hash[:ed25519.SeedSize]
+
+	agentPrivKey := ed25519.NewKeyFromSeed(agentSeed)
+	agentPubKey := agentPrivKey.Public().(ed25519.PublicKey)
+
+	return &Keypair{
+		PublicKey:     agentPubKey,
+		PrivateKey:    agentPrivKey,
+		PublicKeyB64:  base64.StdEncoding.EncodeToString(agentPubKey),
+		PrivateKeyB64: base64.StdEncoding.EncodeToString(agentPrivKey),
+	}, nil
+}
+
+// DeveloperProof is a cryptographic proof that a developer authorized a
+// specific agent key at a specific index. Anyone can verify this proof
+// using only the developer's public key -- no private key or online
+// connectivity needed.
+type DeveloperProof struct {
+	DeveloperPublicKey string `json:"developer_public_key"` // ed25519:<base64>
+	AgentIndex         int    `json:"agent_index"`
+	DeveloperSignature string `json:"developer_signature"` // ed25519:<base64>
+}
+
+// CreateDerivationProof creates a proof that a developer authorized an agent key.
+// The developer signs (agent_public_key || big_endian_uint32(index)).
+// This proof can be verified offline by anyone with the developer's public key.
+func CreateDerivationProof(developerKP *Keypair, agentPubKey ed25519.PublicKey, index uint32) *DeveloperProof {
+	proofMsg := buildProofMessage(agentPubKey, index)
+
+	return &DeveloperProof{
+		DeveloperPublicKey: developerKP.PublicKeyString(),
+		AgentIndex:         int(index),
+		DeveloperSignature: developerKP.Sign(proofMsg),
+	}
+}
+
+// VerifyDerivationProof verifies a developer-agent chain of trust.
+// Returns true if the developer_signature is a valid Ed25519 signature
+// over (agent_public_key_bytes || big_endian_uint32(agent_index))
+// using the developer_public_key.
+func VerifyDerivationProof(proof *DeveloperProof, agentPubKeyB64 string) (bool, error) {
+	if proof == nil {
+		return false, fmt.Errorf("proof is nil")
+	}
+
+	// Decode agent public key
+	agentPubStr := agentPubKeyB64
+	if strings.HasPrefix(agentPubStr, "ed25519:") {
+		agentPubStr = agentPubStr[8:]
+	}
+	agentPubBytes, err := base64.StdEncoding.DecodeString(agentPubStr)
+	if err != nil {
+		return false, fmt.Errorf("failed to decode agent public key: %w", err)
+	}
+
+	if proof.AgentIndex < 0 {
+		return false, fmt.Errorf("agent_index must be non-negative")
+	}
+
+	proofMsg := buildProofMessage(ed25519.PublicKey(agentPubBytes), uint32(proof.AgentIndex))
+
+	// Verify using developer's public key
+	devPubKey := proof.DeveloperPublicKey
+	if strings.HasPrefix(devPubKey, "ed25519:") {
+		devPubKey = devPubKey[8:]
+	}
+
+	return Verify(devPubKey, proofMsg, proof.DeveloperSignature)
+}
+
+// buildProofMessage constructs the canonical message for derivation proofs:
+// agent_public_key_bytes || big_endian_uint32(index)
+func buildProofMessage(agentPubKey ed25519.PublicKey, index uint32) []byte {
+	indexBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(indexBytes, index)
+
+	msg := make([]byte, 0, len(agentPubKey)+4)
+	msg = append(msg, agentPubKey...)
+	msg = append(msg, indexBytes...)
+	return msg
 }
 
 // GenerateTLSConfig creates a TLS configuration using a self-signed certificate

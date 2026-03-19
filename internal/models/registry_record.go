@@ -33,6 +33,11 @@ type RegistryRecord struct {
 	UpdatedAt         string             `json:"updated_at" db:"updated_at"`
 	TTL               int                `json:"ttl" db:"ttl"`
 	Signature         string             `json:"signature" db:"signature"`
+
+	// Developer identity fields (optional for backward compatibility)
+	DeveloperID    string          `json:"developer_id,omitempty" db:"developer_id"`
+	AgentIndex     *int            `json:"agent_index,omitempty" db:"agent_index"`
+	DeveloperProof *DeveloperProof `json:"developer_proof,omitempty" db:"-"` // stored as JSONB
 }
 
 // CapabilitySummary provides searchable metadata about agent capabilities.
@@ -57,6 +62,10 @@ type RegistrationRequest struct {
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty"`
 	PublicKey         string             `json:"public_key" validate:"required"`
 	Signature         string             `json:"signature" validate:"required"`
+
+	// Developer identity fields (optional -- agents can register without a developer)
+	DeveloperID    string          `json:"developer_id,omitempty"`
+	DeveloperProof *DeveloperProof `json:"developer_proof,omitempty"`
 }
 
 // UpdateRequest is submitted by agent owners to update their registry record.
