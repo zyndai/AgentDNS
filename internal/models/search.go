@@ -5,13 +5,14 @@ type SearchRequest struct {
 	Query    string   `json:"query"`
 	Category string   `json:"category,omitempty"`
 	Tags     []string `json:"tags,omitempty"`
-	// Capability filters (NEW)
+	// Capability filters
 	Skills        []string `json:"skills,omitempty"`    // e.g., ["code-review", "linting"]
 	Protocols     []string `json:"protocols,omitempty"` // e.g., ["a2a", "mcp"]
 	Languages     []string `json:"languages,omitempty"` // e.g., ["python", "javascript"]
 	Models        []string `json:"models,omitempty"`    // e.g., ["gpt-4"]
 	MinTrustScore float64  `json:"min_trust_score,omitempty"`
-	Status        string   `json:"status,omitempty"` // online, offline, any
+	Status        string   `json:"status,omitempty"`       // online, offline, any
+	DeveloperID   string   `json:"developer_id,omitempty"` // filter by developer
 	MaxResults    int      `json:"max_results,omitempty"`
 	Offset        int      `json:"offset,omitempty"`
 	Federated     bool     `json:"federated"`
@@ -38,6 +39,7 @@ type SearchResult struct {
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty"`
 	AgentURL          string             `json:"agent_url"`
 	HomeRegistry      string             `json:"home_registry"`
+	DeveloperID       string             `json:"developer_id,omitempty"`
 	Score             float64            `json:"score"`
 	ScoreBreakdown    *ScoreBreakdown    `json:"score_breakdown,omitempty"`
 	Card              *AgentCard         `json:"card,omitempty"` // included if enrich=true

@@ -125,8 +125,12 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 		return false
 	}
 
-	// Dedup check
-	dedupKey := ann.AgentID + ":" + ann.Timestamp
+	// Dedup check -- use agent_id for agent announcements, developer_id for developer announcements
+	dedupID := ann.AgentID
+	if ann.Type == "developer_announce" {
+		dedupID = ann.DeveloperID
+	}
+	dedupKey := dedupID + ":" + ann.Timestamp
 	gh.mu.RLock()
 	_, seen := gh.seen[dedupKey]
 	gh.mu.RUnlock()
@@ -139,34 +143,61 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 	gh.seen[dedupKey] = time.Now()
 	gh.mu.Unlock()
 
-	// Process based on action
-	switch ann.Action {
-	case "register", "update":
-		entry := &models.GossipEntry{
-			AgentID:      ann.AgentID,
-			Name:         ann.Name,
-			Category:     ann.Category,
-			Tags:         ann.Tags,
-			Summary:      ann.Summary,
-			HomeRegistry: ann.HomeRegistry,
-			AgentURL:     ann.AgentURL,
-			ReceivedAt:   time.Now().UTC().Format(time.RFC3339),
-		}
-		if err := gh.store.UpsertGossipEntry(entry); err != nil {
-			log.Printf("failed to store gossip entry: %v", err)
-		}
-
-		// Notify search engine to index
-		gh.mu.RLock()
-		cb := gh.onAnnounce
-		gh.mu.RUnlock()
-		if cb != nil {
-			cb(ann)
+	// Process based on announcement type and action
+	switch ann.Type {
+	case "developer_announce":
+		switch ann.Action {
+		case "register", "update":
+			entry := &models.GossipDeveloperEntry{
+				DeveloperID:  ann.DeveloperID,
+				Name:         ann.Name,
+				PublicKey:    ann.PublicKey,
+				ProfileURL:   ann.ProfileURL,
+				GitHub:       ann.GitHub,
+				HomeRegistry: ann.HomeRegistry,
+				ReceivedAt:   time.Now().UTC().Format(time.RFC3339),
+			}
+			if err := gh.store.UpsertGossipDeveloper(entry); err != nil {
+				log.Printf("failed to store gossip developer entry: %v", err)
+			}
+		case "deregister":
+			if err := gh.store.TombstoneGossipDeveloper(ann.DeveloperID); err != nil {
+				log.Printf("failed to tombstone gossip developer: %v", err)
+			}
 		}
 
-	case "deregister":
-		if err := gh.store.TombstoneGossipEntry(ann.AgentID); err != nil {
-			log.Printf("failed to tombstone gossip entry: %v", err)
+	default: // agent_announce
+		switch ann.Action {
+		case "register", "update":
+			entry := &models.GossipEntry{
+				AgentID:            ann.AgentID,
+				Name:               ann.Name,
+				Category:           ann.Category,
+				Tags:               ann.Tags,
+				Summary:            ann.Summary,
+				HomeRegistry:       ann.HomeRegistry,
+				AgentURL:           ann.AgentURL,
+				ReceivedAt:         time.Now().UTC().Format(time.RFC3339),
+				DeveloperID:        ann.DeveloperID,
+				DeveloperPublicKey: ann.DeveloperPublicKey,
+				DeveloperProof:     ann.DeveloperProof,
+			}
+			if err := gh.store.UpsertGossipEntry(entry); err != nil {
+				log.Printf("failed to store gossip entry: %v", err)
+			}
+
+			// Notify search engine to index
+			gh.mu.RLock()
+			cb := gh.onAnnounce
+			gh.mu.RUnlock()
+			if cb != nil {
+				cb(ann)
+			}
+
+		case "deregister":
+			if err := gh.store.TombstoneGossipEntry(ann.AgentID); err != nil {
+				log.Printf("failed to tombstone gossip entry: %v", err)
+			}
 		}
 	}
 
@@ -192,6 +223,8 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 }
 
 // CreateAnnouncement creates a gossip announcement for a local agent event.
+// If the agent has developer identity fields, they are included in the announcement
+// so remote registries can verify the developer-agent chain of trust.
 func (gh *GossipHandler) CreateAnnouncement(
 	agent *models.RegistryRecord,
 	action string,
@@ -215,7 +248,46 @@ func (gh *GossipHandler) CreateAnnouncement(
 		MaxHops:         gh.cfg.MaxHops,
 	}
 
+	// Include developer identity fields if present
+	if agent.DeveloperID != "" {
+		ann.DeveloperID = agent.DeveloperID
+		if agent.DeveloperProof != nil {
+			ann.DeveloperPublicKey = agent.DeveloperProof.DeveloperPublicKey
+			ann.DeveloperProof = agent.DeveloperProof
+		}
+	}
+
 	// Sign the announcement (with Signature empty so verification can reproduce this)
+	data, _ := json.Marshal(ann)
+	ann.Signature = signFn(data)
+
+	return ann
+}
+
+// CreateDeveloperAnnouncement creates a gossip announcement for a developer identity event.
+func (gh *GossipHandler) CreateDeveloperAnnouncement(
+	dev *models.DeveloperRecord,
+	action string,
+	registryID string,
+	pubKey string,
+	signFn func([]byte) string,
+) *models.GossipAnnouncement {
+	ann := &models.GossipAnnouncement{
+		Type:            "developer_announce",
+		Name:            dev.Name,
+		HomeRegistry:    registryID,
+		Action:          action,
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		OriginPublicKey: pubKey,
+		HopCount:        0,
+		MaxHops:         gh.cfg.MaxHops,
+		DeveloperID:     dev.DeveloperID,
+		PublicKey:       dev.PublicKey,
+		ProfileURL:      dev.ProfileURL,
+		GitHub:          dev.GitHub,
+	}
+
+	// Sign the announcement
 	data, _ := json.Marshal(ann)
 	ann.Signature = signFn(data)
 

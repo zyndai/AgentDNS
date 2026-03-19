@@ -57,6 +57,12 @@ func main() {
 		cmdInit()
 	case "start":
 		cmdStart()
+	case "dev-init":
+		cmdDevInit()
+	case "dev-register":
+		cmdDevRegister()
+	case "derive-agent":
+		cmdDeriveAgent()
 	case "register":
 		cmdRegister()
 	case "search":
@@ -95,13 +101,26 @@ Usage:
 Commands:
   init          Initialize a new registry node (generates keypair + config)
   start         Start the registry node
-  register      Register an agent on this node
-  search        Search the network for agents
+
+  Developer Identity:
+  dev-init      Generate a developer keypair (stored at ~/.agentdns/developer.json)
+  dev-register  Register developer identity on a registry node
+  derive-agent  Derive an agent keypair from developer key at a given index
+
+  Agent Management:
+  register      Register an agent on this node (supports --developer-key for HD derivation)
+  deregister    Remove an agent from the registry
   resolve       Get a specific agent's registry record
   card          Fetch an agent's dynamic Agent Card
+
+  Discovery:
+  search        Search the network for agents
+
+  Network:
   status        Show node status
   peers         Show connected peers
-  deregister    Remove an agent from the registry
+
+  Maintenance:
   models        Manage embedding models (list, download, info)
   test          Load testing (register/deregister N agents)
   version       Print version
@@ -110,12 +129,13 @@ Commands:
 Examples:
   agentdns init
   agentdns start
-  agentdns start --config ~/.agentdns/config.toml
+  agentdns dev-init
+  agentdns dev-register --name "Alice"
+  agentdns derive-agent --index 0
   agentdns register --name "MyAgent" --agent-url "https://example.com/.well-known/agent.json" --category "tools" --tags "python,code" --summary "Does stuff"
+  agentdns register --name "MyAgent" --agent-url "https://example.com/.well-known/agent.json" --category "tools" --developer-key ~/.agentdns/developer.json --agent-index 0
   agentdns search "code review agent for Python security"
-  agentdns search "translate english to japanese" --category translation --max-results 10
   agentdns resolve agdns:7f3a9c2e...
-  agentdns card agdns:7f3a9c2e...
   agentdns deregister agdns:7f3a9c2e...`)
 }
 
@@ -354,7 +374,8 @@ func cmdStart() {
 // --- Register Command ---
 
 func cmdRegister() {
-	var name, agentURL, category, tagsStr, summary string
+	var name, agentURL, category, tagsStr, summary, developerKeyPath string
+	agentIndex := -1
 
 	for i := 2; i < len(os.Args); i++ {
 		switch os.Args[i] {
@@ -383,19 +404,22 @@ func cmdRegister() {
 				summary = os.Args[i+1]
 				i++
 			}
+		case "--developer-key":
+			if i+1 < len(os.Args) {
+				developerKeyPath = os.Args[i+1]
+				i++
+			}
+		case "--agent-index":
+			if i+1 < len(os.Args) {
+				fmt.Sscanf(os.Args[i+1], "%d", &agentIndex)
+				i++
+			}
 		}
 	}
 
 	if name == "" || agentURL == "" || category == "" {
-		fmt.Fprintln(os.Stderr, "Usage: agentdns register --name NAME --agent-url URL --category CATEGORY [--tags TAG1,TAG2] [--summary TEXT]")
+		fmt.Fprintln(os.Stderr, "Usage: agentdns register --name NAME --agent-url URL --category CATEGORY [--tags TAG1,TAG2] [--summary TEXT] [--developer-key PATH --agent-index N]")
 		os.Exit(1)
-	}
-
-	// Load agent keypair for signing
-	homeDir, _ := os.UserHomeDir()
-	kp, err := identity.LoadKeypair(filepath.Join(homeDir, ".agentdns", "identity.json"))
-	if err != nil {
-		log.Fatalf("failed to load identity: %v", err)
 	}
 
 	tags := []string{}
@@ -406,18 +430,97 @@ func cmdRegister() {
 		}
 	}
 
+	homeDir, _ := os.UserHomeDir()
+
+	var agentKP *identity.Keypair
+
+	if developerKeyPath != "" {
+		// Developer-derived agent registration
+		if agentIndex < 0 {
+			log.Fatalf("--agent-index is required when using --developer-key")
+		}
+
+		devKP, err := identity.LoadKeypair(developerKeyPath)
+		if err != nil {
+			log.Fatalf("failed to load developer key: %v", err)
+		}
+
+		// Derive agent keypair
+		agentKP, err = identity.DeriveAgentKeypair(devKP.PrivateKey, uint32(agentIndex))
+		if err != nil {
+			log.Fatalf("failed to derive agent keypair: %v", err)
+		}
+
+		developerID := devKP.DeveloperID()
+
+		// Create derivation proof
+		proof := identity.CreateDerivationProof(devKP, agentKP.PublicKey, uint32(agentIndex))
+
+		reqBody := map[string]interface{}{
+			"name":         name,
+			"agent_url":    agentURL,
+			"category":     category,
+			"tags":         tags,
+			"summary":      summary,
+			"public_key":   agentKP.PublicKeyString(),
+			"developer_id": developerID,
+			"developer_proof": map[string]interface{}{
+				"developer_public_key": proof.DeveloperPublicKey,
+				"agent_index":          proof.AgentIndex,
+				"developer_signature":  proof.DeveloperSignature,
+			},
+		}
+
+		// Sign with agent key
+		signable, _ := json.Marshal(map[string]interface{}{
+			"name":       name,
+			"agent_url":  agentURL,
+			"category":   category,
+			"tags":       tags,
+			"summary":    summary,
+			"public_key": agentKP.PublicKeyString(),
+		})
+		reqBody["signature"] = agentKP.Sign(signable)
+
+		body, _ := json.Marshal(reqBody)
+		resp, err := http.Post("http://localhost:8080/v1/agents", "application/json", strings.NewReader(string(body)))
+		if err != nil {
+			log.Fatalf("failed to connect to registry: %v", err)
+		}
+		defer resp.Body.Close()
+
+		var result map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&result)
+
+		if resp.StatusCode == http.StatusCreated {
+			fmt.Printf("Agent registered successfully (developer: %s, index: %d)!\n", developerID, agentIndex)
+			fmt.Printf("  Agent ID: %s\n", result["agent_id"])
+		} else {
+			fmt.Fprintf(os.Stderr, "Registration failed: %v\n", result["error"])
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Standard registration (no developer)
+	kp, err := identity.LoadKeypair(filepath.Join(homeDir, ".agentdns", "identity.json"))
+	if err != nil {
+		log.Fatalf("failed to load identity: %v", err)
+	}
+	agentKP = kp
+
 	reqBody := map[string]interface{}{
 		"name":       name,
 		"agent_url":  agentURL,
 		"category":   category,
 		"tags":       tags,
 		"summary":    summary,
-		"public_key": kp.PublicKeyString(),
+		"public_key": agentKP.PublicKeyString(),
 	}
 
 	// Sign the registration
 	signable, _ := json.Marshal(reqBody)
-	reqBody["signature"] = kp.Sign(signable)
+	reqBody["signature"] = agentKP.Sign(signable)
 
 	body, _ := json.Marshal(reqBody)
 
@@ -644,6 +747,174 @@ func cmdPeers() {
 		fmt.Printf("     Latency:     %dms\n", p.Latency)
 		fmt.Println()
 	}
+}
+
+// --- Developer Init Command ---
+
+func cmdDevInit() {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("failed to get home directory: %v", err)
+	}
+
+	devKeyPath := filepath.Join(homeDir, ".agentdns", "developer.json")
+
+	// Check if already initialized
+	if _, err := os.Stat(devKeyPath); err == nil {
+		fmt.Println("Developer keypair already exists at", devKeyPath)
+		fmt.Println("Delete it to re-initialize.")
+		return
+	}
+
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(devKeyPath), 0700); err != nil {
+		log.Fatalf("failed to create directory: %v", err)
+	}
+
+	kp, err := identity.GenerateKeypair()
+	if err != nil {
+		log.Fatalf("failed to generate developer keypair: %v", err)
+	}
+
+	if err := identity.SaveKeypair(kp, devKeyPath); err != nil {
+		log.Fatalf("failed to save developer keypair: %v", err)
+	}
+
+	fmt.Println("Developer keypair generated!")
+	fmt.Printf("  Developer ID: %s\n", kp.DeveloperID())
+	fmt.Printf("  Public Key:   %s\n", kp.PublicKeyString())
+	fmt.Printf("  Saved to:     %s\n", devKeyPath)
+	fmt.Println()
+	fmt.Println("Next steps:")
+	fmt.Println("  1. Register your developer identity:  agentdns dev-register --name \"Your Name\"")
+	fmt.Println("  2. Derive an agent keypair:           agentdns derive-agent --index 0")
+	fmt.Println("  3. Register an agent:                 agentdns register --name \"Agent\" --agent-url URL --category CAT --developer-key", devKeyPath, "--agent-index 0")
+}
+
+// --- Developer Register Command ---
+
+func cmdDevRegister() {
+	var name, profileURL, github string
+
+	for i := 2; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "--name":
+			if i+1 < len(os.Args) {
+				name = os.Args[i+1]
+				i++
+			}
+		case "--profile-url":
+			if i+1 < len(os.Args) {
+				profileURL = os.Args[i+1]
+				i++
+			}
+		case "--github":
+			if i+1 < len(os.Args) {
+				github = os.Args[i+1]
+				i++
+			}
+		}
+	}
+
+	if name == "" {
+		fmt.Fprintln(os.Stderr, "Usage: agentdns dev-register --name NAME [--profile-url URL] [--github HANDLE]")
+		os.Exit(1)
+	}
+
+	homeDir, _ := os.UserHomeDir()
+	devKeyPath := filepath.Join(homeDir, ".agentdns", "developer.json")
+
+	kp, err := identity.LoadKeypair(devKeyPath)
+	if err != nil {
+		log.Fatalf("failed to load developer keypair (run 'agentdns dev-init' first): %v", err)
+	}
+
+	reqBody := map[string]interface{}{
+		"name":        name,
+		"public_key":  kp.PublicKeyString(),
+		"profile_url": profileURL,
+		"github":      github,
+	}
+
+	// Sign the registration
+	signable, _ := json.Marshal(reqBody)
+	reqBody["signature"] = kp.Sign(signable)
+
+	body, _ := json.Marshal(reqBody)
+
+	resp, err := http.Post("http://localhost:8080/v1/developers", "application/json", strings.NewReader(string(body)))
+	if err != nil {
+		log.Fatalf("failed to connect to registry: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if resp.StatusCode == http.StatusCreated {
+		fmt.Printf("Developer registered successfully!\n")
+		fmt.Printf("  Developer ID: %s\n", result["developer_id"])
+	} else {
+		fmt.Fprintf(os.Stderr, "Registration failed: %v\n", result["error"])
+		os.Exit(1)
+	}
+}
+
+// --- Derive Agent Command ---
+
+func cmdDeriveAgent() {
+	agentIndex := -1
+	save := false
+
+	for i := 2; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "--index":
+			if i+1 < len(os.Args) {
+				fmt.Sscanf(os.Args[i+1], "%d", &agentIndex)
+				i++
+			}
+		case "--save":
+			save = true
+		}
+	}
+
+	if agentIndex < 0 {
+		fmt.Fprintln(os.Stderr, "Usage: agentdns derive-agent --index N [--save]")
+		fmt.Fprintln(os.Stderr, "  Derives an agent keypair from your developer key at the given index.")
+		fmt.Fprintln(os.Stderr, "  --save   Save the derived keypair to ~/.agentdns/agent-N.json")
+		os.Exit(1)
+	}
+
+	homeDir, _ := os.UserHomeDir()
+	devKeyPath := filepath.Join(homeDir, ".agentdns", "developer.json")
+
+	devKP, err := identity.LoadKeypair(devKeyPath)
+	if err != nil {
+		log.Fatalf("failed to load developer keypair (run 'agentdns dev-init' first): %v", err)
+	}
+
+	agentKP, err := identity.DeriveAgentKeypair(devKP.PrivateKey, uint32(agentIndex))
+	if err != nil {
+		log.Fatalf("failed to derive agent keypair: %v", err)
+	}
+
+	fmt.Printf("Agent keypair derived (index %d):\n", agentIndex)
+	fmt.Printf("  Developer ID: %s\n", devKP.DeveloperID())
+	fmt.Printf("  Agent ID:     %s\n", agentKP.AgentID())
+	fmt.Printf("  Public Key:   %s\n", agentKP.PublicKeyString())
+
+	if save {
+		agentKeyPath := filepath.Join(homeDir, ".agentdns", fmt.Sprintf("agent-%d.json", agentIndex))
+		if err := identity.SaveKeypair(agentKP, agentKeyPath); err != nil {
+			log.Fatalf("failed to save agent keypair: %v", err)
+		}
+		fmt.Printf("  Saved to:     %s\n", agentKeyPath)
+	}
+
+	// Create and display derivation proof
+	proof := identity.CreateDerivationProof(devKP, agentKP.PublicKey, uint32(agentIndex))
+	proofJSON, _ := json.MarshalIndent(proof, "  ", "  ")
+	fmt.Printf("  Proof:        %s\n", string(proofJSON))
 }
 
 // --- Deregister Command ---

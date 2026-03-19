@@ -2,25 +2,36 @@ package models
 
 // GossipAnnouncement is the lightweight message propagated across the mesh.
 // Size: ~300-600 bytes (with capability summary). Designed for efficient gossip propagation.
+// Supports both agent_announce and developer_announce types.
 type GossipAnnouncement struct {
-	Type              string             `json:"type"` // agent_announce, agent_update, agent_tombstone
-	AgentID           string             `json:"agent_id"`
+	Type              string             `json:"type"` // agent_announce, developer_announce
+	AgentID           string             `json:"agent_id,omitempty"`
 	Name              string             `json:"name"`
-	Category          string             `json:"category"`
-	Tags              []string           `json:"tags"`
-	Summary           string             `json:"summary"`
+	Category          string             `json:"category,omitempty"`
+	Tags              []string           `json:"tags,omitempty"`
+	Summary           string             `json:"summary,omitempty"`
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty"`
 	HomeRegistry      string             `json:"home_registry"`
-	AgentURL          string             `json:"agent_url"`
+	AgentURL          string             `json:"agent_url,omitempty"`
 	Action            string             `json:"action"` // register, update, deregister
 	Timestamp         string             `json:"timestamp"`
 	OriginPublicKey   string             `json:"origin_public_key"` // public key of originating registry
 	Signature         string             `json:"signature"`         // signed by originating registry
 	HopCount          int                `json:"hop_count"`
 	MaxHops           int                `json:"max_hops"`
+
+	// Developer identity fields (for agent_announce with developer chain)
+	DeveloperID        string          `json:"developer_id,omitempty"`
+	DeveloperPublicKey string          `json:"developer_public_key,omitempty"`
+	DeveloperProof     *DeveloperProof `json:"developer_proof,omitempty"`
+
+	// Developer-specific fields (for developer_announce type)
+	ProfileURL string `json:"profile_url,omitempty"`
+	GitHub     string `json:"github,omitempty"`
+	PublicKey  string `json:"public_key,omitempty"` // developer's own public key (for developer_announce)
 }
 
-// GossipEntry is stored in the local gossip index — a lightweight version
+// GossipEntry is stored in the local gossip index -- a lightweight version
 // of remote agent information learned from gossip announcements.
 type GossipEntry struct {
 	AgentID           string             `json:"agent_id" db:"agent_id"`
@@ -34,6 +45,11 @@ type GossipEntry struct {
 	ReceivedAt        string             `json:"received_at" db:"received_at"`
 	Tombstoned        bool               `json:"tombstoned" db:"tombstoned"`
 	TombstoneAt       string             `json:"tombstone_at,omitempty" db:"tombstone_at"`
+
+	// Developer identity fields
+	DeveloperID        string          `json:"developer_id,omitempty" db:"developer_id"`
+	DeveloperPublicKey string          `json:"developer_public_key,omitempty" db:"developer_public_key"`
+	DeveloperProof     *DeveloperProof `json:"developer_proof,omitempty" db:"-"` // stored as JSONB
 }
 
 // PeerInfo describes a connected peer registry in the mesh.
