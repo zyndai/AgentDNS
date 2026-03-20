@@ -13,7 +13,8 @@ type GossipAnnouncement struct {
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty"`
 	HomeRegistry      string             `json:"home_registry"`
 	AgentURL          string             `json:"agent_url,omitempty"`
-	Action            string             `json:"action"` // register, update, deregister
+	Action            string             `json:"action"` // register, update, deregister, agent_status
+	Status            string             `json:"status,omitempty"`
 	Timestamp         string             `json:"timestamp"`
 	OriginPublicKey   string             `json:"origin_public_key"` // public key of originating registry
 	Signature         string             `json:"signature"`         // signed by originating registry
@@ -50,6 +51,12 @@ type GossipEntry struct {
 	DeveloperID        string          `json:"developer_id,omitempty" db:"developer_id"`
 	DeveloperPublicKey string          `json:"developer_public_key,omitempty" db:"developer_public_key"`
 	DeveloperProof     *DeveloperProof `json:"developer_proof,omitempty" db:"-"` // stored as JSONB
+
+	// Heartbeat liveness status
+	Status string `json:"status,omitempty" db:"status"`
+
+	// Origin registry public key — pinned on first register to prevent spoofed updates
+	OriginPublicKey string `json:"origin_public_key,omitempty" db:"origin_public_key"`
 }
 
 // PeerInfo describes a connected peer registry in the mesh.

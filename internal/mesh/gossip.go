@@ -168,7 +168,20 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 
 	default: // agent_announce
 		switch ann.Action {
+		case "agent_status":
+			if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey) {
+				return false
+			}
+			if err := gh.store.UpdateGossipEntryStatus(ann.AgentID, ann.Status); err != nil {
+				log.Printf("gossip: failed to update gossip entry status for %s: %v", ann.AgentID, err)
+			}
+
 		case "register", "update":
+			if ann.Action == "update" {
+				if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey) {
+					return false
+				}
+			}
 			entry := &models.GossipEntry{
 				AgentID:            ann.AgentID,
 				Name:               ann.Name,
@@ -181,6 +194,7 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 				DeveloperID:        ann.DeveloperID,
 				DeveloperPublicKey: ann.DeveloperPublicKey,
 				DeveloperProof:     ann.DeveloperProof,
+				OriginPublicKey:    ann.OriginPublicKey,
 			}
 			if err := gh.store.UpsertGossipEntry(entry); err != nil {
 				log.Printf("failed to store gossip entry: %v", err)
@@ -195,6 +209,9 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 			}
 
 		case "deregister":
+			if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey) {
+				return false
+			}
 			if err := gh.store.TombstoneGossipEntry(ann.AgentID); err != nil {
 				log.Printf("failed to tombstone gossip entry: %v", err)
 			}
@@ -292,6 +309,52 @@ func (gh *GossipHandler) CreateDeveloperAnnouncement(
 	ann.Signature = signFn(data)
 
 	return ann
+}
+
+// CreateStatusAnnouncement creates a gossip announcement for an agent status change.
+func (gh *GossipHandler) CreateStatusAnnouncement(
+	agentID string,
+	status string,
+	registryID string,
+	pubKey string,
+	signFn func([]byte) string,
+) *models.GossipAnnouncement {
+	ann := &models.GossipAnnouncement{
+		Type:            "agent_announce",
+		AgentID:         agentID,
+		HomeRegistry:    registryID,
+		Action:          "agent_status",
+		Status:          status,
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		OriginPublicKey: pubKey,
+		HopCount:        0,
+		MaxHops:         gh.cfg.MaxHops,
+	}
+
+	// Sign the announcement
+	data, _ := json.Marshal(ann)
+	ann.Signature = signFn(data)
+
+	return ann
+}
+
+// verifyOriginAuthorization checks that the announcement's origin public key
+// matches the pinned key for this agent. Returns true if the action is authorized.
+func (gh *GossipHandler) verifyOriginAuthorization(agentID, originKey string) bool {
+	existing, err := gh.store.GetGossipEntry(agentID)
+	if err != nil {
+		log.Printf("gossip: origin auth lookup failed for %s: %v", agentID, err)
+		return false
+	}
+	// No existing entry or no stored key = backward compat, allow
+	if existing == nil || existing.OriginPublicKey == "" {
+		return true
+	}
+	if existing.OriginPublicKey != originKey {
+		log.Printf("gossip: rejecting action for %s: origin key mismatch", agentID)
+		return false
+	}
+	return true
 }
 
 // cleanDedupWindow periodically removes old entries from the dedup map.

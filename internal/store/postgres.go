@@ -172,6 +172,15 @@ func (s *PostgresStore) migrate() error {
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_gossip_developers_public_key ON gossip_developers(public_key);
+
+	-- Agent heartbeat liveness
+	ALTER TABLE agents ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+	ALTER TABLE agents ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMPTZ;
+	CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
+	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'inactive';
+
+	-- Origin registry public key pinning for gossip authorization
+	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS origin_public_key TEXT;
 	`
 
 	_, err := s.pool.Exec(context.Background(), schema)
@@ -225,7 +234,8 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	row := s.pool.QueryRow(context.Background(), `
 		SELECT agent_id, name, owner, agent_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-			developer_id, agent_index, developer_proof
+			developer_id, agent_index, developer_proof,
+			status, last_heartbeat
 		FROM agents WHERE agent_id = $1`, agentID)
 
 	agent := &models.RegistryRecord{}
@@ -234,12 +244,14 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	var developerID *string
 	var agentIndex *int
 	var developerProofJSON []byte
+	var lastHeartbeat *time.Time
 	err := row.Scan(
 		&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
 		&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
 		&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
 		&agent.TTL, &agent.Signature,
 		&developerID, &agentIndex, &developerProofJSON,
+		&agent.Status, &lastHeartbeat,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -250,6 +262,9 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 
 	agent.RegisteredAt = registeredAt.UTC().Format(time.RFC3339)
 	agent.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	if lastHeartbeat != nil {
+		agent.LastHeartbeat = lastHeartbeat.UTC().Format(time.RFC3339)
+	}
 
 	if err := json.Unmarshal(tagsJSON, &agent.Tags); err != nil {
 		agent.Tags = []string{}
@@ -313,13 +328,17 @@ func (s *PostgresStore) ListAgents(category string, limit, offset int) ([]*model
 	if category != "" {
 		query = `
 			SELECT agent_id, name, owner, agent_url, category, tags, summary,
-				public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature
+				public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
+				developer_id, agent_index, developer_proof,
+				status, last_heartbeat
 			FROM agents WHERE category = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`
 		args = []interface{}{category, limit, offset}
 	} else {
 		query = `
 			SELECT agent_id, name, owner, agent_url, category, tags, summary,
-				public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature
+				public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
+				developer_id, agent_index, developer_proof,
+				status, last_heartbeat
 			FROM agents ORDER BY updated_at DESC LIMIT $1 OFFSET $2`
 		args = []interface{}{limit, offset}
 	}
@@ -330,27 +349,7 @@ func (s *PostgresStore) ListAgents(category string, limit, offset int) ([]*model
 	}
 	defer rows.Close()
 
-	var agents []*models.RegistryRecord
-	for rows.Next() {
-		agent := &models.RegistryRecord{}
-		var tagsJSON []byte
-		var registeredAt, updatedAt time.Time
-		if err := rows.Scan(
-			&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
-			&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
-			&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
-			&agent.TTL, &agent.Signature,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan agent: %w", err)
-		}
-		agent.RegisteredAt = registeredAt.UTC().Format(time.RFC3339)
-		agent.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
-		if err := json.Unmarshal(tagsJSON, &agent.Tags); err != nil {
-			agent.Tags = []string{}
-		}
-		agents = append(agents, agent)
-	}
-	return agents, nil
+	return scanAgentRows(rows)
 }
 
 func (s *PostgresStore) CountAgents() (int, error) {
@@ -364,7 +363,9 @@ func (s *PostgresStore) SearchAgentsByKeyword(query string, category string, tag
 
 	baseQuery := `
 		SELECT agent_id, name, owner, agent_url, category, tags, summary,
-			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature
+			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
+			developer_id, agent_index, developer_proof,
+			status, last_heartbeat
 		FROM agents
 		WHERE (LOWER(name) LIKE $1 OR LOWER(summary) LIKE $1 OR tags::text ILIKE $1)`
 
@@ -394,30 +395,41 @@ func (s *PostgresStore) SearchAgentsByKeyword(query string, category string, tag
 	}
 	defer rows.Close()
 
-	var agents []*models.RegistryRecord
-	for rows.Next() {
-		agent := &models.RegistryRecord{}
-		var tagsJSON []byte
-		var registeredAt, updatedAt time.Time
-		if err := rows.Scan(
-			&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
-			&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
-			&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
-			&agent.TTL, &agent.Signature,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan agent: %w", err)
-		}
-		agent.RegisteredAt = registeredAt.UTC().Format(time.RFC3339)
-		agent.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
-		if err := json.Unmarshal(tagsJSON, &agent.Tags); err != nil {
-			agent.Tags = []string{}
-		}
-		agents = append(agents, agent)
-	}
-	return agents, nil
+	return scanAgentRows(rows)
 }
 
 // --- Gossip Entries ---
+
+func (s *PostgresStore) GetGossipEntry(agentID string) (*models.GossipEntry, error) {
+	row := s.pool.QueryRow(context.Background(), `
+		SELECT agent_id, name, category, tags, summary, home_registry, agent_url,
+			received_at, tombstoned, status, origin_public_key
+		FROM gossip_entries WHERE agent_id = $1`, agentID)
+
+	entry := &models.GossipEntry{}
+	var tagsJSON []byte
+	var receivedAt time.Time
+	var originPubKey *string
+	err := row.Scan(
+		&entry.AgentID, &entry.Name, &entry.Category, &tagsJSON,
+		&entry.Summary, &entry.HomeRegistry, &entry.AgentURL,
+		&receivedAt, &entry.Tombstoned, &entry.Status, &originPubKey,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gossip entry: %w", err)
+	}
+	entry.ReceivedAt = receivedAt.UTC().Format(time.RFC3339)
+	if err := json.Unmarshal(tagsJSON, &entry.Tags); err != nil {
+		entry.Tags = []string{}
+	}
+	if originPubKey != nil {
+		entry.OriginPublicKey = *originPubKey
+	}
+	return entry, nil
+}
 
 func (s *PostgresStore) UpsertGossipEntry(entry *models.GossipEntry) error {
 	tagsJSON, err := json.Marshal(entry.Tags)
@@ -436,19 +448,22 @@ func (s *PostgresStore) UpsertGossipEntry(entry *models.GossipEntry) error {
 	_, err = s.pool.Exec(context.Background(), `
 		INSERT INTO gossip_entries (agent_id, name, category, tags, summary,
 			home_registry, agent_url, received_at, tombstoned,
-			developer_id, developer_public_key, developer_proof)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			developer_id, developer_public_key, developer_proof,
+			origin_public_key)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		ON CONFLICT(agent_id) DO UPDATE SET
 			name=EXCLUDED.name, category=EXCLUDED.category, tags=EXCLUDED.tags,
 			summary=EXCLUDED.summary, agent_url=EXCLUDED.agent_url,
 			received_at=EXCLUDED.received_at,
 			developer_id=EXCLUDED.developer_id, developer_public_key=EXCLUDED.developer_public_key,
-			developer_proof=EXCLUDED.developer_proof`,
+			developer_proof=EXCLUDED.developer_proof,
+			origin_public_key=COALESCE(gossip_entries.origin_public_key, EXCLUDED.origin_public_key)`,
 		entry.AgentID, entry.Name, entry.Category, string(tagsJSON),
 		entry.Summary, entry.HomeRegistry, entry.AgentURL,
 		entry.ReceivedAt, entry.Tombstoned,
 		nilIfEmpty(entry.DeveloperID), nilIfEmpty(entry.DeveloperPublicKey),
 		nilIfEmptyBytes(developerProofJSON),
+		nilIfEmpty(entry.OriginPublicKey),
 	)
 	return err
 }
@@ -457,7 +472,7 @@ func (s *PostgresStore) SearchGossipByKeyword(query string, category string, tag
 	likeQuery := "%" + strings.ToLower(query) + "%"
 
 	baseQuery := `
-		SELECT agent_id, name, category, tags, summary, home_registry, agent_url, received_at, tombstoned
+		SELECT agent_id, name, category, tags, summary, home_registry, agent_url, received_at, tombstoned, status
 		FROM gossip_entries
 		WHERE tombstoned = FALSE AND (LOWER(name) LIKE $1 OR LOWER(summary) LIKE $1 OR tags::text ILIKE $1)`
 
@@ -495,7 +510,7 @@ func (s *PostgresStore) SearchGossipByKeyword(query string, category string, tag
 		if err := rows.Scan(
 			&entry.AgentID, &entry.Name, &entry.Category, &tagsJSON,
 			&entry.Summary, &entry.HomeRegistry, &entry.AgentURL,
-			&receivedAt, &entry.Tombstoned,
+			&receivedAt, &entry.Tombstoned, &entry.Status,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan gossip entry: %w", err)
 		}
@@ -720,7 +735,8 @@ func (s *PostgresStore) ListAgentsByDeveloper(developerID string, limit, offset 
 	rows, err := s.pool.Query(context.Background(), `
 		SELECT agent_id, name, owner, agent_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-			developer_id, agent_index, developer_proof
+			developer_id, agent_index, developer_proof,
+			status, last_heartbeat
 		FROM agents WHERE developer_id = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`,
 		developerID, limit, offset)
 	if err != nil {
@@ -777,6 +793,51 @@ func (s *PostgresStore) TombstoneGossipDeveloper(developerID string) error {
 	return err
 }
 
+// --- Agent Heartbeat Liveness ---
+
+func (s *PostgresStore) UpdateAgentHeartbeat(agentID string) error {
+	ct, err := s.pool.Exec(context.Background(),
+		`UPDATE agents SET last_heartbeat = NOW(), status = 'active' WHERE agent_id = $1`, agentID)
+	if err != nil {
+		return fmt.Errorf("failed to update agent heartbeat: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("agent not found")
+	}
+	return nil
+}
+
+func (s *PostgresStore) MarkInactiveAgents(threshold time.Duration) ([]string, error) {
+	cutoff := time.Now().UTC().Add(-threshold)
+	rows, err := s.pool.Query(context.Background(), `
+		UPDATE agents SET status = 'inactive'
+		WHERE status = 'active' AND (last_heartbeat IS NULL OR last_heartbeat < $1)
+		RETURNING agent_id`, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mark inactive agents: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan agent_id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+func (s *PostgresStore) UpdateGossipEntryStatus(agentID, status string) error {
+	_, err := s.pool.Exec(context.Background(),
+		`UPDATE gossip_entries SET status = $1 WHERE agent_id = $2`, status, agentID)
+	if err != nil {
+		return fmt.Errorf("failed to update gossip entry status: %w", err)
+	}
+	return nil
+}
+
 // --- Helpers ---
 
 // nilIfEmpty returns nil if s is empty, otherwise returns &s.
@@ -797,7 +858,7 @@ func nilIfEmptyBytes(b []byte) interface{} {
 	return string(b)
 }
 
-// scanAgentRows scans rows into RegistryRecord slices, handling developer fields.
+// scanAgentRows scans rows into RegistryRecord slices, handling developer and heartbeat fields.
 func scanAgentRows(rows pgx.Rows) ([]*models.RegistryRecord, error) {
 	var agents []*models.RegistryRecord
 	for rows.Next() {
@@ -807,17 +868,22 @@ func scanAgentRows(rows pgx.Rows) ([]*models.RegistryRecord, error) {
 		var developerID *string
 		var agentIndex *int
 		var developerProofJSON []byte
+		var lastHeartbeat *time.Time
 		if err := rows.Scan(
 			&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
 			&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
 			&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
 			&agent.TTL, &agent.Signature,
 			&developerID, &agentIndex, &developerProofJSON,
+			&agent.Status, &lastHeartbeat,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan agent: %w", err)
 		}
 		agent.RegisteredAt = registeredAt.UTC().Format(time.RFC3339)
 		agent.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+		if lastHeartbeat != nil {
+			agent.LastHeartbeat = lastHeartbeat.UTC().Format(time.RFC3339)
+		}
 		if err := json.Unmarshal(tagsJSON, &agent.Tags); err != nil {
 			agent.Tags = []string{}
 		}

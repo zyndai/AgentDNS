@@ -9,6 +9,8 @@
 package store
 
 import (
+	"time"
+
 	"github.com/agentdns/agent-dns/internal/models"
 )
 
@@ -69,6 +71,10 @@ type Store interface {
 
 	// --- Gossip Entries ---
 
+	// GetGossipEntry retrieves a gossip entry by agent ID.
+	// Returns nil, nil if the entry is not found.
+	GetGossipEntry(agentID string) (*models.GossipEntry, error)
+
 	// UpsertGossipEntry inserts or updates a gossip entry from a remote registry.
 	UpsertGossipEntry(entry *models.GossipEntry) error
 
@@ -117,6 +123,18 @@ type Store interface {
 	// GetMeta retrieves a value from node metadata.
 	// Returns empty string if key not found.
 	GetMeta(key string) (string, error)
+
+	// --- Agent Heartbeat Liveness ---
+
+	// UpdateAgentHeartbeat sets an agent's last_heartbeat to now and status to active.
+	UpdateAgentHeartbeat(agentID string) error
+
+	// MarkInactiveAgents marks agents as inactive whose last heartbeat is older than threshold.
+	// Returns the list of agent IDs that were newly marked inactive.
+	MarkInactiveAgents(threshold time.Duration) ([]string, error)
+
+	// UpdateGossipEntryStatus updates the status field on a gossip entry.
+	UpdateGossipEntryStatus(agentID, status string) error
 
 	// --- Tags & Categories ---
 
