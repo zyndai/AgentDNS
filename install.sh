@@ -323,6 +323,112 @@ install_tokenizers() {
     cd "$SCRIPT_DIR"
 }
 
+# Install ONNX Runtime shared library
+# Version must match onnxruntime_go — currently v1.27.0 requires onnxruntime 1.24.1
+install_onnxruntime() {
+    if [ "$USE_CGO" -eq 0 ]; then
+        return
+    fi
+
+    ONNX_VERSION="1.24.1"
+
+    # Determine the expected library file name for this platform
+    case "$OS" in
+        darwin)
+            ONNX_LIB="/usr/local/lib/libonnxruntime.${ONNX_VERSION}.dylib"
+            ONNX_LINK="/usr/local/lib/libonnxruntime.dylib"
+            ONNX_SO_LINK="/usr/local/lib/onnxruntime.so"
+            ;;
+        linux)
+            ONNX_LIB="/usr/local/lib/libonnxruntime.so.${ONNX_VERSION}"
+            ONNX_LINK="/usr/local/lib/libonnxruntime.so"
+            ONNX_SO_LINK="/usr/local/lib/onnxruntime.so"
+            ;;
+    esac
+
+    # Skip if already installed
+    if [ -f "$ONNX_LIB" ]; then
+        print_success "ONNX Runtime ${ONNX_VERSION} already installed"
+        return
+    fi
+
+    print_info "Installing ONNX Runtime ${ONNX_VERSION}..."
+
+    # Map OS/ARCH to GitHub release asset name
+    case "${OS}-${ARCH}" in
+        darwin-arm64)
+            ONNX_ARCHIVE="onnxruntime-osx-arm64-${ONNX_VERSION}.tgz"
+            ONNX_LIB_IN_ARCHIVE="onnxruntime-osx-arm64-${ONNX_VERSION}/lib/libonnxruntime.${ONNX_VERSION}.dylib"
+            ;;
+        darwin-amd64)
+            ONNX_ARCHIVE="onnxruntime-osx-x86_64-${ONNX_VERSION}.tgz"
+            ONNX_LIB_IN_ARCHIVE="onnxruntime-osx-x86_64-${ONNX_VERSION}/lib/libonnxruntime.${ONNX_VERSION}.dylib"
+            ;;
+        linux-arm64)
+            ONNX_ARCHIVE="onnxruntime-linux-aarch64-${ONNX_VERSION}.tgz"
+            ONNX_LIB_IN_ARCHIVE="onnxruntime-linux-aarch64-${ONNX_VERSION}/lib/libonnxruntime.so.${ONNX_VERSION}"
+            ;;
+        linux-amd64)
+            ONNX_ARCHIVE="onnxruntime-linux-x64-${ONNX_VERSION}.tgz"
+            ONNX_LIB_IN_ARCHIVE="onnxruntime-linux-x64-${ONNX_VERSION}/lib/libonnxruntime.so.${ONNX_VERSION}"
+            ;;
+        *)
+            print_warning "No pre-built ONNX Runtime for ${OS}/${ARCH}. Skipping."
+            return
+            ;;
+    esac
+
+    ONNX_URL="https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/${ONNX_ARCHIVE}"
+
+    # Download
+    TEMP_DIR=$(mktemp -d)
+    print_info "Downloading ${ONNX_ARCHIVE}..."
+    if ! curl -fSL --progress-bar "$ONNX_URL" -o "${TEMP_DIR}/${ONNX_ARCHIVE}"; then
+        print_error "Failed to download ONNX Runtime"
+        rm -rf "$TEMP_DIR"
+        return 1
+    fi
+
+    # Extract
+    print_info "Extracting..."
+    tar -xzf "${TEMP_DIR}/${ONNX_ARCHIVE}" -C "$TEMP_DIR"
+
+    # Install
+    sudo cp "${TEMP_DIR}/${ONNX_LIB_IN_ARCHIVE}" "$ONNX_LIB"
+    sudo ln -sf "$ONNX_LIB" "$ONNX_LINK"
+    sudo ln -sf "$ONNX_LIB" "$ONNX_SO_LINK"
+
+    # Linux: refresh linker cache
+    if [ "$OS" = "linux" ]; then
+        sudo ldconfig
+    fi
+
+    rm -rf "$TEMP_DIR"
+    cd "$SCRIPT_DIR"
+
+    print_success "ONNX Runtime ${ONNX_VERSION} installed for ${OS}/${ARCH}"
+    print_info "  Library: $ONNX_LIB"
+    print_info "  Symlink: $ONNX_LINK"
+    print_info "  Symlink: $ONNX_SO_LINK"
+
+    # Persist library path in shell profile on macOS
+    if [ "$OS" = "darwin" ]; then
+        SHELL_PROFILE=""
+        if [ -f "$HOME/.zshrc" ]; then
+            SHELL_PROFILE="$HOME/.zshrc"
+        elif [ -f "$HOME/.bash_profile" ]; then
+            SHELL_PROFILE="$HOME/.bash_profile"
+        fi
+        if [ -n "$SHELL_PROFILE" ]; then
+            if ! grep -q "DYLD_LIBRARY_PATH.*usr/local/lib" "$SHELL_PROFILE" 2>/dev/null; then
+                echo 'export DYLD_LIBRARY_PATH=/usr/local/lib:$DYLD_LIBRARY_PATH' >> "$SHELL_PROFILE"
+                print_info "Added DYLD_LIBRARY_PATH to $SHELL_PROFILE"
+            fi
+        fi
+        export DYLD_LIBRARY_PATH=/usr/local/lib:$DYLD_LIBRARY_PATH
+    fi
+}
+
 # Build Agent DNS
 build_agentdns() {
     print_info "Building Agent DNS..."
@@ -567,6 +673,7 @@ main() {
         if [ "$USE_CGO" -eq 1 ]; then
             install_system_deps
             install_tokenizers
+            install_onnxruntime
         fi
     fi
     
