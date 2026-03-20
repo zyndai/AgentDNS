@@ -100,6 +100,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("PUT /v1/agents/{agentID}", s.handleUpdateAgent)
 	mux.HandleFunc("DELETE /v1/agents/{agentID}", s.handleDeleteAgent)
 	mux.HandleFunc("GET /v1/agents/{agentID}/card", s.handleGetAgentCard)
+	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
 
 	// Search
 	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))

@@ -331,9 +331,16 @@ func cmdStart() {
 	transport.SetEventBus(bus)
 	fedSearch.SetEventBus(bus)
 
-	// Graceful shutdown
+	// Start liveness monitor if heartbeat is enabled
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	if cfg.Heartbeat.Enabled {
+		monitor := api.NewLivenessMonitor(st, cfg.Heartbeat, gossipHandler, kp, bus)
+		go monitor.Run(ctx)
+	}
+
+	// Graceful shutdown
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

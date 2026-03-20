@@ -253,3 +253,143 @@ func TestStore_GossipEntries(t *testing.T) {
 		t.Errorf("expected 0 active gossip entries after tombstone, got %d", count)
 	}
 }
+
+func TestStore_UpdateAgentHeartbeat(t *testing.T) {
+	s := newTestStore(t)
+
+	agent := &models.RegistryRecord{
+		AgentID:      "agdns:hb1",
+		Name:         "HeartbeatAgent",
+		Owner:        "did:key:owner",
+		AgentURL:     "https://example.com/agent.json",
+		Category:     "tools",
+		Tags:         []string{},
+		Summary:      "Heartbeat test agent",
+		PublicKey:    "ed25519:pk",
+		HomeRegistry: "agdns:registry:test",
+		RegisteredAt: time.Now().UTC().Format(time.RFC3339),
+		UpdatedAt:    time.Now().UTC().Format(time.RFC3339),
+		TTL:          86400,
+		Signature:    "ed25519:sig",
+	}
+	if err := s.CreateAgent(agent); err != nil {
+		t.Fatalf("failed to create agent: %v", err)
+	}
+
+	// Update heartbeat
+	if err := s.UpdateAgentHeartbeat("agdns:hb1"); err != nil {
+		t.Fatalf("failed to update heartbeat: %v", err)
+	}
+
+	// Verify agent is active with a non-empty last_heartbeat
+	got, err := s.GetAgent("agdns:hb1")
+	if err != nil {
+		t.Fatalf("failed to get agent: %v", err)
+	}
+	if got.Status != "active" {
+		t.Errorf("expected status 'active', got '%s'", got.Status)
+	}
+	if got.LastHeartbeat == "" {
+		t.Error("expected last_heartbeat to be set")
+	}
+}
+
+func TestStore_MarkInactiveAgents(t *testing.T) {
+	s := newTestStore(t)
+
+	// Create two agents
+	for _, id := range []string{"agdns:active1", "agdns:stale1"} {
+		agent := &models.RegistryRecord{
+			AgentID:      id,
+			Name:         "Agent-" + id,
+			Owner:        "did:key:owner",
+			AgentURL:     "https://example.com/agent.json",
+			Category:     "tools",
+			Tags:         []string{},
+			Summary:      "Test agent",
+			PublicKey:    "ed25519:pk-" + id,
+			HomeRegistry: "agdns:registry:test",
+			RegisteredAt: time.Now().UTC().Format(time.RFC3339),
+			UpdatedAt:    time.Now().UTC().Format(time.RFC3339),
+			TTL:          86400,
+			Signature:    "ed25519:sig",
+		}
+		if err := s.CreateAgent(agent); err != nil {
+			t.Fatalf("failed to create agent %s: %v", id, err)
+		}
+	}
+
+	// Give active1 a fresh heartbeat
+	if err := s.UpdateAgentHeartbeat("agdns:active1"); err != nil {
+		t.Fatalf("failed to update heartbeat: %v", err)
+	}
+
+	// stale1 has no heartbeat (NULL last_heartbeat) — should be marked inactive
+	// with a threshold of 1 second (active1 just got a heartbeat, so it's safe)
+	ids, err := s.MarkInactiveAgents(1 * time.Second)
+	if err != nil {
+		t.Fatalf("failed to mark inactive agents: %v", err)
+	}
+
+	// stale1 should be in the list (NULL last_heartbeat)
+	found := false
+	for _, id := range ids {
+		if id == "agdns:stale1" {
+			found = true
+		}
+		if id == "agdns:active1" {
+			t.Error("active1 should not be marked inactive")
+		}
+	}
+	if !found {
+		t.Error("stale1 should have been marked inactive")
+	}
+
+	// Verify stale1 is now inactive
+	got, _ := s.GetAgent("agdns:stale1")
+	if got.Status != "inactive" {
+		t.Errorf("expected stale1 status 'inactive', got '%s'", got.Status)
+	}
+
+	// Verify active1 is still active
+	got, _ = s.GetAgent("agdns:active1")
+	if got.Status != "active" {
+		t.Errorf("expected active1 status 'active', got '%s'", got.Status)
+	}
+}
+
+func TestStore_UpdateGossipEntryStatus(t *testing.T) {
+	s := newTestStore(t)
+
+	entry := &models.GossipEntry{
+		AgentID:      "agdns:gossip-status1",
+		Name:         "GossipStatusAgent",
+		Category:     "tools",
+		Tags:         []string{},
+		Summary:      "Gossip status test",
+		HomeRegistry: "agdns:registry:remote",
+		AgentURL:     "https://remote.example.com/agent.json",
+		ReceivedAt:   time.Now().UTC().Format(time.RFC3339),
+	}
+
+	if err := s.UpsertGossipEntry(entry); err != nil {
+		t.Fatalf("failed to upsert gossip entry: %v", err)
+	}
+
+	// Update status to inactive
+	if err := s.UpdateGossipEntryStatus("agdns:gossip-status1", "inactive"); err != nil {
+		t.Fatalf("failed to update gossip entry status: %v", err)
+	}
+
+	// Search should still find it (status filtering is in the search engine layer)
+	results, err := s.SearchGossipByKeyword("gossip", "", nil, 10)
+	if err != nil {
+		t.Fatalf("gossip search failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 gossip result, got %d", len(results))
+	}
+	if results[0].Status != "inactive" {
+		t.Errorf("expected gossip entry status 'inactive', got '%s'", results[0].Status)
+	}
+}

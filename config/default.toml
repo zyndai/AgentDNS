@@ -74,3 +74,9 @@ cors_origins = ["*"]
 expected_tokens = 500000
 false_positive_rate = 0.01
 update_interval_seconds = 300
+
+[heartbeat]
+enabled = true
+inactive_threshold_seconds = 300
+sweep_interval_seconds = 60
+max_clock_skew_seconds = 60

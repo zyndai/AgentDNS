@@ -274,6 +274,11 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			continue
 		}
 
+		// Filter inactive agents
+		if agent.Status == "inactive" {
+			continue
+		}
+
 		// Apply category/tag filters
 		if req.Category != "" && agent.Category != req.Category {
 			continue
@@ -293,7 +298,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			UpdatedAt:     agent.UpdatedAt,
 			TextRelevance: normalizedScore,
 			TrustScore:    0.5, // default until trust system is active
-			Availability:  1.0, // assume available for local agents
+			Availability:  1.0, // active local agent
 		}
 	}
 
@@ -304,6 +309,9 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 		} else {
 			agent, err := e.store.GetAgent(sr.DocID)
 			if err != nil || agent == nil {
+				continue
+			}
+			if agent.Status == "inactive" {
 				continue
 			}
 			if req.Category != "" && agent.Category != req.Category {
@@ -346,6 +354,11 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 
 	var candidates []*ranking.CandidateResult
 	for _, entry := range entries {
+		// Filter inactive gossip entries
+		if entry.Status == "inactive" {
+			continue
+		}
+
 		// Get keyword score from the index
 		var keywordResults []KeywordResult
 		if e.useImprovedKW {
@@ -379,7 +392,7 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 			TextRelevance:      textScore,
 			SemanticSimilarity: semanticScore,
 			TrustScore:         0.3, // lower default for remote agents
-			Availability:       0.8, // slightly less confident about availability
+			Availability:       0.9, // active gossip agent
 		})
 	}
 

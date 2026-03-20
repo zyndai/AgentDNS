@@ -19,8 +19,17 @@ type Config struct {
 	Cache    CacheConfig    `toml:"cache"`
 	Redis    RedisConfig    `toml:"redis"`
 	Trust    TrustConfig    `toml:"trust"`
-	API      APIConfig      `toml:"api"`
-	Bloom    BloomConfig    `toml:"bloom"`
+	API       APIConfig       `toml:"api"`
+	Bloom     BloomConfig     `toml:"bloom"`
+	Heartbeat HeartbeatConfig `toml:"heartbeat"`
+}
+
+// HeartbeatConfig configures agent heartbeat liveness detection.
+type HeartbeatConfig struct {
+	Enabled            bool `toml:"enabled"`
+	InactiveThresholdS int  `toml:"inactive_threshold_seconds"`
+	SweepIntervalS     int  `toml:"sweep_interval_seconds"`
+	MaxClockSkewS      int  `toml:"max_clock_skew_seconds"`
 }
 
 // NodeConfig describes the node identity and type.
@@ -190,6 +199,12 @@ func DefaultConfig() *Config {
 			ExpectedTokens:        500000,
 			FalsePositiveRate:     0.01,
 			UpdateIntervalSeconds: 300,
+		},
+		Heartbeat: HeartbeatConfig{
+			Enabled:            true,
+			InactiveThresholdS: 300,
+			SweepIntervalS:     60,
+			MaxClockSkewS:      60,
 		},
 	}
 }

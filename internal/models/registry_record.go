@@ -38,6 +38,10 @@ type RegistryRecord struct {
 	DeveloperID    string          `json:"developer_id,omitempty" db:"developer_id"`
 	AgentIndex     *int            `json:"agent_index,omitempty" db:"agent_index"`
 	DeveloperProof *DeveloperProof `json:"developer_proof,omitempty" db:"-"` // stored as JSONB
+
+	// Heartbeat liveness fields (server-managed, excluded from signing)
+	Status        string `json:"status,omitempty" db:"status"`
+	LastHeartbeat string `json:"last_heartbeat,omitempty" db:"last_heartbeat"`
 }
 
 // CapabilitySummary provides searchable metadata about agent capabilities.
@@ -96,9 +100,11 @@ func GenerateRegistryID(publicKey ed25519.PublicKey) string {
 // SignableBytes returns the canonical JSON bytes of the record for signing,
 // excluding the signature field itself.
 func (r *RegistryRecord) SignableBytes() ([]byte, error) {
-	// Create a copy without signature
+	// Create a copy without signature and server-managed fields
 	rec := *r
 	rec.Signature = ""
+	rec.Status = ""
+	rec.LastHeartbeat = ""
 	return json.Marshal(rec)
 }
 

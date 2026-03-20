@@ -19,6 +19,9 @@ const (
 	EventSearchIncoming    EventType = "search_result_incoming"
 	EventPeerConnected     EventType = "peer_connected"
 	EventPeerDisconnected  EventType = "peer_disconnected"
+	EventAgentHeartbeat      EventType = "agent_heartbeat"
+	EventAgentBecameInactive EventType = "agent_became_inactive"
+	EventAgentBecameActive   EventType = "agent_became_active"
 )
 
 // Event is a single network activity event emitted on the bus.
@@ -54,6 +57,12 @@ type SearchEventData struct {
 	ResultCount int    `json:"result_count,omitempty"`
 	LatencyMs   int64  `json:"latency_ms,omitempty"`
 	Direction   string `json:"direction"` // outgoing | incoming
+}
+
+// HeartbeatEventData is the payload for heartbeat and agent status events.
+type HeartbeatEventData struct {
+	AgentID string `json:"agent_id"`
+	Status  string `json:"status"`
 }
 
 // PeerEventData is the payload for peer_connected / peer_disconnected events.
