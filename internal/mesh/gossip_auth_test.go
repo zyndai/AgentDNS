@@ -252,6 +252,52 @@ func TestOriginAuth_DeregisterFromDifferentOriginRejected(t *testing.T) {
 	}
 }
 
+func TestOriginAuth_StatusForUnknownAgentRejected(t *testing.T) {
+	gh, _ := newTestGossipHandler(t)
+
+	kpA, _ := identity.GenerateKeypair()
+	agentID := "agdns:auth-test-unknown-status-" + time.Now().Format("150405.000")
+
+	// Send agent_status for an agent that has never been registered via gossip
+	statusAnn := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
+		Type:         "agent_announce",
+		AgentID:      agentID,
+		Name:         "UnknownAgent",
+		HomeRegistry: "registry-a",
+		Action:       "agent_status",
+		Status:       "inactive",
+		Timestamp:    time.Now().UTC().Format(time.RFC3339),
+		HopCount:     0,
+		MaxHops:      3,
+	})
+
+	if gh.HandleAnnouncement(statusAnn) {
+		t.Fatal("agent_status for unknown agent should be rejected")
+	}
+}
+
+func TestOriginAuth_DeregisterForUnknownAgentRejected(t *testing.T) {
+	gh, _ := newTestGossipHandler(t)
+
+	kpA, _ := identity.GenerateKeypair()
+	agentID := "agdns:auth-test-unknown-dereg-" + time.Now().Format("150405.000")
+
+	// Send deregister for an agent that has never been registered via gossip
+	deregAnn := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
+		Type:         "agent_announce",
+		AgentID:      agentID,
+		HomeRegistry: "registry-a",
+		Action:       "deregister",
+		Timestamp:    time.Now().UTC().Format(time.RFC3339),
+		HopCount:     0,
+		MaxHops:      3,
+	})
+
+	if gh.HandleAnnouncement(deregAnn) {
+		t.Fatal("deregister for unknown agent should be rejected")
+	}
+}
+
 func TestOriginAuth_BackwardCompat_NullKey(t *testing.T) {
 	gh, s := newTestGossipHandler(t)
 
@@ -353,6 +399,41 @@ func TestOriginAuth_ReRegisterDoesNotOverwriteKey(t *testing.T) {
 
 	if gh.HandleAnnouncement(statusAnn) {
 		t.Fatal("status from key B should be rejected after pinned key A")
+	}
+}
+
+func TestOriginAuth_RegisterSetsStatusActive(t *testing.T) {
+	gh, s := newTestGossipHandler(t)
+
+	kpA, _ := identity.GenerateKeypair()
+	agentID := "agdns:auth-test-reg-status-" + time.Now().Format("150405.000")
+
+	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
+		Type:         "agent_announce",
+		AgentID:      agentID,
+		Name:         "TestAgent",
+		Category:     "test",
+		HomeRegistry: "registry-a",
+		AgentURL:     "https://example.com/agent",
+		Action:       "register",
+		Timestamp:    time.Now().UTC().Format(time.RFC3339),
+		HopCount:     0,
+		MaxHops:      3,
+	})
+
+	if !gh.HandleAnnouncement(ann) {
+		t.Fatal("register announcement should be accepted")
+	}
+
+	entry, err := s.GetGossipEntry(agentID)
+	if err != nil {
+		t.Fatalf("GetGossipEntry failed: %v", err)
+	}
+	if entry == nil {
+		t.Fatal("expected gossip entry to exist")
+	}
+	if entry.Status != "active" {
+		t.Fatalf("expected status 'active', got '%s'", entry.Status)
 	}
 }
 

@@ -181,6 +181,8 @@ func (s *PostgresStore) migrate() error {
 
 	-- Origin registry public key pinning for gossip authorization
 	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS origin_public_key TEXT;
+
+	CREATE INDEX IF NOT EXISTS idx_gossip_entries_status ON gossip_entries(status);
 	`
 
 	_, err := s.pool.Exec(context.Background(), schema)
@@ -217,8 +219,8 @@ func (s *PostgresStore) CreateAgent(agent *models.RegistryRecord) error {
 	_, err = s.pool.Exec(context.Background(), `
 		INSERT INTO agents (agent_id, name, owner, agent_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-			developer_id, agent_index, developer_proof)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+			developer_id, agent_index, developer_proof, last_heartbeat)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())`,
 		agent.AgentID, agent.Name, agent.Owner, agent.AgentURL, agent.Category,
 		string(tagsJSON), agent.Summary, agent.PublicKey, agent.HomeRegistry,
 		schemaVersion, agent.RegisteredAt, agent.UpdatedAt, agent.TTL, agent.Signature,
@@ -445,25 +447,32 @@ func (s *PostgresStore) UpsertGossipEntry(entry *models.GossipEntry) error {
 		}
 	}
 
+	status := entry.Status
+	if status == "" {
+		status = "inactive"
+	}
+
 	_, err = s.pool.Exec(context.Background(), `
 		INSERT INTO gossip_entries (agent_id, name, category, tags, summary,
 			home_registry, agent_url, received_at, tombstoned,
 			developer_id, developer_public_key, developer_proof,
-			origin_public_key)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			origin_public_key, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		ON CONFLICT(agent_id) DO UPDATE SET
 			name=EXCLUDED.name, category=EXCLUDED.category, tags=EXCLUDED.tags,
 			summary=EXCLUDED.summary, agent_url=EXCLUDED.agent_url,
 			received_at=EXCLUDED.received_at,
 			developer_id=EXCLUDED.developer_id, developer_public_key=EXCLUDED.developer_public_key,
 			developer_proof=EXCLUDED.developer_proof,
-			origin_public_key=COALESCE(gossip_entries.origin_public_key, EXCLUDED.origin_public_key)`,
+			origin_public_key=COALESCE(gossip_entries.origin_public_key, EXCLUDED.origin_public_key),
+			status=EXCLUDED.status`,
 		entry.AgentID, entry.Name, entry.Category, string(tagsJSON),
 		entry.Summary, entry.HomeRegistry, entry.AgentURL,
 		entry.ReceivedAt, entry.Tombstoned,
 		nilIfEmpty(entry.DeveloperID), nilIfEmpty(entry.DeveloperPublicKey),
 		nilIfEmptyBytes(developerProofJSON),
 		nilIfEmpty(entry.OriginPublicKey),
+		status,
 	)
 	return err
 }

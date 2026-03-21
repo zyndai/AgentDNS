@@ -254,6 +254,78 @@ func TestStore_GossipEntries(t *testing.T) {
 	}
 }
 
+func TestStore_CreateAgentSetsLastHeartbeat(t *testing.T) {
+	s := newTestStore(t)
+
+	agent := &models.RegistryRecord{
+		AgentID:      "agdns:create-hb-test",
+		Name:         "CreateHBAgent",
+		Owner:        "did:key:owner",
+		AgentURL:     "https://example.com/agent.json",
+		Category:     "tools",
+		Tags:         []string{},
+		Summary:      "Test that CreateAgent sets last_heartbeat",
+		PublicKey:    "ed25519:pk",
+		HomeRegistry: "agdns:registry:test",
+		RegisteredAt: time.Now().UTC().Format(time.RFC3339),
+		UpdatedAt:    time.Now().UTC().Format(time.RFC3339),
+		TTL:          86400,
+		Signature:    "ed25519:sig",
+	}
+
+	before := time.Now().Add(-2 * time.Second)
+	if err := s.CreateAgent(agent); err != nil {
+		t.Fatalf("failed to create agent: %v", err)
+	}
+
+	got, err := s.GetAgent("agdns:create-hb-test")
+	if err != nil {
+		t.Fatalf("failed to get agent: %v", err)
+	}
+	if got.LastHeartbeat == "" {
+		t.Fatal("expected last_heartbeat to be set on CreateAgent")
+	}
+
+	hb, err := time.Parse(time.RFC3339, got.LastHeartbeat)
+	if err != nil {
+		t.Fatalf("failed to parse last_heartbeat: %v", err)
+	}
+	if hb.Before(before) || hb.After(time.Now().Add(2*time.Second)) {
+		t.Fatalf("last_heartbeat %v is not within expected range", hb)
+	}
+}
+
+func TestStore_UpsertGossipEntryWithStatus(t *testing.T) {
+	s := newTestStore(t)
+
+	entry := &models.GossipEntry{
+		AgentID:      "agdns:gossip-status-upsert",
+		Name:         "StatusUpsertAgent",
+		Category:     "tools",
+		Tags:         []string{},
+		Summary:      "Test upsert preserves status",
+		HomeRegistry: "agdns:registry:remote",
+		AgentURL:     "https://remote.example.com/agent.json",
+		ReceivedAt:   time.Now().UTC().Format(time.RFC3339),
+		Status:       "active",
+	}
+
+	if err := s.UpsertGossipEntry(entry); err != nil {
+		t.Fatalf("failed to upsert gossip entry: %v", err)
+	}
+
+	got, err := s.GetGossipEntry("agdns:gossip-status-upsert")
+	if err != nil {
+		t.Fatalf("failed to get gossip entry: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected gossip entry to exist")
+	}
+	if got.Status != "active" {
+		t.Fatalf("expected status 'active', got '%s'", got.Status)
+	}
+}
+
 func TestStore_UpdateAgentHeartbeat(t *testing.T) {
 	s := newTestStore(t)
 

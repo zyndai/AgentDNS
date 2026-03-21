@@ -40,15 +40,6 @@ func (s *Server) handleAgentHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// Mark agent active on connect (initial heartbeat)
-	if err := s.store.UpdateAgentHeartbeat(agentID); err != nil {
-		log.Printf("heartbeat ws: failed initial heartbeat for %s: %v", agentID, err)
-	}
-	s.eventBus.Publish(events.EventAgentBecameActive, events.HeartbeatEventData{
-		AgentID: agentID,
-		Status:  "active",
-	})
-
 	// Extract public key for signature verification
 	pubKeyStr := agent.PublicKey
 	if strings.HasPrefix(pubKeyStr, "ed25519:") {
@@ -56,9 +47,11 @@ func (s *Server) handleAgentHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	maxClockSkew := time.Duration(s.cfg.Heartbeat.MaxClockSkewS) * time.Second
-	readDeadline := time.Duration(s.cfg.Heartbeat.InactiveThresholdS) * time.Second
+	readDeadline := time.Duration(s.cfg.Heartbeat.InactiveThresholdS)*time.Second + 60*time.Second
 
-	// Read loop
+	authenticated := false
+
+	// Read loop — agent is only marked active after the first valid signed message
 	for {
 		conn.SetReadDeadline(time.Now().Add(readDeadline))
 
@@ -86,6 +79,24 @@ func (s *Server) handleAgentHeartbeat(w http.ResponseWriter, r *http.Request) {
 		if err != nil || !valid {
 			log.Printf("heartbeat ws: invalid signature from %s: %v", agentID, err)
 			continue
+		}
+
+		// First valid signature — mark agent active and broadcast
+		if !authenticated {
+			authenticated = true
+			s.eventBus.Publish(events.EventAgentBecameActive, events.HeartbeatEventData{
+				AgentID: agentID,
+				Status:  "active",
+			})
+			if s.gossip != nil && s.nodeIdentity != nil {
+				ann := s.gossip.CreateStatusAnnouncement(
+					agentID, "active",
+					s.nodeIdentity.RegistryID(),
+					s.nodeIdentity.PublicKeyString(),
+					s.nodeIdentity.Sign,
+				)
+				s.gossip.BroadcastAnnouncement(ann)
+			}
 		}
 
 		// Valid heartbeat — update store

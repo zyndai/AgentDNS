@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/agentdns/agent-dns/internal/config"
 	"github.com/agentdns/agent-dns/internal/events"
 	"github.com/agentdns/agent-dns/internal/identity"
+	"github.com/agentdns/agent-dns/internal/mesh"
 	"github.com/agentdns/agent-dns/internal/models"
 	"github.com/agentdns/agent-dns/internal/store"
 )
@@ -46,6 +48,51 @@ func testHeartbeatServer(t *testing.T) (*Server, store.Store, *identity.Keypair)
 	}
 
 	return s, st, agentKP
+}
+
+// testHeartbeatServerWithGossip sets up a Server with gossip handler and node identity
+// for testing gossip broadcast on heartbeat reconnect.
+func testHeartbeatServerWithGossip(t *testing.T) (*Server, store.Store, *identity.Keypair, *mesh.GossipHandler) {
+	t.Helper()
+
+	dsn := os.Getenv("AGENTDNS_TEST_POSTGRES_URL")
+	if dsn == "" {
+		t.Skip("AGENTDNS_TEST_POSTGRES_URL not set, skipping heartbeat tests")
+	}
+
+	st, err := store.New(dsn)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+
+	agentKP, err := identity.GenerateKeypair()
+	if err != nil {
+		t.Fatalf("failed to generate agent keypair: %v", err)
+	}
+
+	nodeKP, err := identity.GenerateKeypair()
+	if err != nil {
+		t.Fatalf("failed to generate node keypair: %v", err)
+	}
+
+	cfg := config.DefaultConfig()
+
+	gossipCfg := config.GossipConfig{
+		MaxHops:            3,
+		DedupWindowSeconds: 60,
+	}
+	gh := mesh.NewGossipHandler(st, gossipCfg)
+
+	s := &Server{
+		cfg:          cfg,
+		store:        st,
+		eventBus:     events.NewBus(),
+		gossip:       gh,
+		nodeIdentity: nodeKP,
+	}
+
+	return s, st, agentKP, gh
 }
 
 // registerTestAgent creates a test agent in the store and returns its ID.
@@ -213,5 +260,55 @@ func TestHeartbeat_AgentNotFound(t *testing.T) {
 	}
 	if resp != nil && resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestHeartbeat_ReconnectBroadcastsActiveGossip(t *testing.T) {
+	s, st, agentKP, gh := testHeartbeatServerWithGossip(t)
+	agentID := registerTestAgent(t, st, agentKP, "gossip-broadcast")
+
+	// Install a tracking broadcast function
+	var mu sync.Mutex
+	var broadcasts []*models.GossipAnnouncement
+	gh.SetBroadcastFunc(func(ann *models.GossipAnnouncement) {
+		mu.Lock()
+		broadcasts = append(broadcasts, ann)
+		mu.Unlock()
+	})
+
+	// Set up HTTP test server
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	// Connect via WebSocket — this should trigger a gossip broadcast
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/agents/" + agentID + "/ws"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to dial ws: %v", err)
+	}
+	defer conn.Close()
+
+	// Give the server time to process the connection and broadcast
+	time.Sleep(200 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(broadcasts) == 0 {
+		t.Fatal("expected at least one gossip broadcast on WebSocket connect")
+	}
+
+	// Find the agent_status/active announcement
+	found := false
+	for _, ann := range broadcasts {
+		if ann.AgentID == agentID && ann.Action == "agent_status" && ann.Status == "active" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected gossip broadcast with action=agent_status and status=active")
 	}
 }

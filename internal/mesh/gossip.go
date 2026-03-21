@@ -169,7 +169,7 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 	default: // agent_announce
 		switch ann.Action {
 		case "agent_status":
-			if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey) {
+			if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey, true) {
 				return false
 			}
 			if err := gh.store.UpdateGossipEntryStatus(ann.AgentID, ann.Status); err != nil {
@@ -178,7 +178,7 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 
 		case "register", "update":
 			if ann.Action == "update" {
-				if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey) {
+				if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey, false) {
 					return false
 				}
 			}
@@ -195,6 +195,7 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 				DeveloperPublicKey: ann.DeveloperPublicKey,
 				DeveloperProof:     ann.DeveloperProof,
 				OriginPublicKey:    ann.OriginPublicKey,
+				Status:             "active",
 			}
 			if err := gh.store.UpsertGossipEntry(entry); err != nil {
 				log.Printf("failed to store gossip entry: %v", err)
@@ -209,7 +210,7 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 			}
 
 		case "deregister":
-			if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey) {
+			if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey, true) {
 				return false
 			}
 			if err := gh.store.TombstoneGossipEntry(ann.AgentID); err != nil {
@@ -340,14 +341,22 @@ func (gh *GossipHandler) CreateStatusAnnouncement(
 
 // verifyOriginAuthorization checks that the announcement's origin public key
 // matches the pinned key for this agent. Returns true if the action is authorized.
-func (gh *GossipHandler) verifyOriginAuthorization(agentID, originKey string) bool {
+// If requireExisting is true, the entry must already exist (rejects unknown agents).
+func (gh *GossipHandler) verifyOriginAuthorization(agentID, originKey string, requireExisting bool) bool {
 	existing, err := gh.store.GetGossipEntry(agentID)
 	if err != nil {
 		log.Printf("gossip: origin auth lookup failed for %s: %v", agentID, err)
 		return false
 	}
-	// No existing entry or no stored key = backward compat, allow
-	if existing == nil || existing.OriginPublicKey == "" {
+	if existing == nil {
+		if requireExisting {
+			log.Printf("gossip: rejecting action for unknown agent %s", agentID)
+			return false
+		}
+		return true
+	}
+	// No stored key = backward compat, allow
+	if existing.OriginPublicKey == "" {
 		return true
 	}
 	if existing.OriginPublicKey != originKey {
