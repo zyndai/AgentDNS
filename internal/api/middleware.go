@@ -3,6 +3,7 @@ package api
 
 import (
 	"bufio"
+	"crypto/subtle"
 	"fmt"
 	"log"
 	"net"
@@ -143,6 +144,39 @@ func RateLimitMiddleware(rl *RateLimiter) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// WebhookAuthMiddleware verifies that the request contains the correct webhook secret
+// in the Authorization header. Used to authenticate org website → registry calls.
+func WebhookAuthMiddleware(secret string) func(http.HandlerFunc) http.HandlerFunc {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				http.Error(w, `{"error":"missing Authorization header"}`, http.StatusUnauthorized)
+				return
+			}
+
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			if token == authHeader {
+				http.Error(w, `{"error":"Authorization header must use Bearer scheme"}`, http.StatusUnauthorized)
+				return
+			}
+
+			// Constant-time comparison to prevent timing attacks
+			if !hmacEqual(token, secret) {
+				http.Error(w, `{"error":"invalid webhook secret"}`, http.StatusUnauthorized)
+				return
+			}
+
+			next(w, r)
+		}
+	}
+}
+
+// hmacEqual performs constant-time string comparison.
+func hmacEqual(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
 func extractIP(r *http.Request) string {

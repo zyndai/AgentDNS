@@ -19,9 +19,17 @@ type Config struct {
 	Cache    CacheConfig    `toml:"cache"`
 	Redis    RedisConfig    `toml:"redis"`
 	Trust    TrustConfig    `toml:"trust"`
-	API       APIConfig       `toml:"api"`
-	Bloom     BloomConfig     `toml:"bloom"`
-	Heartbeat HeartbeatConfig `toml:"heartbeat"`
+	API        APIConfig        `toml:"api"`
+	Bloom      BloomConfig      `toml:"bloom"`
+	Heartbeat  HeartbeatConfig  `toml:"heartbeat"`
+	Onboarding OnboardingConfig `toml:"onboarding"`
+}
+
+// OnboardingConfig configures developer onboarding mode.
+type OnboardingConfig struct {
+	Mode          string `toml:"mode"`           // "open" (default) or "restricted"
+	AuthURL       string `toml:"auth_url"`       // org's KYC/onboarding page URL (required when mode=restricted)
+	WebhookSecret string `toml:"webhook_secret"` // shared secret for website → registry calls
 }
 
 // HeartbeatConfig configures agent heartbeat liveness detection.
@@ -205,6 +213,9 @@ func DefaultConfig() *Config {
 			InactiveThresholdS: 300,
 			SweepIntervalS:     60,
 			MaxClockSkewS:      60,
+		},
+		Onboarding: OnboardingConfig{
+			Mode: "open",
 		},
 	}
 }

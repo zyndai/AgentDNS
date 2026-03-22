@@ -17,13 +17,22 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -52,6 +61,12 @@ func main() {
 
 	command := os.Args[1]
 
+	// Support "auth login" and "onboarding setup" as two-word commands
+	subcommand := ""
+	if len(os.Args) > 2 {
+		subcommand = os.Args[2]
+	}
+
 	switch command {
 	case "init":
 		cmdInit()
@@ -77,6 +92,20 @@ func main() {
 		cmdPeers()
 	case "deregister":
 		cmdDeregister()
+	case "auth":
+		if subcommand == "login" {
+			cmdAuthLogin()
+		} else {
+			fmt.Fprintf(os.Stderr, "unknown auth subcommand: %s\nUsage: agentdns auth login --registry <url>\n", subcommand)
+			os.Exit(1)
+		}
+	case "onboarding":
+		if subcommand == "setup" {
+			cmdOnboardingSetup()
+		} else {
+			fmt.Fprintf(os.Stderr, "unknown onboarding subcommand: %s\nUsage: agentdns onboarding setup\n", subcommand)
+			os.Exit(1)
+		}
 	case "models":
 		cmdModels()
 	case "test":
@@ -103,9 +132,11 @@ Commands:
   start         Start the registry node
 
   Developer Identity:
-  dev-init      Generate a developer keypair (stored at ~/.agentdns/developer.json)
-  dev-register  Register developer identity on a registry node
-  derive-agent  Derive an agent keypair from developer key at a given index
+  dev-init         Generate a developer keypair (stored at ~/.agentdns/developer.json)
+  dev-register     Register developer identity on a registry node
+  derive-agent     Derive an agent keypair from developer key at a given index
+  auth login       Log in to a registry (supports restricted onboarding)
+  onboarding setup Generate a webhook secret for restricted onboarding
 
   Agent Management:
   register      Register an agent on this node (supports --developer-key for HD derivation)
@@ -136,7 +167,9 @@ Examples:
   agentdns register --name "MyAgent" --agent-url "https://example.com/.well-known/agent.json" --category "tools" --developer-key ~/.agentdns/developer.json --agent-index 0
   agentdns search "code review agent for Python security"
   agentdns resolve agdns:7f3a9c2e...
-  agentdns deregister agdns:7f3a9c2e...`)
+  agentdns deregister agdns:7f3a9c2e...
+  agentdns auth login --registry https://registry.example.com
+  agentdns onboarding setup`)
 }
 
 // --- Init Command ---
@@ -965,4 +998,228 @@ func cmdDeregister() {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", result["error"])
 		os.Exit(1)
 	}
+}
+
+// --- Auth Login Command ---
+
+func cmdAuthLogin() {
+	var registryURL, name string
+
+	for i := 3; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "--registry":
+			if i+1 < len(os.Args) {
+				registryURL = os.Args[i+1]
+				i++
+			}
+		case "--name":
+			if i+1 < len(os.Args) {
+				name = os.Args[i+1]
+				i++
+			}
+		}
+	}
+
+	if registryURL == "" {
+		fmt.Fprintln(os.Stderr, "Usage: agentdns auth login --registry <url> [--name \"Your Name\"]")
+		os.Exit(1)
+	}
+
+	// Trim trailing slash
+	registryURL = strings.TrimRight(registryURL, "/")
+
+	// 1. Fetch registry info
+	resp, err := http.Get(registryURL + "/v1/info")
+	if err != nil {
+		log.Fatalf("failed to connect to registry: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var info models.RegistryInfoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		log.Fatalf("failed to parse registry info: %v", err)
+	}
+
+	if info.DeveloperOnboarding == nil || info.DeveloperOnboarding.Mode == "open" {
+		// Open mode: fall back to dev-init + dev-register flow
+		fmt.Println("Registry is in open mode. Use the standard registration flow:")
+		fmt.Println("  1. agentdns dev-init")
+		fmt.Println("  2. agentdns dev-register --name \"Your Name\"")
+		return
+	}
+
+	// 2. Restricted mode
+	if info.DeveloperOnboarding.AuthURL == "" {
+		log.Fatalf("registry is in restricted mode but has no auth_url configured")
+	}
+
+	if name == "" {
+		fmt.Fprintln(os.Stderr, "--name is required for restricted registry onboarding")
+		os.Exit(1)
+	}
+
+	// Generate random state (32 hex chars)
+	stateBytes := make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, stateBytes); err != nil {
+		log.Fatalf("failed to generate state: %v", err)
+	}
+	state := hex.EncodeToString(stateBytes)
+
+	// Start local HTTP server on random port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		log.Fatalf("failed to start local server: %v", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+
+	doneCh := make(chan struct{})
+	var callbackErr error
+	var developerID string
+
+	callbackMux := http.NewServeMux()
+	callbackMux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		defer close(doneCh)
+
+		q := r.URL.Query()
+		cbState := q.Get("state")
+		cbDevID := q.Get("developer_id")
+		cbPrivKeyEnc := q.Get("private_key_enc")
+
+		if cbState != state {
+			callbackErr = fmt.Errorf("state mismatch")
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, "<html><body><h2>Error: state mismatch. Please try again.</h2></body></html>")
+			return
+		}
+
+		if cbDevID == "" || cbPrivKeyEnc == "" {
+			callbackErr = fmt.Errorf("missing developer_id or private_key_enc in callback")
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, "<html><body><h2>Error: incomplete callback data.</h2></body></html>")
+			return
+		}
+
+		// Decrypt private key
+		privateKeyB64, decErr := models.DecryptPrivateKey(cbPrivKeyEnc, state)
+		if decErr != nil {
+			callbackErr = fmt.Errorf("failed to decrypt private key: %w", decErr)
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, "<html><body><h2>Error: failed to decrypt credentials.</h2></body></html>")
+			return
+		}
+
+		// Decode private key and derive public key
+		privKeyBytes, decErr := base64.StdEncoding.DecodeString(privateKeyB64)
+		if decErr != nil {
+			callbackErr = fmt.Errorf("failed to decode private key: %w", decErr)
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, "<html><body><h2>Error: invalid key format.</h2></body></html>")
+			return
+		}
+
+		privKey := ed25519.PrivateKey(privKeyBytes)
+		pubKey := privKey.Public().(ed25519.PublicKey)
+
+		kp := &identity.Keypair{
+			PublicKey:     pubKey,
+			PrivateKey:    privKey,
+			PublicKeyB64:  base64.StdEncoding.EncodeToString(pubKey),
+			PrivateKeyB64: privateKeyB64,
+		}
+
+		// Save to ~/.agentdns/developer.json
+		homeDir, _ := os.UserHomeDir()
+		devKeyPath := filepath.Join(homeDir, ".agentdns", "developer.json")
+		if saveErr := identity.SaveKeypair(kp, devKeyPath); saveErr != nil {
+			callbackErr = fmt.Errorf("failed to save keypair: %w", saveErr)
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, "<html><body><h2>Error: failed to save credentials.</h2></body></html>")
+			return
+		}
+
+		developerID = cbDevID
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(w, "<html><body><h2>Registration complete!</h2><p>You are registered as <code>%s</code>.</p><p>You can close this window.</p></body></html>", cbDevID)
+	})
+
+	localServer := &http.Server{Handler: callbackMux}
+	go localServer.Serve(listener)
+
+	// Build auth URL and open browser
+	authURL, _ := url.Parse(info.DeveloperOnboarding.AuthURL)
+	q := authURL.Query()
+	q.Set("callback_port", fmt.Sprintf("%d", port))
+	q.Set("state", state)
+	q.Set("name", name)
+	authURL.RawQuery = q.Encode()
+
+	fmt.Printf("Opening browser for onboarding...\n")
+	openBrowser(authURL.String())
+	fmt.Printf("Waiting for authorization... (press Ctrl+C to cancel)\n")
+
+	// Wait for callback or interrupt
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case <-doneCh:
+		// Callback received
+	case <-sigCh:
+		fmt.Println("\nCancelled.")
+		localServer.Close()
+		os.Exit(1)
+	}
+
+	localServer.Close()
+
+	if callbackErr != nil {
+		log.Fatalf("Authorization failed: %v", callbackErr)
+	}
+
+	fmt.Printf("\nRegistered successfully!\n")
+	fmt.Printf("  Developer ID: %s\n", developerID)
+	homeDir, _ := os.UserHomeDir()
+	fmt.Printf("  Saved to:     %s\n", filepath.Join(homeDir, ".agentdns", "developer.json"))
+}
+
+// openBrowser opens a URL in the default browser.
+func openBrowser(rawURL string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", rawURL)
+	case "linux":
+		cmd = exec.Command("xdg-open", rawURL)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", rawURL)
+	default:
+		fmt.Printf("Please open this URL in your browser:\n  %s\n", rawURL)
+		return
+	}
+	if err := cmd.Start(); err != nil {
+		fmt.Printf("Please open this URL in your browser:\n  %s\n", rawURL)
+	}
+}
+
+// --- Onboarding Setup Command ---
+
+func cmdOnboardingSetup() {
+	// Generate a webhook secret
+	secretBytes := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, secretBytes); err != nil {
+		log.Fatalf("failed to generate secret: %v", err)
+	}
+	secret := "whsec_" + hex.EncodeToString(secretBytes)
+
+	fmt.Println("Webhook secret generated:")
+	fmt.Printf("  %s\n\n", secret)
+	fmt.Println("Add this to your registry config (config.toml):")
+	fmt.Println()
+	fmt.Println("  [onboarding]")
+	fmt.Println("  mode = \"restricted\"")
+	fmt.Printf("  auth_url = \"https://your-org.com/developer/onboard\"\n")
+	fmt.Printf("  webhook_secret = \"%s\"\n", secret)
+	fmt.Println()
+	fmt.Println("And configure your org website to use this secret in the")
+	fmt.Println("Authorization header when calling POST /v1/admin/developers/approve")
 }

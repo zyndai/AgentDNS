@@ -113,6 +113,15 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /v1/network/peers", s.handleAddPeer)
 	mux.HandleFunc("GET /v1/network/stats", s.handleNetworkStats)
 
+	// Registry info / discovery
+	mux.HandleFunc("GET /v1/info", s.handleRegistryInfo)
+
+	// Admin endpoints (webhook-authenticated)
+	if s.cfg.Onboarding.Mode == "restricted" && s.cfg.Onboarding.WebhookSecret != "" {
+		webhookAuth := WebhookAuthMiddleware(s.cfg.Onboarding.WebhookSecret)
+		mux.HandleFunc("POST /v1/admin/developers/approve", webhookAuth(s.handleApproveDeveloper))
+	}
+
 	// Health check
 	mux.HandleFunc("GET /health", s.handleHealth)
 
@@ -150,6 +159,18 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // handleRegisterDeveloper registers a new developer identity.
 func (s *Server) handleRegisterDeveloper(w http.ResponseWriter, r *http.Request) {
+	// In restricted mode, self-registration is disabled
+	if s.cfg.Onboarding.Mode == "restricted" {
+		resp := map[string]string{
+			"error": "self-registration is disabled; use 'agentdns auth login --registry <url>'",
+		}
+		if s.cfg.Onboarding.AuthURL != "" {
+			resp["auth_url"] = s.cfg.Onboarding.AuthURL
+		}
+		writeJSON(w, http.StatusForbidden, resp)
+		return
+	}
+
 	var req models.DeveloperRegistrationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
@@ -1010,6 +1031,84 @@ func (s *Server) handleActivityStream(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// --- Registry Info / Onboarding ---
+
+// handleRegistryInfo returns public information about this registry node.
+func (s *Server) handleRegistryInfo(w http.ResponseWriter, r *http.Request) {
+	info := models.RegistryInfoResponse{
+		RegistryID: s.nodeIdentity.RegistryID(),
+		Name:       s.cfg.Node.Name,
+		DeveloperOnboarding: &models.DeveloperOnboardingInfo{
+			Mode: s.cfg.Onboarding.Mode,
+		},
+	}
+	if s.cfg.Onboarding.Mode == "restricted" {
+		info.DeveloperOnboarding.AuthURL = s.cfg.Onboarding.AuthURL
+	}
+	writeJSON(w, http.StatusOK, info)
+}
+
+// handleApproveDeveloper is called by the org website after KYC approval.
+// It generates a keypair, stores the developer, and returns the encrypted private key.
+func (s *Server) handleApproveDeveloper(w http.ResponseWriter, r *http.Request) {
+	var req models.DeveloperApprovalRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+
+	if req.Name == "" || req.State == "" || req.CallbackPort == 0 {
+		writeError(w, http.StatusBadRequest, "name, state, and callback_port are required")
+		return
+	}
+
+	// Generate Ed25519 keypair for the developer
+	kp, err := identity.GenerateKeypair()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate keypair")
+		return
+	}
+
+	developerID := models.GenerateDeveloperID(kp.PublicKey)
+
+	now := models.NowRFC3339()
+	dev := &models.DeveloperRecord{
+		DeveloperID:   developerID,
+		Name:          req.Name,
+		PublicKey:     kp.PublicKeyString(),
+		HomeRegistry:  s.nodeIdentity.RegistryID(),
+		SchemaVersion: models.CurrentSchemaVersion,
+		RegisteredAt:  now,
+		UpdatedAt:     now,
+		Signature:     "", // registry-generated; no self-signature
+	}
+
+	if err := s.store.CreateDeveloper(dev); err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") {
+			writeError(w, http.StatusConflict, "developer already registered")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to register developer: "+err.Error())
+		return
+	}
+
+	// Encrypt the private key with SHA256(state)
+	privateKeyEnc, err := models.EncryptPrivateKey(kp.PrivateKeyB64, req.State)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encrypt private key")
+		return
+	}
+
+	// Gossip the developer identity to mesh peers
+	ann := s.gossip.CreateDeveloperAnnouncement(dev, "register", s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+	s.gossip.BroadcastAnnouncement(ann)
+
+	writeJSON(w, http.StatusCreated, models.DeveloperApprovalResponse{
+		DeveloperID:   developerID,
+		PrivateKeyEnc: privateKeyEnc,
+	})
 }
 
 // --- Helpers ---
