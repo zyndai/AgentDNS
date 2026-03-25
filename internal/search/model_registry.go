@@ -91,7 +91,7 @@ type ModelDownloader struct {
 }
 
 // NewModelDownloader creates a new model downloader.
-// baseDir is where models are stored (e.g., ~/.agentdns/models/)
+// baseDir is where models are stored (e.g., ~/.zynd/models/)
 func NewModelDownloader(baseDir string) *ModelDownloader {
 	return &ModelDownloader{
 		baseDir: baseDir,

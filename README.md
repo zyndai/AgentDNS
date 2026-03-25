@@ -120,7 +120,7 @@ cd agent-dns
 - ✅ Prompts for embedding backend (Hash/ONNX/HTTP)
 - ✅ Installs Rust and tokenizers library (for ONNX)
 - ✅ Builds and installs Agent DNS to `/usr/local/bin`
-- ✅ Creates default config at `~/.agentdns/config.toml`
+- ✅ Creates default config at `~/.zynd/config.toml`
 
 ### Manual Installation
 
@@ -167,7 +167,7 @@ See [DOCKER.md](DOCKER.md) for complete Docker deployment guide.
 ### Option 1: Local Binary
 
 ```bash
-# 1. Initialize node (generates Ed25519 keypair + config at ~/.agentdns/)
+# 1. Initialize node (generates Ed25519 keypair + config at ~/.zynd/)
 agentdns init
 
 # 2. Start the registry node
@@ -226,7 +226,7 @@ agentdns <command> [flags]
 | Command | Description |
 |---|---|
 | `init` | Initialize a new registry node (generates Ed25519 keypair + default config) |
-| `start` | Start the registry node (`--config <path>`, default: `~/.agentdns/config.toml`) |
+| `start` | Start the registry node (`--config <path>`, default: `~/.zynd/config.toml`) |
 | `register` | Register an agent (`--name`, `--agent-url`, `--category`, `--tags`, `--summary`) |
 | `search` | Search for agents (`--category`, `--min-trust`, `--status`, `--max-results`) |
 | `resolve` | Get an agent's registry record by ID |
@@ -325,7 +325,7 @@ curl -X POST http://localhost:8080/v1/search \
 
 ## Configuration
 
-Configuration is in TOML format. The default config is generated at `~/.agentdns/config.toml` on `agentdns init`. See [`config/default.toml`](config/default.toml) for the full reference with all options documented.
+Configuration is in TOML format. The default config is generated at `~/.zynd/config.toml` on `agentdns init`. See [`config/default.toml`](config/default.toml) for the full reference with all options documented.
 
 ### Key Configuration Sections
 

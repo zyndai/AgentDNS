@@ -101,7 +101,7 @@ func cmdModelsDownload() {
 		fmt.Fprintf(os.Stderr, "Error: Could not determine home directory: %v\n", err)
 		os.Exit(1)
 	}
-	baseDir := filepath.Join(homeDir, ".agentdns", "models")
+	baseDir := filepath.Join(homeDir, ".zynd", "models")
 
 	// Create downloader
 	downloader := search.NewModelDownloader(baseDir)
@@ -155,7 +155,7 @@ func cmdModelsInfo() {
 
 	// Check if downloaded
 	homeDir, _ := os.UserHomeDir()
-	baseDir := filepath.Join(homeDir, ".agentdns", "models")
+	baseDir := filepath.Join(homeDir, ".zynd", "models")
 	downloader := search.NewModelDownloader(baseDir)
 	downloaded := downloader.ModelExists(modelName)
 

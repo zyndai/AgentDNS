@@ -33,7 +33,7 @@ func TestDeveloperUpdateAgentWithAgentKey(t *testing.T) {
 	}
 
 	homeDir, _ := os.UserHomeDir()
-	agentKeyPath := filepath.Join(homeDir, ".agentdns", "agent-0.json")
+	agentKeyPath := filepath.Join(homeDir, ".zynd", "agent-0.json")
 
 	agentKP, err := identity.LoadKeypair(agentKeyPath)
 	if err != nil {
@@ -81,8 +81,8 @@ func TestDeveloperUpdateAgentWithDeveloperKey(t *testing.T) {
 	}
 
 	homeDir, _ := os.UserHomeDir()
-	devKeyPath := filepath.Join(homeDir, ".agentdns", "developer.json")
-	agentKeyPath := filepath.Join(homeDir, ".agentdns", "agent-0.json")
+	devKeyPath := filepath.Join(homeDir, ".zynd", "developer.json")
+	agentKeyPath := filepath.Join(homeDir, ".zynd", "agent-0.json")
 
 	devKP, err := identity.LoadKeypair(devKeyPath)
 	if err != nil {
@@ -135,7 +135,7 @@ func TestDeveloperUpdateAgentWithWrongKey(t *testing.T) {
 	}
 
 	homeDir, _ := os.UserHomeDir()
-	agentKeyPath := filepath.Join(homeDir, ".agentdns", "agent-0.json")
+	agentKeyPath := filepath.Join(homeDir, ".zynd", "agent-0.json")
 
 	agentKP, err := identity.LoadKeypair(agentKeyPath)
 	if err != nil {
@@ -174,7 +174,7 @@ func TestDeveloperUpdateAgentWithWrongDevKey(t *testing.T) {
 	}
 
 	homeDir, _ := os.UserHomeDir()
-	agentKeyPath := filepath.Join(homeDir, ".agentdns", "agent-0.json")
+	agentKeyPath := filepath.Join(homeDir, ".zynd", "agent-0.json")
 
 	agentKP, err := identity.LoadKeypair(agentKeyPath)
 	if err != nil {
@@ -213,7 +213,7 @@ func TestDeveloperKeyDerivationDeterministic(t *testing.T) {
 	}
 
 	homeDir, _ := os.UserHomeDir()
-	devKeyPath := filepath.Join(homeDir, ".agentdns", "developer.json")
+	devKeyPath := filepath.Join(homeDir, ".zynd", "developer.json")
 
 	devKP, err := identity.LoadKeypair(devKeyPath)
 	if err != nil {
@@ -226,7 +226,7 @@ func TestDeveloperKeyDerivationDeterministic(t *testing.T) {
 		t.Fatalf("failed to derive: %v", err)
 	}
 
-	agentKeyPath := filepath.Join(homeDir, ".agentdns", "agent-0.json")
+	agentKeyPath := filepath.Join(homeDir, ".zynd", "agent-0.json")
 	storedKP, err := identity.LoadKeypair(agentKeyPath)
 	if err != nil {
 		t.Skipf("agent-0 key not found: %v", err)

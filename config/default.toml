@@ -28,7 +28,7 @@ embedding_backend = "hash"
 embedding_model = "all-MiniLM-L6-v2"
 embedding_dimensions = 384
 # Model directory (auto-download if not present)
-embedding_model_dir = "~/.agentdns/models"
+embedding_model_dir = "~/.zynd/models"
 # HTTP endpoint (for "http" backend, e.g., Ollama, OpenAI)
 embedding_endpoint = ""
 # Use improved BM25 with field boosting, stemming, and synonyms

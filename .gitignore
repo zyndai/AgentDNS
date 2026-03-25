@@ -31,7 +31,7 @@ Thumbs.db
 *.db-shm
 
 # Node data directory
-.agentdns/
+.zynd/
 
 # Docker
 docker-compose.override.yml

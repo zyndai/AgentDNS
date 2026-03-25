@@ -2,7 +2,7 @@
 set -e
 
 # Auto-initialize identity if it doesn't exist yet
-if [ ! -f "$HOME/.agentdns/identity.json" ]; then
+if [ ! -f "$HOME/.zynd/identity.json" ]; then
   echo "No identity found — running 'agentdns init'..."
   agentdns init
 fi

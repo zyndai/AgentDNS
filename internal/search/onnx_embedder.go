@@ -30,7 +30,7 @@ func init() {
 		// Determine base directory for models
 		baseDir := cfg.ModelDir
 		if baseDir == "" {
-			baseDir = os.ExpandEnv("${HOME}/.agentdns/models")
+			baseDir = os.ExpandEnv("${HOME}/.zynd/models")
 		}
 
 		// Auto-download if needed

@@ -168,7 +168,7 @@ func cmdTestRegister() {
 		if err := saveTestAgents(agents, registryURL); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not save agent data: %v\n", err)
 		} else {
-			fmt.Printf("  Saved %d agents to ~/.agentdns/test-agents.json\n", len(agents))
+			fmt.Printf("  Saved %d agents to ~/.zynd/test-agents.json\n", len(agents))
 			fmt.Printf("  Run 'agentdns test deregister' to clean up.\n")
 		}
 	}
@@ -270,7 +270,7 @@ func cmdTestDeregister() {
 	// Remove the store file on success
 	if failCount == 0 {
 		homeDir, _ := os.UserHomeDir()
-		os.Remove(filepath.Join(homeDir, ".agentdns", "test-agents.json"))
+		os.Remove(filepath.Join(homeDir, ".zynd", "test-agents.json"))
 		fmt.Println("\n  Cleaned up test-agents.json")
 	}
 }
@@ -381,7 +381,7 @@ func saveTestAgents(agents []testAgentEntry, registryURL string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(homeDir, ".agentdns", "test-agents.json"), data, 0600)
+	return os.WriteFile(filepath.Join(homeDir, ".zynd", "test-agents.json"), data, 0600)
 }
 
 
@@ -390,7 +390,7 @@ func loadTestAgents() (*testAgentStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(filepath.Join(homeDir, ".agentdns", "test-agents.json"))
+	data, err := os.ReadFile(filepath.Join(homeDir, ".zynd", "test-agents.json"))
 	if err != nil {
 		return nil, err
 	}

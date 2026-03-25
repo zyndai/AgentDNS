@@ -148,7 +148,7 @@ func DefaultConfig() *Config {
 		Node: NodeConfig{
 			Name:       "my-registry",
 			Type:       "full",
-			DataDir:    filepath.Join(homeDir, ".agentdns", "data"),
+			DataDir:    filepath.Join(homeDir, ".zynd", "data"),
 			ExternalIP: "auto",
 		},
 		Mesh: MeshConfig{
@@ -272,7 +272,7 @@ func (c *Config) DataDir() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		dir = filepath.Join(homeDir, ".agentdns", "data")
+		dir = filepath.Join(homeDir, ".zynd", "data")
 	}
 	// Expand ~
 	if len(dir) > 0 && dir[0] == '~' {

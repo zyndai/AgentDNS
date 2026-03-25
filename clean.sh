@@ -66,7 +66,7 @@ remove_item "./*.prof" "Profiling data"
 
 # 3. Downloaded models
 print_section "Removing downloaded models..."
-remove_item "$HOME/.agentdns/models" "ONNX models directory"
+remove_item "$HOME/.zynd/models" "ONNX models directory"
 
 # 4. Data directories (local development)
 print_section "Removing data directories..."
@@ -136,9 +136,9 @@ if [[ $REPLY =~ ^[Yy]es$ ]]; then
         echo "  No system binary found"
     fi
     
-    if [ -d "$HOME/.agentdns" ]; then
-        echo "Removing $HOME/.agentdns directory..."
-        rm -rf "$HOME/.agentdns"
+    if [ -d "$HOME/.zynd" ]; then
+        echo "Removing $HOME/.zynd directory..."
+        rm -rf "$HOME/.zynd"
         echo -e "${GREEN}  ✓ Removed user config directory${NC}"
     else
         echo "  No user config directory found"

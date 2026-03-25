@@ -490,7 +490,7 @@ install_binary() {
 create_config() {
     print_info "Setting up configuration..."
     
-    CONFIG_DIR="$HOME/.agentdns"
+    CONFIG_DIR="$HOME/.zynd"
     mkdir -p "$CONFIG_DIR"
     
     if [ ! -f "$CONFIG_DIR/config.toml" ]; then
@@ -602,7 +602,7 @@ print_next_steps() {
     echo -e "${GREEN}║${NC}  Installation Complete!                                    ${GREEN}║${NC}"
     echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    print_info "Configuration: $HOME/.agentdns/config.toml"
+    print_info "Configuration: $HOME/.zynd/config.toml"
     print_info "Embedding Backend: $BACKEND"
     if [ "$BACKEND" = "onnx" ]; then
         print_info "ONNX Model: $ONNX_MODEL"

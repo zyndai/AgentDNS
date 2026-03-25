@@ -766,20 +766,20 @@ agent-dns/
 ### 10.3 Configuration
 
 ```toml
-# ~/.agentdns/config.toml
+# ~/.zynd/config.toml
 
 [node]
 name = "my-registry"                    # Human-readable node name
 type = "full"                           # full | light | gateway
-data_dir = "~/.agentdns/data"
+data_dir = "~/.zynd/data"
 external_ip = "auto"                    # auto-detect or set manually
 
 [mesh]
 listen_port = 4001
 max_peers = 15                          # Target peer count
 bootstrap_peers = [
-    "/dns4/seed1.agentdns.net/tcp/4001/p2p/12D3KooW...",
-    "/dns4/seed2.agentdns.net/tcp/4001/p2p/12D3KooW...",
+    "/dns4/seed1.zynd.net/tcp/4001/p2p/12D3KooW...",
+    "/dns4/seed2.zynd.net/tcp/4001/p2p/12D3KooW...",
 ]
 
 [gossip]
