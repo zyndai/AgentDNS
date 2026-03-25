@@ -132,7 +132,7 @@ Commands:
   start         Start the registry node
 
   Developer Identity:
-  dev-init         Generate a developer keypair (stored at ~/.agentdns/developer.json)
+  dev-init         Generate a developer keypair (stored at ~/.zynd/developer.json)
   dev-register     Register developer identity on a registry node
   derive-agent     Derive an agent keypair from developer key at a given index
   auth login       Log in to a registry (supports restricted onboarding)
@@ -164,7 +164,7 @@ Examples:
   agentdns dev-register --name "Alice"
   agentdns derive-agent --index 0
   agentdns register --name "MyAgent" --agent-url "https://example.com/.well-known/agent.json" --category "tools" --tags "python,code" --summary "Does stuff"
-  agentdns register --name "MyAgent" --agent-url "https://example.com/.well-known/agent.json" --category "tools" --developer-key ~/.agentdns/developer.json --agent-index 0
+  agentdns register --name "MyAgent" --agent-url "https://example.com/.well-known/agent.json" --category "tools" --developer-key ~/.zynd/developer.json --agent-index 0
   agentdns search "code review agent for Python security"
   agentdns resolve agdns:7f3a9c2e...
   agentdns deregister agdns:7f3a9c2e...
@@ -180,12 +180,12 @@ func cmdInit() {
 		log.Fatalf("failed to get home directory: %v", err)
 	}
 
-	dataDir := filepath.Join(homeDir, ".agentdns")
+	dataDir := filepath.Join(homeDir, ".zynd")
 
 	// Check if already initialized
 	if _, err := os.Stat(filepath.Join(dataDir, "identity.json")); err == nil {
 		fmt.Println("Node already initialized at", dataDir)
-		fmt.Println("Delete ~/.agentdns to re-initialize.")
+		fmt.Println("Delete ~/.zynd to re-initialize.")
 		return
 	}
 
@@ -228,7 +228,7 @@ func cmdStart() {
 		log.Fatalf("failed to get home directory: %v", err)
 	}
 
-	dataDir := filepath.Join(homeDir, ".agentdns")
+	dataDir := filepath.Join(homeDir, ".zynd")
 
 	// Parse flags
 	configPath := filepath.Join(dataDir, "config.toml")
@@ -543,7 +543,7 @@ func cmdRegister() {
 	}
 
 	// Standard registration (no developer)
-	kp, err := identity.LoadKeypair(filepath.Join(homeDir, ".agentdns", "identity.json"))
+	kp, err := identity.LoadKeypair(filepath.Join(homeDir, ".zynd", "identity.json"))
 	if err != nil {
 		log.Fatalf("failed to load identity: %v", err)
 	}
@@ -797,7 +797,7 @@ func cmdDevInit() {
 		log.Fatalf("failed to get home directory: %v", err)
 	}
 
-	devKeyPath := filepath.Join(homeDir, ".agentdns", "developer.json")
+	devKeyPath := filepath.Join(homeDir, ".zynd", "developer.json")
 
 	// Check if already initialized
 	if _, err := os.Stat(devKeyPath); err == nil {
@@ -862,7 +862,7 @@ func cmdDevRegister() {
 	}
 
 	homeDir, _ := os.UserHomeDir()
-	devKeyPath := filepath.Join(homeDir, ".agentdns", "developer.json")
+	devKeyPath := filepath.Join(homeDir, ".zynd", "developer.json")
 
 	kp, err := identity.LoadKeypair(devKeyPath)
 	if err != nil {
@@ -921,12 +921,12 @@ func cmdDeriveAgent() {
 	if agentIndex < 0 {
 		fmt.Fprintln(os.Stderr, "Usage: agentdns derive-agent --index N [--save]")
 		fmt.Fprintln(os.Stderr, "  Derives an agent keypair from your developer key at the given index.")
-		fmt.Fprintln(os.Stderr, "  --save   Save the derived keypair to ~/.agentdns/agent-N.json")
+		fmt.Fprintln(os.Stderr, "  --save   Save the derived keypair to ~/.zynd/agent-N.json")
 		os.Exit(1)
 	}
 
 	homeDir, _ := os.UserHomeDir()
-	devKeyPath := filepath.Join(homeDir, ".agentdns", "developer.json")
+	devKeyPath := filepath.Join(homeDir, ".zynd", "developer.json")
 
 	devKP, err := identity.LoadKeypair(devKeyPath)
 	if err != nil {
@@ -944,7 +944,7 @@ func cmdDeriveAgent() {
 	fmt.Printf("  Public Key:   %s\n", agentKP.PublicKeyString())
 
 	if save {
-		agentKeyPath := filepath.Join(homeDir, ".agentdns", fmt.Sprintf("agent-%d.json", agentIndex))
+		agentKeyPath := filepath.Join(homeDir, ".zynd", fmt.Sprintf("agent-%d.json", agentIndex))
 		if err := identity.SaveKeypair(agentKP, agentKeyPath); err != nil {
 			log.Fatalf("failed to save agent keypair: %v", err)
 		}
@@ -969,7 +969,7 @@ func cmdDeregister() {
 
 	// Load keypair for signing the deregister request
 	homeDir, _ := os.UserHomeDir()
-	kp, err := identity.LoadKeypair(filepath.Join(homeDir, ".agentdns", "identity.json"))
+	kp, err := identity.LoadKeypair(filepath.Join(homeDir, ".zynd", "identity.json"))
 	if err != nil {
 		log.Fatalf("failed to load identity: %v", err)
 	}
@@ -1124,9 +1124,9 @@ func cmdAuthLogin() {
 			PrivateKeyB64: privateKeyB64,
 		}
 
-		// Save to ~/.agentdns/developer.json
+		// Save to ~/.zynd/developer.json
 		homeDir, _ := os.UserHomeDir()
-		devKeyPath := filepath.Join(homeDir, ".agentdns", "developer.json")
+		devKeyPath := filepath.Join(homeDir, ".zynd", "developer.json")
 		if saveErr := identity.SaveKeypair(kp, devKeyPath); saveErr != nil {
 			callbackErr = fmt.Errorf("failed to save keypair: %w", saveErr)
 			w.Header().Set("Content-Type", "text/html")
@@ -1179,7 +1179,7 @@ func cmdAuthLogin() {
 	fmt.Printf("\nAuthenticated successfully!\n")
 	fmt.Printf("  Developer ID: %s\n", developerID)
 	homeDir, _ := os.UserHomeDir()
-	fmt.Printf("  Saved to:     %s\n", filepath.Join(homeDir, ".agentdns", "developer.json"))
+	fmt.Printf("  Saved to:     %s\n", filepath.Join(homeDir, ".zynd", "developer.json"))
 }
 
 // openBrowser opens a URL in the default browser.
