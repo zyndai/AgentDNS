@@ -1053,10 +1053,7 @@ func cmdAuthLogin() {
 		log.Fatalf("registry is in restricted mode but has no auth_url configured")
 	}
 
-	if name == "" {
-		fmt.Fprintln(os.Stderr, "--name is required for restricted registry onboarding")
-		os.Exit(1)
-	}
+	// --name is optional for re-login (org already knows the developer)
 
 	// Generate random state (32 hex chars)
 	stateBytes := make([]byte, 16)
@@ -1139,7 +1136,7 @@ func cmdAuthLogin() {
 
 		developerID = cbDevID
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, "<html><body><h2>Registration complete!</h2><p>You are registered as <code>%s</code>.</p><p>You can close this window.</p></body></html>", cbDevID)
+		fmt.Fprintf(w, "<html><body><h2>Authentication complete!</h2><p>Developer ID: <code>%s</code>.</p><p>You can close this window.</p></body></html>", cbDevID)
 	})
 
 	localServer := &http.Server{Handler: callbackMux}
@@ -1150,12 +1147,15 @@ func cmdAuthLogin() {
 	q := authURL.Query()
 	q.Set("callback_port", fmt.Sprintf("%d", port))
 	q.Set("state", state)
-	q.Set("name", name)
+	q.Set("registry_url", registryURL)
+	if name != "" {
+		q.Set("name", name)
+	}
 	authURL.RawQuery = q.Encode()
 
-	fmt.Printf("Opening browser for onboarding...\n")
+	fmt.Printf("Opening browser for authentication...\n")
 	openBrowser(authURL.String())
-	fmt.Printf("Waiting for authorization... (press Ctrl+C to cancel)\n")
+	fmt.Printf("Waiting for authentication... (press Ctrl+C to cancel)\n")
 
 	// Wait for callback or interrupt
 	sigCh := make(chan os.Signal, 1)
@@ -1176,7 +1176,7 @@ func cmdAuthLogin() {
 		log.Fatalf("Authorization failed: %v", callbackErr)
 	}
 
-	fmt.Printf("\nRegistered successfully!\n")
+	fmt.Printf("\nAuthenticated successfully!\n")
 	fmt.Printf("  Developer ID: %s\n", developerID)
 	homeDir, _ := os.UserHomeDir()
 	fmt.Printf("  Saved to:     %s\n", filepath.Join(homeDir, ".agentdns", "developer.json"))

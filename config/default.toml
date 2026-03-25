@@ -75,6 +75,11 @@ expected_tokens = 500000
 false_positive_rate = 0.01
 update_interval_seconds = 300
 
+[onboarding]
+mode = "open"                              # "open" (self-register) or "restricted" (KYC/approval)
+auth_url = ""                              # org onboarding page URL (required when mode=restricted)
+webhook_secret = ""                        # shared secret for website → registry approve calls
+
 [heartbeat]
 enabled = true
 inactive_threshold_seconds = 300

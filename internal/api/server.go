@@ -1059,8 +1059,8 @@ func (s *Server) handleApproveDeveloper(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if req.Name == "" || req.State == "" || req.CallbackPort == 0 {
-		writeError(w, http.StatusBadRequest, "name, state, and callback_port are required")
+	if req.Name == "" || req.State == "" {
+		writeError(w, http.StatusBadRequest, "name and state are required")
 		return
 	}
 
@@ -1108,6 +1108,7 @@ func (s *Server) handleApproveDeveloper(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusCreated, models.DeveloperApprovalResponse{
 		DeveloperID:   developerID,
 		PrivateKeyEnc: privateKeyEnc,
+		PublicKey:     kp.PublicKeyString(),
 	})
 }
 

@@ -14,8 +14,8 @@ import (
 // after completing KYC/onboarding for a developer.
 type DeveloperApprovalRequest struct {
 	Name         string            `json:"name"`
-	State        string            `json:"state"`                    // from CLI, used to encrypt private key
-	CallbackPort int               `json:"callback_port"`            // CLI's localhost port
+	State        string            `json:"state"`                    // used to encrypt private key
+	CallbackPort int               `json:"callback_port,omitempty"`  // optional — only used by CLI flow
 	Metadata     map[string]string `json:"metadata,omitempty"`       // org-specific (email, kyc_id, etc.)
 }
 
@@ -24,6 +24,7 @@ type DeveloperApprovalRequest struct {
 type DeveloperApprovalResponse struct {
 	DeveloperID   string `json:"developer_id"`
 	PrivateKeyEnc string `json:"private_key_enc"` // AES-GCM encrypted with SHA256(state)
+	PublicKey     string `json:"public_key"`       // ed25519:<base64> — for org-side key custody
 }
 
 // RegistryInfoResponse is returned by GET /v1/info.
