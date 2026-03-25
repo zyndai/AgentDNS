@@ -287,6 +287,11 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			continue
 		}
 
+		// Skip inactive agents from search results
+		if agent.Status == "inactive" {
+			continue
+		}
+
 		candidateMap[kr.DocID] = &ranking.CandidateResult{
 			AgentID:       agent.AgentID,
 			Name:          agent.Name,
@@ -295,10 +300,11 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			Tags:          agent.Tags,
 			AgentURL:      agent.AgentURL,
 			HomeRegistry:  agent.HomeRegistry,
+			Status:        agent.Status,
 			UpdatedAt:     agent.UpdatedAt,
 			TextRelevance: normalizedScore,
-			TrustScore:    0.5, // default until trust system is active
-			Availability:  1.0, // active local agent
+			TrustScore:    0.5,
+			Availability:  1.0,
 		}
 	}
 
@@ -329,6 +335,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 				Tags:               agent.Tags,
 				AgentURL:           agent.AgentURL,
 				HomeRegistry:       agent.HomeRegistry,
+				Status:             agent.Status,
 				UpdatedAt:          agent.UpdatedAt,
 				SemanticSimilarity: sr.Score,
 				TrustScore:         0.5,
@@ -388,6 +395,7 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 			Tags:               entry.Tags,
 			AgentURL:           entry.AgentURL,
 			HomeRegistry:       entry.HomeRegistry,
+			Status:             entry.Status,
 			UpdatedAt:          entry.ReceivedAt,
 			TextRelevance:      textScore,
 			SemanticSimilarity: semanticScore,

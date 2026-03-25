@@ -40,6 +40,7 @@ type CandidateResult struct {
 	Tags         []string
 	AgentURL     string
 	HomeRegistry string
+	Status       string
 	UpdatedAt    string
 
 	// Raw scores from different sources
@@ -155,6 +156,7 @@ func ToSearchResults(candidates []*CandidateResult) []models.SearchResult {
 			Tags:         c.Tags,
 			AgentURL:     c.AgentURL,
 			HomeRegistry: c.HomeRegistry,
+			Status:       c.Status,
 			Score:        c.FinalScore,
 			ScoreBreakdown: &models.ScoreBreakdown{
 				TextRelevance:      c.TextRelevance,
