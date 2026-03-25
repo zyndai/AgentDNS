@@ -614,14 +614,7 @@ print_next_steps() {
     echo -e "     ${YELLOW}agentdns init${NC}"
     echo ""
     
-    if [ "$BACKEND" = "onnx" ]; then
-        echo "  2. Download embedding model:"
-        echo -e "     ${YELLOW}agentdns models download $ONNX_MODEL${NC}"
-        echo ""
-        echo "  3. Start the registry:"
-    else
-        echo "  2. Start the registry:"
-    fi
+    echo "  2. Start the registry:"
     echo -e "     ${YELLOW}agentdns start${NC}"
     echo ""
     
@@ -688,7 +681,16 @@ main() {
     
     # Verify
     verify_installation
-    
+
+    # Auto-download ONNX model if selected
+    if [ "$BACKEND" = "onnx" ] && [ -n "$ONNX_MODEL" ]; then
+        print_info "Downloading ONNX embedding model: $ONNX_MODEL..."
+        agentdns models download "$ONNX_MODEL" || {
+            print_warning "Model download failed. You can retry manually:"
+            print_warning "  agentdns models download $ONNX_MODEL"
+        }
+    fi
+
     # Print next steps
     print_next_steps
 }
