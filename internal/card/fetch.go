@@ -92,9 +92,10 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.AgentC
 		return nil, fmt.Errorf("agent card agent_id mismatch: expected %s, got %s", agentID, card.AgentID)
 	}
 
-	// Verify signature if public key is available
+	// Verify signature against the original JSON (not re-marshaled Go struct)
+	// The SDK signs the full card dict which may have fields not in the Go struct
 	if publicKey != "" && card.Signature != "" {
-		if err := f.verifyCardSignature(card, publicKey); err != nil {
+		if err := f.verifyCardSignatureRaw(body, card.Signature, publicKey); err != nil {
 			return nil, fmt.Errorf("agent card signature verification failed: %w", err)
 		}
 	}
@@ -111,24 +112,30 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.AgentC
 	return card, nil
 }
 
-// verifyCardSignature verifies the Agent Card's signature.
-func (f *Fetcher) verifyCardSignature(card *models.AgentCard, publicKeyStr string) error {
-	// Extract base64 public key from "ed25519:base64..." format
+// verifyCardSignatureRaw verifies the Agent Card signature against the original
+// JSON bytes from the HTTP response. This is necessary because the SDK may include
+// fields not present in the Go AgentCard struct (name, description, tags, etc.).
+// The signature is computed over canonical JSON (sorted keys) with the signature field removed.
+func (f *Fetcher) verifyCardSignatureRaw(rawBody []byte, signature, publicKeyStr string) error {
 	pubKey := publicKeyStr
 	if len(pubKey) > 8 && pubKey[:8] == "ed25519:" {
 		pubKey = pubKey[8:]
 	}
 
-	// Create signable bytes (card without signature)
-	sig := card.Signature
-	card.Signature = ""
-	signableBytes, err := json.Marshal(card)
-	card.Signature = sig
+	// Parse raw JSON into a generic map, remove signature, re-serialize with sorted keys
+	var cardMap map[string]interface{}
+	if err := json.Unmarshal(rawBody, &cardMap); err != nil {
+		return fmt.Errorf("failed to parse card JSON: %w", err)
+	}
+	delete(cardMap, "signature")
+
+	// Canonical JSON: sorted keys, compact separators (matches Python's json.dumps(sort_keys=True, separators=(",",":")))
+	signableBytes, err := json.Marshal(cardMap)
 	if err != nil {
 		return fmt.Errorf("failed to create signable bytes: %w", err)
 	}
 
-	valid, err := identity.Verify(pubKey, signableBytes, sig)
+	valid, err := identity.Verify(pubKey, signableBytes, signature)
 	if err != nil {
 		return err
 	}
