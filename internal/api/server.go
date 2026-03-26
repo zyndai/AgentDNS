@@ -640,6 +640,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if agent != nil {
+		agent.AgentURL = "" // agent_url is private — only accessible via /card
 		writeJSON(w, http.StatusOK, agent)
 		return
 	}
@@ -647,6 +648,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	// 2. Check gossip entries (remote agents replicated via gossip)
 	gossipEntry, err := s.store.GetGossipEntry(agentID)
 	if err == nil && gossipEntry != nil {
+		gossipEntry.AgentURL = ""
 		writeJSON(w, http.StatusOK, gossipEntry)
 		return
 	}
@@ -655,6 +657,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	if s.dht != nil && s.dht.FindValueFn != nil {
 		rec := s.dht.FindValueFn(agentID)
 		if rec != nil {
+			rec.AgentURL = ""
 			writeJSON(w, http.StatusOK, rec)
 			return
 		}
