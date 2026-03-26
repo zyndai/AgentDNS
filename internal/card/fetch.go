@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/agentdns/agent-dns/internal/cache"
@@ -61,8 +62,12 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.AgentC
 		// On Redis error, fall through to HTTP fetch (fail open)
 	}
 
-	// Tier 3: Fetch from URL
-	resp, err := f.client.Get(agentURL)
+	// Tier 3: Fetch from URL — append /.well-known/agent.json if not already a full path
+	cardURL := agentURL
+	if !strings.HasSuffix(cardURL, ".json") && !strings.Contains(cardURL, ".well-known") {
+		cardURL = strings.TrimRight(cardURL, "/") + "/.well-known/agent.json"
+	}
+	resp, err := f.client.Get(cardURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch agent card from %s: %w", agentURL, err)
 	}
