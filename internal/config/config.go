@@ -22,6 +22,7 @@ type Config struct {
 	API        APIConfig        `toml:"api"`
 	Bloom      BloomConfig      `toml:"bloom"`
 	Heartbeat  HeartbeatConfig  `toml:"heartbeat"`
+	DHT        DHTConfig        `toml:"dht"`
 	Onboarding OnboardingConfig `toml:"onboarding"`
 }
 
@@ -38,6 +39,16 @@ type HeartbeatConfig struct {
 	InactiveThresholdS int  `toml:"inactive_threshold_seconds"`
 	SweepIntervalS     int  `toml:"sweep_interval_seconds"`
 	MaxClockSkewS      int  `toml:"max_clock_skew_seconds"`
+}
+
+// DHTConfig configures the Kademlia distributed hash table.
+type DHTConfig struct {
+	Enabled            bool `toml:"enabled"`
+	K                  int  `toml:"k"`
+	Alpha              int  `toml:"alpha"`
+	RepublishIntervalS int  `toml:"republish_interval"`
+	ExpireAfterS       int  `toml:"expire_after"`
+	LookupTimeoutMs    int  `toml:"lookup_timeout_ms"`
 }
 
 // NodeConfig describes the node identity and type.
@@ -213,6 +224,14 @@ func DefaultConfig() *Config {
 			InactiveThresholdS: 300,
 			SweepIntervalS:     60,
 			MaxClockSkewS:      60,
+		},
+		DHT: DHTConfig{
+			Enabled:            true,
+			K:                  20,
+			Alpha:              3,
+			RepublishIntervalS: 3600,
+			ExpireAfterS:       86400,
+			LookupTimeoutMs:    5000,
 		},
 		Onboarding: OnboardingConfig{
 			Mode: "open",

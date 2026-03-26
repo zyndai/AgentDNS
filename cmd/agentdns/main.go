@@ -43,6 +43,7 @@ import (
 	agcache "github.com/agentdns/agent-dns/internal/cache"
 	"github.com/agentdns/agent-dns/internal/card"
 	"github.com/agentdns/agent-dns/internal/config"
+	agdht "github.com/agentdns/agent-dns/internal/dht"
 	"github.com/agentdns/agent-dns/internal/identity"
 	"github.com/agentdns/agent-dns/internal/mesh"
 	"github.com/agentdns/agent-dns/internal/models"
@@ -327,6 +328,27 @@ func cmdStart() {
 	// Wire gossip broadcasting into the gossip handler
 	gossipHandler.SetBroadcastFunc(transport.Broadcast)
 
+	// Initialize Kademlia DHT
+	var dhtNode *agdht.DHT
+	if cfg.DHT.Enabled {
+		selfID := agdht.NodeIDFromPublicKey(kp.PublicKey)
+		listenAddr := fmt.Sprintf("0.0.0.0:%d", cfg.Mesh.ListenPort)
+		dhtTransport := &agdht.MeshTransport{
+			SendFunc: transport.SendDHTRequest,
+		}
+		dhtCfg := agdht.Config{
+			K:                 cfg.DHT.K,
+			Alpha:             cfg.DHT.Alpha,
+			RepublishInterval: time.Duration(cfg.DHT.RepublishIntervalS) * time.Second,
+			ExpireAfter:       time.Duration(cfg.DHT.ExpireAfterS) * time.Second,
+			LookupTimeout:     time.Duration(cfg.DHT.LookupTimeoutMs) * time.Millisecond,
+		}
+		dhtNode = agdht.New(selfID, listenAddr, dhtTransport, dhtCfg)
+		transport.SetDHTHandler(agdht.HandleRawMessage(dhtNode))
+		dhtNode.Start()
+		log.Printf("DHT enabled (k=%d, alpha=%d)", cfg.DHT.K, cfg.DHT.Alpha)
+	}
+
 	// Start mesh listener
 	if err := transport.Listen(); err != nil {
 		log.Fatalf("failed to start mesh listener: %v", err)
@@ -357,6 +379,32 @@ func cmdStart() {
 
 	// Start the API server
 	server := api.NewServer(cfg, st, engine, fetcher, peerMgr, gossipHandler, eigenTrust, kp)
+
+	// Wire DHT into API server for fallback agent lookups
+	if dhtNode != nil {
+		server.SetDHT(func(agentID string) *api.DHTRecord {
+			key, err := agdht.NodeIDFromAgentID(agentID)
+			if err != nil {
+				return nil
+			}
+			rec := dhtNode.FindValue(key)
+			if rec == nil {
+				return nil
+			}
+			return &api.DHTRecord{
+				AgentID:      rec.AgentID,
+				Name:         rec.Name,
+				Category:     rec.Category,
+				Tags:         rec.Tags,
+				Summary:      rec.Summary,
+				AgentURL:     rec.AgentURL,
+				PublicKey:     rec.PublicKey,
+				HomeRegistry: rec.HomeRegistry,
+				DeveloperID:  rec.DeveloperID,
+				Status:       rec.Status,
+			}
+		})
+	}
 
 	// Wire event bus into mesh and search components
 	bus := server.EventBus()

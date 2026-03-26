@@ -35,6 +35,11 @@ var wsUpgrader = websocket.Upgrader{
 }
 
 // Server is the HTTP API server for a registry node.
+// DHTLookup is the interface the API server uses for DHT-based agent lookups.
+type DHTLookup interface {
+	FindValue(key interface{}) interface{}
+}
+
 type Server struct {
 	cfg          *config.Config
 	store        store.Store
@@ -44,9 +49,36 @@ type Server struct {
 	gossip       *mesh.GossipHandler
 	eigentrust   *trust.EigenTrust
 	nodeIdentity *identity.Keypair
+	dht          *dhtNode // optional DHT for fallback lookups
 	httpServer   *http.Server
 	startTime    time.Time
 	eventBus     *events.Bus
+}
+
+// dhtNode wraps the DHT for API use.
+type dhtNode struct {
+	FindValueFn func(agentID string) *dhtRecord
+}
+
+// DHTRecord represents an agent record from the Kademlia DHT.
+type DHTRecord = dhtRecord
+
+type dhtRecord struct {
+	AgentID      string   `json:"agent_id"`
+	Name         string   `json:"name"`
+	Category     string   `json:"category"`
+	Tags         []string `json:"tags,omitempty"`
+	Summary      string   `json:"summary,omitempty"`
+	AgentURL     string   `json:"agent_url"`
+	PublicKey    string   `json:"public_key"`
+	HomeRegistry string   `json:"home_registry"`
+	DeveloperID  string   `json:"developer_id,omitempty"`
+	Status       string   `json:"status,omitempty"`
+}
+
+// SetDHT sets the DHT lookup function for fallback agent resolution.
+func (s *Server) SetDHT(findValue func(agentID string) *dhtRecord) {
+	s.dht = &dhtNode{FindValueFn: findValue}
 }
 
 // NewServer creates a new API server with all dependencies.
@@ -601,17 +633,34 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 1. Check local agents table
 	agent, err := s.store.GetAgent(agentID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get agent: "+err.Error())
 		return
 	}
-	if agent == nil {
-		writeError(w, http.StatusNotFound, "agent not found")
+	if agent != nil {
+		writeJSON(w, http.StatusOK, agent)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, agent)
+	// 2. Check gossip entries (remote agents replicated via gossip)
+	gossipEntry, err := s.store.GetGossipEntry(agentID)
+	if err == nil && gossipEntry != nil {
+		writeJSON(w, http.StatusOK, gossipEntry)
+		return
+	}
+
+	// 3. DHT lookup (O(log n) across the network)
+	if s.dht != nil && s.dht.FindValueFn != nil {
+		rec := s.dht.FindValueFn(agentID)
+		if rec != nil {
+			writeJSON(w, http.StatusOK, rec)
+			return
+		}
+	}
+
+	writeError(w, http.StatusNotFound, "agent not found")
 }
 
 // handleUpdateAgent updates an existing agent's registry record.

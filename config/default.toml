@@ -85,3 +85,11 @@ enabled = true
 inactive_threshold_seconds = 300
 sweep_interval_seconds = 60
 max_clock_skew_seconds = 60
+
+[dht]
+enabled = true
+k = 20                                 # k-bucket size
+alpha = 3                              # concurrent lookups per query
+republish_interval = 3600              # republish stored records (seconds)
+expire_after = 86400                   # expire records without republish (seconds)
+lookup_timeout_ms = 5000               # per-lookup timeout (milliseconds)

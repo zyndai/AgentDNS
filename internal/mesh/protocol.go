@@ -18,6 +18,7 @@ const (
 	MsgGossip    = "gossip"
 	MsgSearch    = "search"
 	MsgSearchAck = "search_ack"
+	MsgDHT       = "dht"
 )
 
 // Maximum message size: 1MB. Search responses can be large.

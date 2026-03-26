@@ -2,6 +2,7 @@ package mesh
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -47,6 +48,11 @@ type Transport struct {
 
 	// Callbacks set by higher-level components.
 	onSearch func(*models.SearchRequest) (*models.SearchResponse, error)
+	onDHT    func(json.RawMessage) json.RawMessage // DHT message handler
+
+	// DHT request-response correlation
+	dhtPending   map[string]chan json.RawMessage // requestID → response channel
+	dhtPendingMu sync.Mutex
 
 	eventBus *events.Bus
 
@@ -72,14 +78,70 @@ func NewTransport(
 		gossip:   gossipHandler,
 		kp:       kp,
 		store:    agentCounter,
-		conns:    make(map[string]*peerConn),
-		stopCh:   make(chan struct{}),
+		conns:      make(map[string]*peerConn),
+		dhtPending: make(map[string]chan json.RawMessage),
+		stopCh:     make(chan struct{}),
 	}
 }
 
 // SetSearchHandler registers the callback invoked for incoming federated search requests.
 func (t *Transport) SetSearchHandler(fn func(*models.SearchRequest) (*models.SearchResponse, error)) {
 	t.onSearch = fn
+}
+
+// SetDHTHandler registers the callback invoked for incoming DHT messages.
+func (t *Transport) SetDHTHandler(fn func(json.RawMessage) json.RawMessage) {
+	t.onDHT = fn
+}
+
+// SendDHTRequest sends a DHT message to a specific peer and waits for a response.
+// This implements the dht.Transport interface.
+func (t *Transport) SendDHTRequest(peerAddr string, msgBytes json.RawMessage) (json.RawMessage, error) {
+	// Extract request_id from the message for correlation
+	var peek struct {
+		RequestID string `json:"request_id"`
+	}
+	json.Unmarshal(msgBytes, &peek)
+
+	// Register pending response channel
+	ch := make(chan json.RawMessage, 1)
+	t.dhtPendingMu.Lock()
+	t.dhtPending[peek.RequestID] = ch
+	t.dhtPendingMu.Unlock()
+
+	defer func() {
+		t.dhtPendingMu.Lock()
+		delete(t.dhtPending, peek.RequestID)
+		t.dhtPendingMu.Unlock()
+	}()
+
+	// Find peer by address and send
+	t.mu.RLock()
+	var targetConn *peerConn
+	for _, pc := range t.conns {
+		if pc.address == peerAddr {
+			targetConn = pc
+			break
+		}
+	}
+	t.mu.RUnlock()
+
+	if targetConn == nil {
+		return nil, fmt.Errorf("no connection to peer %s", peerAddr)
+	}
+
+	env := Envelope{Type: MsgDHT, Payload: msgBytes}
+	if err := writeMessage(targetConn.conn, &env); err != nil {
+		return nil, fmt.Errorf("send DHT message: %w", err)
+	}
+
+	// Wait for response with timeout
+	select {
+	case resp := <-ch:
+		return resp, nil
+	case <-time.After(5 * time.Second):
+		return nil, fmt.Errorf("DHT request timeout to %s", peerAddr)
+	}
 }
 
 // SetEventBus attaches an event bus for publishing peer connect/disconnect events.
@@ -386,6 +448,8 @@ func (t *Transport) readLoop(conn net.Conn, peerID string) {
 			t.handleSearchRequest(peerID, conn, env)
 		case MsgSearchAck:
 			log.Printf("mesh: unexpected SearchAck from %s", idPrefix)
+		case MsgDHT:
+			t.handleDHTMessage(peerID, conn, env)
 		default:
 			log.Printf("mesh: unknown message type %q from %s", env.Type, idPrefix)
 		}
@@ -481,6 +545,49 @@ func (t *Transport) handleSearchRequest(peerID string, conn net.Conn, env *Envel
 				idPrefix = idPrefix[:24]
 			}
 			log.Printf("mesh: send search ack to %s: %v", idPrefix, err)
+		}
+	}
+}
+
+// handleDHTMessage processes an incoming DHT message.
+func (t *Transport) handleDHTMessage(peerID string, conn net.Conn, env *Envelope) {
+	// Check if this is a response to a pending request
+	var peek struct {
+		RequestID string `json:"request_id"`
+		Type      string `json:"type"`
+	}
+	json.Unmarshal(env.Payload, &peek)
+
+	// Check if it's a response to one of our pending requests
+	isReply := peek.Type == "dht_ping_reply" || peek.Type == "dht_store_reply" ||
+		peek.Type == "dht_find_node_reply" || peek.Type == "dht_find_value_reply"
+
+	if isReply && peek.RequestID != "" {
+		t.dhtPendingMu.Lock()
+		ch, ok := t.dhtPending[peek.RequestID]
+		t.dhtPendingMu.Unlock()
+		if ok {
+			select {
+			case ch <- env.Payload:
+			default:
+			}
+			return
+		}
+	}
+
+	// It's a request — process and send response
+	if t.onDHT != nil {
+		respBytes := t.onDHT(env.Payload)
+		if respBytes != nil {
+			respEnv := Envelope{Type: MsgDHT, Payload: respBytes}
+			t.mu.RLock()
+			pc, ok := t.conns[peerID]
+			t.mu.RUnlock()
+			if ok {
+				pc.mu.Lock()
+				writeMessage(pc.conn, &respEnv)
+				pc.mu.Unlock()
+			}
 		}
 	}
 }
