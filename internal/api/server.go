@@ -734,6 +734,9 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	if req.TTL != nil {
 		existing.TTL = *req.TTL
 	}
+	if req.CodebaseHash != nil {
+		existing.CodebaseHash = *req.CodebaseHash
+	}
 	existing.UpdatedAt = models.NowRFC3339()
 	existing.Signature = req.Signature
 

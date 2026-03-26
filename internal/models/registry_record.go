@@ -39,6 +39,9 @@ type RegistryRecord struct {
 	AgentIndex     *int            `json:"agent_index,omitempty" db:"agent_index"`
 	DeveloperProof *DeveloperProof `json:"developer_proof,omitempty" db:"-"` // stored as JSONB
 
+	// Codebase integrity
+	CodebaseHash string `json:"codebase_hash,omitempty" db:"codebase_hash"` // SHA-256 of agent's source tree
+
 	// Heartbeat liveness fields (server-managed, excluded from signing)
 	Status        string `json:"status,omitempty" db:"status"`
 	LastHeartbeat string `json:"last_heartbeat,omitempty" db:"last_heartbeat"`
@@ -80,6 +83,7 @@ type UpdateRequest struct {
 	Summary           *string            `json:"summary,omitempty"`
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty"`
 	TTL               *int               `json:"ttl,omitempty"`
+	CodebaseHash      *string            `json:"codebase_hash,omitempty"`
 	Signature         string             `json:"signature" validate:"required"`
 }
 

@@ -73,7 +73,8 @@ func (s *PostgresStore) migrate() error {
 		registered_at TIMESTAMPTZ NOT NULL,
 		updated_at    TIMESTAMPTZ NOT NULL,
 		ttl           INTEGER NOT NULL DEFAULT 86400,
-		signature     TEXT NOT NULL
+		signature     TEXT NOT NULL,
+		codebase_hash TEXT NOT NULL DEFAULT ''
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_agents_category ON agents(category);
@@ -294,11 +295,11 @@ func (s *PostgresStore) UpdateAgent(agent *models.RegistryRecord) error {
 
 	ct, err := s.pool.Exec(context.Background(), `
 		UPDATE agents SET name=$1, agent_url=$2, category=$3, tags=$4, summary=$5,
-			updated_at=$6, ttl=$7, signature=$8, schema_version=$9
-		WHERE agent_id = $10 AND owner = $11`,
+			updated_at=$6, ttl=$7, signature=$8, schema_version=$9, codebase_hash=$10
+		WHERE agent_id = $11 AND owner = $12`,
 		agent.Name, agent.AgentURL, agent.Category, string(tagsJSON),
 		agent.Summary, agent.UpdatedAt, agent.TTL, agent.Signature,
-		agent.SchemaVersion, agent.AgentID, agent.Owner,
+		agent.SchemaVersion, agent.CodebaseHash, agent.AgentID, agent.Owner,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update agent: %w", err)
