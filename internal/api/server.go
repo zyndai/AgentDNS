@@ -845,13 +845,16 @@ func (s *Server) handleGetAgentCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	card, err := s.cardFetcher.FetchCard(agentID, agent.AgentURL, agent.PublicKey)
+	// Fetch raw JSON from the agent — preserves all SDK fields
+	rawCard, err := s.cardFetcher.FetchCardRaw(agentID, agent.AgentURL)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "failed to fetch agent card: "+err.Error())
 		return
 	}
 
-	writeJSON(w, http.StatusOK, card)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(rawCard)
 }
 
 // --- Search Handlers ---

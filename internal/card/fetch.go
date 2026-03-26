@@ -109,6 +109,33 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.AgentC
 	return card, nil
 }
 
+// FetchCardRaw fetches the agent card and returns the raw JSON bytes as-is.
+// This preserves all fields from the SDK (name, description, tags, etc.)
+// that may not be in the Go AgentCard struct.
+func (f *Fetcher) FetchCardRaw(agentID, agentURL string) ([]byte, error) {
+	cardURL := agentURL
+	if !strings.HasSuffix(cardURL, ".json") && !strings.Contains(cardURL, ".well-known") {
+		cardURL = strings.TrimRight(cardURL, "/") + "/.well-known/agent.json"
+	}
+
+	resp, err := f.client.Get(cardURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch agent card from %s: %w", cardURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("agent card URL returned status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 50*1024))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read agent card: %w", err)
+	}
+
+	return body, nil
+}
+
 // verifyCardSignatureRaw verifies the Agent Card signature against the original
 // JSON bytes from the HTTP response. This is necessary because the SDK may include
 // fields not present in the Go AgentCard struct (name, description, tags, etc.).
