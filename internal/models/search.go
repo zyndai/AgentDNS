@@ -37,7 +37,6 @@ type SearchResult struct {
 	Category          string             `json:"category"`
 	Tags              []string           `json:"tags"`
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty"`
-	AgentURL          string             `json:"agent_url"`
 	HomeRegistry      string             `json:"home_registry"`
 	Status            string             `json:"status,omitempty"`
 	DeveloperID       string             `json:"developer_id,omitempty"`

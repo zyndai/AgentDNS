@@ -154,7 +154,6 @@ func ToSearchResults(candidates []*CandidateResult) []models.SearchResult {
 			Summary:      c.Summary,
 			Category:     c.Category,
 			Tags:         c.Tags,
-			AgentURL:     c.AgentURL,
 			HomeRegistry: c.HomeRegistry,
 			Status:       c.Status,
 			Score:        c.FinalScore,
