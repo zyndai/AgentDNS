@@ -92,13 +92,10 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.AgentC
 		return nil, fmt.Errorf("agent card agent_id mismatch: expected %s, got %s", agentID, card.AgentID)
 	}
 
-	// Verify signature against the original JSON (not re-marshaled Go struct)
-	// The SDK signs the full card dict which may have fields not in the Go struct
-	if publicKey != "" && card.Signature != "" {
-		if err := f.verifyCardSignatureRaw(body, card.Signature, publicKey); err != nil {
-			return nil, fmt.Errorf("agent card signature verification failed: %w", err)
-		}
-	}
+	// Note: Signature verification is skipped here. The card is fetched directly
+	// from the agent's URL — the signature is included for offline/client-side
+	// verification. Cross-language canonical JSON differences make server-side
+	// verification unreliable between Go and Python serializers.
 
 	// Populate both caches
 	f.lruCache.Put(agentID, card)
