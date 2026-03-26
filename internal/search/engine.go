@@ -171,7 +171,6 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 				Summary:            r.Summary,
 				Category:           r.Category,
 				Tags:               r.Tags,
-				AgentURL:           r.AgentURL,
 				HomeRegistry:       r.HomeRegistry,
 				TextRelevance:      0.0,
 				SemanticSimilarity: 0.0,
