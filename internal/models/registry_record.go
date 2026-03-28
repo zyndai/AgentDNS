@@ -73,6 +73,10 @@ type RegistrationRequest struct {
 	// Developer identity fields (optional -- agents can register without a developer)
 	DeveloperID    string          `json:"developer_id,omitempty"`
 	DeveloperProof *DeveloperProof `json:"developer_proof,omitempty"`
+
+	// ZNS naming fields (optional — requires developer with claimed handle)
+	AgentName string `json:"agent_name,omitempty"` // e.g., "doc-translator" — triggers FQAN creation
+	Version   string `json:"version,omitempty"`    // semver, e.g., "2.1.0"
 }
 
 // UpdateRequest is submitted by agent owners to update their registry record.

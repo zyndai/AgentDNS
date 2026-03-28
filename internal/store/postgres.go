@@ -184,6 +184,92 @@ func (s *PostgresStore) migrate() error {
 	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS origin_public_key TEXT;
 
 	CREATE INDEX IF NOT EXISTS idx_gossip_entries_status ON gossip_entries(status);
+
+	-- ============================================================
+	-- ZNS (Zynd Naming Service) schema extensions
+	-- ============================================================
+
+	-- Developer handle columns
+	ALTER TABLE developers ADD COLUMN IF NOT EXISTS dev_handle TEXT;
+	ALTER TABLE developers ADD COLUMN IF NOT EXISTS dev_handle_verified BOOLEAN DEFAULT FALSE;
+	ALTER TABLE developers ADD COLUMN IF NOT EXISTS verification_method TEXT;
+	ALTER TABLE developers ADD COLUMN IF NOT EXISTS verification_proof TEXT;
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_developers_handle
+		ON developers(dev_handle, home_registry) WHERE dev_handle IS NOT NULL;
+
+	-- Gossip developer handle columns
+	ALTER TABLE gossip_developers ADD COLUMN IF NOT EXISTS dev_handle TEXT;
+	ALTER TABLE gossip_developers ADD COLUMN IF NOT EXISTS dev_handle_verified BOOLEAN DEFAULT FALSE;
+	ALTER TABLE gossip_developers ADD COLUMN IF NOT EXISTS verification_method TEXT;
+	ALTER TABLE gossip_developers ADD COLUMN IF NOT EXISTS verification_proof TEXT;
+
+	-- ZNS name bindings
+	CREATE TABLE IF NOT EXISTS zns_names (
+		fqan             TEXT PRIMARY KEY,
+		agent_name       TEXT NOT NULL,
+		developer_handle TEXT NOT NULL,
+		registry_host    TEXT NOT NULL,
+		agent_id         TEXT NOT NULL REFERENCES agents(agent_id),
+		developer_id     TEXT NOT NULL,
+		current_version  TEXT,
+		capability_tags  TEXT[] DEFAULT '{}',
+		registered_at    TIMESTAMPTZ NOT NULL,
+		updated_at       TIMESTAMPTZ NOT NULL,
+		signature        TEXT NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_zns_agent_id ON zns_names(agent_id);
+	CREATE INDEX IF NOT EXISTS idx_zns_developer ON zns_names(developer_handle, registry_host);
+	CREATE INDEX IF NOT EXISTS idx_zns_capability ON zns_names USING GIN(capability_tags);
+
+	-- ZNS version history
+	CREATE TABLE IF NOT EXISTS zns_versions (
+		fqan          TEXT NOT NULL REFERENCES zns_names(fqan) ON DELETE CASCADE,
+		version       TEXT NOT NULL,
+		agent_id      TEXT NOT NULL,
+		build_hash    TEXT,
+		registered_at TIMESTAMPTZ NOT NULL,
+		signature     TEXT NOT NULL,
+		PRIMARY KEY (fqan, version)
+	);
+
+	-- Gossip ZNS name entries (from remote registries)
+	CREATE TABLE IF NOT EXISTS gossip_zns_names (
+		fqan             TEXT PRIMARY KEY,
+		agent_name       TEXT NOT NULL,
+		developer_handle TEXT NOT NULL,
+		registry_host    TEXT NOT NULL,
+		agent_id         TEXT NOT NULL,
+		current_version  TEXT,
+		capability_tags  TEXT[] DEFAULT '{}',
+		received_at      TIMESTAMPTZ NOT NULL,
+		tombstoned       BOOLEAN DEFAULT FALSE
+	);
+	CREATE INDEX IF NOT EXISTS idx_gossip_zns_registry ON gossip_zns_names(registry_host);
+
+	-- Registry identity proofs
+	CREATE TABLE IF NOT EXISTS registry_identity_proofs (
+		registry_id          TEXT PRIMARY KEY,
+		domain               TEXT NOT NULL UNIQUE,
+		ed25519_public_key   TEXT NOT NULL,
+		tls_spki_fingerprint TEXT NOT NULL,
+		proof_json           JSONB NOT NULL,
+		proof_signature      TEXT NOT NULL,
+		verification_tier    TEXT NOT NULL DEFAULT 'self-announced',
+		issued_at            TIMESTAMPTZ NOT NULL,
+		expires_at           TIMESTAMPTZ NOT NULL,
+		received_at          TIMESTAMPTZ NOT NULL
+	);
+
+	-- Peer attestations
+	CREATE TABLE IF NOT EXISTS peer_attestations (
+		attester_id     TEXT NOT NULL,
+		subject_id      TEXT NOT NULL,
+		verified_layers TEXT[] NOT NULL,
+		attested_at     TIMESTAMPTZ NOT NULL,
+		signature       TEXT NOT NULL,
+		PRIMARY KEY (attester_id, subject_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_attestations_subject ON peer_attestations(subject_id);
 	`
 
 	_, err := s.pool.Exec(context.Background(), schema)
@@ -645,12 +731,18 @@ func (s *PostgresStore) CreateDeveloper(dev *models.DeveloperRecord) error {
 		schemaVersion = models.CurrentSchemaVersion
 	}
 
+	// Include dev_handle if provided (atomic handle claim during registration)
+	var handleVal *string
+	if dev.DevHandle != "" {
+		handleVal = &dev.DevHandle
+	}
+
 	_, err := s.pool.Exec(context.Background(), `
 		INSERT INTO developers (developer_id, name, public_key, profile_url, github,
-			home_registry, schema_version, registered_at, updated_at, signature)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			home_registry, schema_version, registered_at, updated_at, signature, dev_handle)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		dev.DeveloperID, dev.Name, dev.PublicKey, dev.ProfileURL, dev.GitHub,
-		dev.HomeRegistry, schemaVersion, dev.RegisteredAt, dev.UpdatedAt, dev.Signature,
+		dev.HomeRegistry, schemaVersion, dev.RegisteredAt, dev.UpdatedAt, dev.Signature, handleVal,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert developer: %w", err)
@@ -661,14 +753,18 @@ func (s *PostgresStore) CreateDeveloper(dev *models.DeveloperRecord) error {
 func (s *PostgresStore) GetDeveloper(developerID string) (*models.DeveloperRecord, error) {
 	row := s.pool.QueryRow(context.Background(), `
 		SELECT developer_id, name, public_key, profile_url, github,
-			home_registry, schema_version, registered_at, updated_at, signature
+			home_registry, schema_version, registered_at, updated_at, signature,
+			dev_handle, dev_handle_verified, verification_method, verification_proof
 		FROM developers WHERE developer_id = $1`, developerID)
 
 	dev := &models.DeveloperRecord{}
 	var registeredAt, updatedAt time.Time
+	var devHandle, verMethod, verProof *string
+	var devHandleVerified *bool
 	err := row.Scan(
 		&dev.DeveloperID, &dev.Name, &dev.PublicKey, &dev.ProfileURL, &dev.GitHub,
 		&dev.HomeRegistry, &dev.SchemaVersion, &registeredAt, &updatedAt, &dev.Signature,
+		&devHandle, &devHandleVerified, &verMethod, &verProof,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -679,20 +775,36 @@ func (s *PostgresStore) GetDeveloper(developerID string) (*models.DeveloperRecor
 
 	dev.RegisteredAt = registeredAt.UTC().Format(time.RFC3339)
 	dev.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	if devHandle != nil {
+		dev.DevHandle = *devHandle
+	}
+	if devHandleVerified != nil {
+		dev.DevHandleVerified = *devHandleVerified
+	}
+	if verMethod != nil {
+		dev.VerificationMethod = *verMethod
+	}
+	if verProof != nil {
+		dev.VerificationProof = *verProof
+	}
 	return dev, nil
 }
 
 func (s *PostgresStore) GetDeveloperByPublicKey(publicKey string) (*models.DeveloperRecord, error) {
 	row := s.pool.QueryRow(context.Background(), `
 		SELECT developer_id, name, public_key, profile_url, github,
-			home_registry, schema_version, registered_at, updated_at, signature
+			home_registry, schema_version, registered_at, updated_at, signature,
+			dev_handle, dev_handle_verified, verification_method, verification_proof
 		FROM developers WHERE public_key = $1`, publicKey)
 
 	dev := &models.DeveloperRecord{}
 	var registeredAt, updatedAt time.Time
+	var devHandle, verMethod, verProof *string
+	var devHandleVerified *bool
 	err := row.Scan(
 		&dev.DeveloperID, &dev.Name, &dev.PublicKey, &dev.ProfileURL, &dev.GitHub,
 		&dev.HomeRegistry, &dev.SchemaVersion, &registeredAt, &updatedAt, &dev.Signature,
+		&devHandle, &devHandleVerified, &verMethod, &verProof,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -703,6 +815,18 @@ func (s *PostgresStore) GetDeveloperByPublicKey(publicKey string) (*models.Devel
 
 	dev.RegisteredAt = registeredAt.UTC().Format(time.RFC3339)
 	dev.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	if devHandle != nil {
+		dev.DevHandle = *devHandle
+	}
+	if devHandleVerified != nil {
+		dev.DevHandleVerified = *devHandleVerified
+	}
+	if verMethod != nil {
+		dev.VerificationMethod = *verMethod
+	}
+	if verProof != nil {
+		dev.VerificationProof = *verProof
+	}
 	return dev, nil
 }
 
@@ -948,4 +1072,440 @@ func (s *PostgresStore) GetAllCategories() ([]string, error) {
 		categories = append(categories, cat)
 	}
 	return categories, nil
+}
+
+// ============================================================
+// ZNS (Zynd Naming Service) Store Methods
+// ============================================================
+
+// --- Handle Operations ---
+
+func (s *PostgresStore) ClaimHandle(developerID, handle, homeRegistry string) error {
+	ct, err := s.pool.Exec(context.Background(), `
+		UPDATE developers SET dev_handle=$1, updated_at=$2
+		WHERE developer_id = $3 AND (dev_handle IS NULL OR dev_handle = '')`,
+		handle, time.Now().UTC(), developerID)
+	if err != nil {
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			return fmt.Errorf("handle %q is already taken on this registry", handle)
+		}
+		return fmt.Errorf("failed to claim handle: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("developer not found or already has a handle")
+	}
+	return nil
+}
+
+func (s *PostgresStore) GetDeveloperByHandle(handle, homeRegistry string) (*models.DeveloperRecord, error) {
+	row := s.pool.QueryRow(context.Background(), `
+		SELECT developer_id, name, public_key, profile_url, github,
+			home_registry, schema_version, registered_at, updated_at, signature,
+			dev_handle, dev_handle_verified, verification_method, verification_proof
+		FROM developers WHERE dev_handle = $1 AND home_registry = $2`, handle, homeRegistry)
+
+	dev := &models.DeveloperRecord{}
+	var registeredAt, updatedAt time.Time
+	var devHandle, verMethod, verProof *string
+	var devHandleVerified *bool
+	err := row.Scan(
+		&dev.DeveloperID, &dev.Name, &dev.PublicKey, &dev.ProfileURL, &dev.GitHub,
+		&dev.HomeRegistry, &dev.SchemaVersion, &registeredAt, &updatedAt, &dev.Signature,
+		&devHandle, &devHandleVerified, &verMethod, &verProof,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get developer by handle: %w", err)
+	}
+	dev.RegisteredAt = registeredAt.UTC().Format(time.RFC3339)
+	dev.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	if devHandle != nil {
+		dev.DevHandle = *devHandle
+	}
+	if devHandleVerified != nil {
+		dev.DevHandleVerified = *devHandleVerified
+	}
+	if verMethod != nil {
+		dev.VerificationMethod = *verMethod
+	}
+	if verProof != nil {
+		dev.VerificationProof = *verProof
+	}
+	return dev, nil
+}
+
+func (s *PostgresStore) ReleaseHandle(developerID, handle string) error {
+	ct, err := s.pool.Exec(context.Background(), `
+		UPDATE developers SET dev_handle=NULL, dev_handle_verified=FALSE,
+			verification_method=NULL, verification_proof=NULL, updated_at=$1
+		WHERE developer_id = $2 AND dev_handle = $3`,
+		time.Now().UTC(), developerID, handle)
+	if err != nil {
+		return fmt.Errorf("failed to release handle: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("developer not found or handle mismatch")
+	}
+	return nil
+}
+
+func (s *PostgresStore) UpdateHandleVerification(developerID string, verified bool, method, proof string) error {
+	ct, err := s.pool.Exec(context.Background(), `
+		UPDATE developers SET dev_handle_verified=$1, verification_method=$2,
+			verification_proof=$3, updated_at=$4
+		WHERE developer_id = $5`,
+		verified, method, proof, time.Now().UTC(), developerID)
+	if err != nil {
+		return fmt.Errorf("failed to update handle verification: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("developer not found")
+	}
+	return nil
+}
+
+// --- ZNS Name Binding Operations ---
+
+func (s *PostgresStore) CreateZNSName(name *models.ZNSName) error {
+	capTags := name.CapabilityTags
+	if capTags == nil {
+		capTags = []string{}
+	}
+	_, err := s.pool.Exec(context.Background(), `
+		INSERT INTO zns_names (fqan, agent_name, developer_handle, registry_host,
+			agent_id, developer_id, current_version, capability_tags,
+			registered_at, updated_at, signature)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		name.FQAN, name.AgentName, name.DeveloperHandle, name.RegistryHost,
+		name.AgentID, name.DeveloperID, name.CurrentVersion, capTags,
+		name.RegisteredAt, name.UpdatedAt, name.Signature,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create ZNS name: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) GetZNSName(fqan string) (*models.ZNSName, error) {
+	row := s.pool.QueryRow(context.Background(), `
+		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+			developer_id, current_version, capability_tags, registered_at, updated_at, signature
+		FROM zns_names WHERE fqan = $1`, fqan)
+	return scanZNSName(row)
+}
+
+func (s *PostgresStore) GetZNSNameByParts(devHandle, agentName, registryHost string) (*models.ZNSName, error) {
+	row := s.pool.QueryRow(context.Background(), `
+		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+			developer_id, current_version, capability_tags, registered_at, updated_at, signature
+		FROM zns_names
+		WHERE developer_handle = $1 AND agent_name = $2 AND registry_host = $3`,
+		devHandle, agentName, registryHost)
+	return scanZNSName(row)
+}
+
+func (s *PostgresStore) GetZNSNameByAgentID(agentID string) (*models.ZNSName, error) {
+	row := s.pool.QueryRow(context.Background(), `
+		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+			developer_id, current_version, capability_tags, registered_at, updated_at, signature
+		FROM zns_names WHERE agent_id = $1`, agentID)
+	return scanZNSName(row)
+}
+
+func scanZNSName(row pgx.Row) (*models.ZNSName, error) {
+	n := &models.ZNSName{}
+	var regAt, updAt time.Time
+	err := row.Scan(
+		&n.FQAN, &n.AgentName, &n.DeveloperHandle, &n.RegistryHost, &n.AgentID,
+		&n.DeveloperID, &n.CurrentVersion, &n.CapabilityTags, &regAt, &updAt, &n.Signature,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan ZNS name: %w", err)
+	}
+	n.RegisteredAt = regAt.UTC().Format(time.RFC3339)
+	n.UpdatedAt = updAt.UTC().Format(time.RFC3339)
+	return n, nil
+}
+
+func (s *PostgresStore) UpdateZNSName(name *models.ZNSName) error {
+	capTags := name.CapabilityTags
+	if capTags == nil {
+		capTags = []string{}
+	}
+	ct, err := s.pool.Exec(context.Background(), `
+		UPDATE zns_names SET current_version=$1, capability_tags=$2,
+			updated_at=$3, signature=$4
+		WHERE fqan = $5`,
+		name.CurrentVersion, capTags, name.UpdatedAt, name.Signature, name.FQAN)
+	if err != nil {
+		return fmt.Errorf("failed to update ZNS name: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("ZNS name not found")
+	}
+	return nil
+}
+
+func (s *PostgresStore) DeleteZNSName(fqan string) error {
+	ct, err := s.pool.Exec(context.Background(),
+		"DELETE FROM zns_names WHERE fqan = $1", fqan)
+	if err != nil {
+		return fmt.Errorf("failed to delete ZNS name: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("ZNS name not found")
+	}
+	return nil
+}
+
+func (s *PostgresStore) ListZNSNamesByDeveloper(devHandle, registryHost string) ([]*models.ZNSName, error) {
+	rows, err := s.pool.Query(context.Background(), `
+		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+			developer_id, current_version, capability_tags, registered_at, updated_at, signature
+		FROM zns_names WHERE developer_handle = $1 AND registry_host = $2
+		ORDER BY agent_name`, devHandle, registryHost)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var names []*models.ZNSName
+	for rows.Next() {
+		n := &models.ZNSName{}
+		var regAt, updAt time.Time
+		if err := rows.Scan(
+			&n.FQAN, &n.AgentName, &n.DeveloperHandle, &n.RegistryHost, &n.AgentID,
+			&n.DeveloperID, &n.CurrentVersion, &n.CapabilityTags, &regAt, &updAt, &n.Signature,
+		); err != nil {
+			return nil, err
+		}
+		n.RegisteredAt = regAt.UTC().Format(time.RFC3339)
+		n.UpdatedAt = updAt.UTC().Format(time.RFC3339)
+		names = append(names, n)
+	}
+	return names, nil
+}
+
+// --- ZNS Version Operations ---
+
+func (s *PostgresStore) CreateZNSVersion(v *models.ZNSVersion) error {
+	_, err := s.pool.Exec(context.Background(), `
+		INSERT INTO zns_versions (fqan, version, agent_id, build_hash, registered_at, signature)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		v.FQAN, v.Version, v.AgentID, v.BuildHash, v.RegisteredAt, v.Signature,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create ZNS version: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) GetZNSVersions(fqan string) ([]*models.ZNSVersion, error) {
+	rows, err := s.pool.Query(context.Background(), `
+		SELECT fqan, version, agent_id, build_hash, registered_at, signature
+		FROM zns_versions WHERE fqan = $1 ORDER BY registered_at DESC`, fqan)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var versions []*models.ZNSVersion
+	for rows.Next() {
+		v := &models.ZNSVersion{}
+		var regAt time.Time
+		if err := rows.Scan(&v.FQAN, &v.Version, &v.AgentID, &v.BuildHash, &regAt, &v.Signature); err != nil {
+			return nil, err
+		}
+		v.RegisteredAt = regAt.UTC().Format(time.RFC3339)
+		versions = append(versions, v)
+	}
+	return versions, nil
+}
+
+func (s *PostgresStore) GetZNSVersion(fqan, version string) (*models.ZNSVersion, error) {
+	row := s.pool.QueryRow(context.Background(), `
+		SELECT fqan, version, agent_id, build_hash, registered_at, signature
+		FROM zns_versions WHERE fqan = $1 AND version = $2`, fqan, version)
+
+	v := &models.ZNSVersion{}
+	var regAt time.Time
+	err := row.Scan(&v.FQAN, &v.Version, &v.AgentID, &v.BuildHash, &regAt, &v.Signature)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ZNS version: %w", err)
+	}
+	v.RegisteredAt = regAt.UTC().Format(time.RFC3339)
+	return v, nil
+}
+
+// --- ZNS Gossip ---
+
+func (s *PostgresStore) UpsertGossipZNSName(entry *models.GossipZNSName) error {
+	capTags := entry.CapabilityTags
+	if capTags == nil {
+		capTags = []string{}
+	}
+	_, err := s.pool.Exec(context.Background(), `
+		INSERT INTO gossip_zns_names (fqan, agent_name, developer_handle, registry_host,
+			agent_id, current_version, capability_tags, received_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT(fqan) DO UPDATE SET
+			agent_name=EXCLUDED.agent_name, developer_handle=EXCLUDED.developer_handle,
+			registry_host=EXCLUDED.registry_host, agent_id=EXCLUDED.agent_id,
+			current_version=EXCLUDED.current_version, capability_tags=EXCLUDED.capability_tags,
+			received_at=EXCLUDED.received_at, tombstoned=FALSE`,
+		entry.FQAN, entry.AgentName, entry.DeveloperHandle, entry.RegistryHost,
+		entry.AgentID, entry.CurrentVersion, capTags, entry.ReceivedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to upsert gossip ZNS name: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) GetGossipZNSName(fqan string) (*models.GossipZNSName, error) {
+	row := s.pool.QueryRow(context.Background(), `
+		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+			current_version, capability_tags, received_at, tombstoned
+		FROM gossip_zns_names WHERE fqan = $1 AND tombstoned = FALSE`, fqan)
+	return scanGossipZNSName(row)
+}
+
+func (s *PostgresStore) GetGossipZNSNameByParts(devHandle, agentName string) (*models.GossipZNSName, error) {
+	row := s.pool.QueryRow(context.Background(), `
+		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+			current_version, capability_tags, received_at, tombstoned
+		FROM gossip_zns_names
+		WHERE developer_handle = $1 AND agent_name = $2 AND tombstoned = FALSE`,
+		devHandle, agentName)
+	return scanGossipZNSName(row)
+}
+
+func scanGossipZNSName(row pgx.Row) (*models.GossipZNSName, error) {
+	n := &models.GossipZNSName{}
+	var recvAt time.Time
+	err := row.Scan(
+		&n.FQAN, &n.AgentName, &n.DeveloperHandle, &n.RegistryHost, &n.AgentID,
+		&n.CurrentVersion, &n.CapabilityTags, &recvAt, &n.Tombstoned,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan gossip ZNS name: %w", err)
+	}
+	n.ReceivedAt = recvAt.UTC().Format(time.RFC3339)
+	return n, nil
+}
+
+func (s *PostgresStore) TombstoneGossipZNSName(fqan string) error {
+	_, err := s.pool.Exec(context.Background(),
+		"UPDATE gossip_zns_names SET tombstoned=TRUE WHERE fqan = $1", fqan)
+	return err
+}
+
+// --- Registry Verification ---
+
+func (s *PostgresStore) UpsertRegistryProof(proof *models.RegistryIdentityProof) error {
+	proofJSON, err := json.Marshal(proof)
+	if err != nil {
+		return fmt.Errorf("failed to marshal registry proof: %w", err)
+	}
+	_, err = s.pool.Exec(context.Background(), `
+		INSERT INTO registry_identity_proofs (registry_id, domain, ed25519_public_key,
+			tls_spki_fingerprint, proof_json, proof_signature, verification_tier,
+			issued_at, expires_at, received_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		ON CONFLICT(registry_id) DO UPDATE SET
+			domain=EXCLUDED.domain, ed25519_public_key=EXCLUDED.ed25519_public_key,
+			tls_spki_fingerprint=EXCLUDED.tls_spki_fingerprint, proof_json=EXCLUDED.proof_json,
+			proof_signature=EXCLUDED.proof_signature, verification_tier=EXCLUDED.verification_tier,
+			issued_at=EXCLUDED.issued_at, expires_at=EXCLUDED.expires_at,
+			received_at=EXCLUDED.received_at`,
+		proof.RegistryID, proof.Domain, proof.Ed25519PublicKey,
+		proof.TLSSPKIFingerprint, proofJSON, proof.Signature,
+		proof.VerificationTier, proof.IssuedAt, proof.ExpiresAt, proof.ReceivedAt,
+	)
+	return err
+}
+
+func (s *PostgresStore) GetRegistryProof(registryID string) (*models.RegistryIdentityProof, error) {
+	row := s.pool.QueryRow(context.Background(), `
+		SELECT registry_id, domain, ed25519_public_key, tls_spki_fingerprint,
+			proof_signature, verification_tier, issued_at, expires_at, received_at
+		FROM registry_identity_proofs WHERE registry_id = $1`, registryID)
+
+	p := &models.RegistryIdentityProof{Type: "registry-identity-proof", Version: "1.0"}
+	var issuedAt, expiresAt, receivedAt time.Time
+	err := row.Scan(
+		&p.RegistryID, &p.Domain, &p.Ed25519PublicKey, &p.TLSSPKIFingerprint,
+		&p.Signature, &p.VerificationTier, &issuedAt, &expiresAt, &receivedAt,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get registry proof: %w", err)
+	}
+	p.IssuedAt = issuedAt.UTC().Format(time.RFC3339)
+	p.ExpiresAt = expiresAt.UTC().Format(time.RFC3339)
+	p.ReceivedAt = receivedAt.UTC().Format(time.RFC3339)
+	return p, nil
+}
+
+func (s *PostgresStore) GetRegistryProofByDomain(domain string) (*models.RegistryIdentityProof, error) {
+	row := s.pool.QueryRow(context.Background(), `
+		SELECT registry_id, domain, ed25519_public_key, tls_spki_fingerprint,
+			proof_signature, verification_tier, issued_at, expires_at, received_at
+		FROM registry_identity_proofs WHERE domain = $1`, domain)
+
+	p := &models.RegistryIdentityProof{Type: "registry-identity-proof", Version: "1.0"}
+	var issuedAt, expiresAt, receivedAt time.Time
+	err := row.Scan(
+		&p.RegistryID, &p.Domain, &p.Ed25519PublicKey, &p.TLSSPKIFingerprint,
+		&p.Signature, &p.VerificationTier, &issuedAt, &expiresAt, &receivedAt,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get registry proof by domain: %w", err)
+	}
+	p.IssuedAt = issuedAt.UTC().Format(time.RFC3339)
+	p.ExpiresAt = expiresAt.UTC().Format(time.RFC3339)
+	p.ReceivedAt = receivedAt.UTC().Format(time.RFC3339)
+	return p, nil
+}
+
+func (s *PostgresStore) CreatePeerAttestation(att *models.PeerAttestation) error {
+	_, err := s.pool.Exec(context.Background(), `
+		INSERT INTO peer_attestations (attester_id, subject_id, verified_layers, attested_at, signature)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT(attester_id, subject_id) DO UPDATE SET
+			verified_layers=EXCLUDED.verified_layers, attested_at=EXCLUDED.attested_at,
+			signature=EXCLUDED.signature`,
+		att.AttesterID, att.SubjectID, att.VerifiedLayers, att.AttestedAt, att.Signature,
+	)
+	return err
+}
+
+func (s *PostgresStore) CountPeerAttestations(subjectID string) (int, error) {
+	var count int
+	err := s.pool.QueryRow(context.Background(),
+		"SELECT COUNT(*) FROM peer_attestations WHERE subject_id = $1", subjectID).Scan(&count)
+	return count, err
+}
+
+func (s *PostgresStore) UpdateRegistryVerificationTier(registryID, tier string) error {
+	_, err := s.pool.Exec(context.Background(),
+		"UPDATE registry_identity_proofs SET verification_tier=$1 WHERE registry_id=$2",
+		tier, registryID)
+	return err
 }

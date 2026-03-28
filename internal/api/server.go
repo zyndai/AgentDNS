@@ -26,6 +26,7 @@ import (
 	"github.com/agentdns/agent-dns/internal/search"
 	"github.com/agentdns/agent-dns/internal/store"
 	"github.com/agentdns/agent-dns/internal/trust"
+	"github.com/agentdns/agent-dns/internal/zns"
 )
 
 var wsUpgrader = websocket.Upgrader{
@@ -139,6 +140,28 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/categories", s.handleGetCategories)
 	mux.HandleFunc("GET /v1/tags", s.handleGetTags)
 
+	// ZNS: Developer handles
+	mux.HandleFunc("POST /v1/handles", rateLimited(registerRL, s.handleClaimHandle))
+	mux.HandleFunc("GET /v1/handles/{handle}", s.handleGetHandle)
+	mux.HandleFunc("GET /v1/handles/{handle}/available", s.handleCheckHandleAvailable)
+	mux.HandleFunc("DELETE /v1/handles/{handle}", s.handleReleaseHandle)
+	mux.HandleFunc("POST /v1/handles/{handle}/verify", s.handleVerifyHandle)
+	mux.HandleFunc("GET /v1/handles/{handle}/agents", s.handleListHandleAgents)
+
+	// ZNS: Name bindings
+	mux.HandleFunc("POST /v1/names", rateLimited(registerRL, s.handleRegisterName))
+	mux.HandleFunc("GET /v1/names/{developer}/{agent}", s.handleGetName)
+	mux.HandleFunc("GET /v1/names/{developer}/{agent}/available", s.handleCheckNameAvailable)
+	mux.HandleFunc("PUT /v1/names/{developer}/{agent}", s.handleUpdateName)
+	mux.HandleFunc("DELETE /v1/names/{developer}/{agent}", s.handleReleaseName)
+	mux.HandleFunc("GET /v1/names/{developer}/{agent}/versions", s.handleListVersions)
+
+	// ZNS: Resolution
+	mux.HandleFunc("GET /v1/resolve/{developer}/{agent}", s.handleResolveName)
+
+	// ZNS: Registry identity proof
+	mux.HandleFunc("GET /.well-known/zynd-registry.json", s.handleRegistryIdentityProof)
+
 	// Network
 	mux.HandleFunc("GET /v1/network/status", s.handleNetworkStatus)
 	mux.HandleFunc("GET /v1/network/peers", s.handleGetPeers)
@@ -245,6 +268,21 @@ func (s *Server) handleRegisterDeveloper(w http.ResponseWriter, r *http.Request)
 	}
 	developerID := models.GenerateDeveloperID(ed25519.PublicKey(pubKeyBytes))
 
+	// If handle provided, validate it before creating the developer
+	if req.Handle != "" {
+		if err := zns.ValidateHandle(req.Handle); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid handle: "+err.Error())
+			return
+		}
+		// Check handle availability on this registry
+		registryHost := s.cfg.RegistryHost()
+		existing, _ := s.store.GetDeveloperByHandle(req.Handle, registryHost)
+		if existing != nil {
+			writeError(w, http.StatusConflict, fmt.Sprintf("handle %q is already taken on this registry", req.Handle))
+			return
+		}
+	}
+
 	now := models.NowRFC3339()
 	dev := &models.DeveloperRecord{
 		DeveloperID:   developerID,
@@ -257,6 +295,7 @@ func (s *Server) handleRegisterDeveloper(w http.ResponseWriter, r *http.Request)
 		RegisteredAt:  now,
 		UpdatedAt:     now,
 		Signature:     req.Signature,
+		DevHandle:     req.Handle, // set handle atomically if provided
 	}
 
 	if err := dev.Validate(); err != nil {
@@ -265,8 +304,8 @@ func (s *Server) handleRegisterDeveloper(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := s.store.CreateDeveloper(dev); err != nil {
-		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") {
-			writeError(w, http.StatusConflict, "developer already registered")
+		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			writeError(w, http.StatusConflict, "developer already registered (or handle already taken)")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "failed to register developer: "+err.Error())
@@ -277,10 +316,27 @@ func (s *Server) handleRegisterDeveloper(w http.ResponseWriter, r *http.Request)
 	ann := s.gossip.CreateDeveloperAnnouncement(dev, "register", s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
 	s.gossip.BroadcastAnnouncement(ann)
 
-	writeJSON(w, http.StatusCreated, map[string]string{
+	// If handle was claimed, also gossip the handle
+	if req.Handle != "" {
+		handleAnn := s.gossip.CreateHandleAnnouncement(dev, req.Handle, false, "", "claim",
+			s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+		s.gossip.BroadcastAnnouncement(handleAnn)
+
+		s.eventBus.Publish(events.EventHandleClaimed, events.ZNSEventData{
+			Handle:      req.Handle,
+			DeveloperID: developerID,
+			Action:      "claim",
+		})
+	}
+
+	resp := map[string]string{
 		"developer_id": developerID,
 		"message":      "developer registered successfully",
-	})
+	}
+	if req.Handle != "" {
+		resp["handle"] = req.Handle
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 // handleGetDeveloper retrieves a developer by ID.
@@ -608,10 +664,23 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		Summary:  record.Summary,
 	})
 
-	writeJSON(w, http.StatusCreated, map[string]string{
+	// ZNS: If agent_name is provided and developer has a handle, create FQAN atomically
+	var fqanResult string
+	if req.AgentName != "" && developerID != "" {
+		registryHost := s.cfg.RegistryHost()
+		if registryHost != "" {
+			fqanResult, _ = s.createZNSNameBinding(record, req.AgentName, req.Version, registryHost)
+		}
+	}
+
+	resp := map[string]string{
 		"agent_id": agentID,
 		"message":  "agent registered successfully",
-	})
+	}
+	if fqanResult != "" {
+		resp["fqan"] = fqanResult
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 // handleGetAgent retrieves a single agent by ID.
@@ -1266,4 +1335,739 @@ func rateLimited(rl *RateLimiter, next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+// ============================================================
+// ZNS (Zynd Naming Service) Handlers
+// ============================================================
+
+// --- Handle Endpoints ---
+
+func (s *Server) handleClaimHandle(w http.ResponseWriter, r *http.Request) {
+	var req models.HandleClaimRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+
+	if req.Handle == "" || req.DeveloperID == "" || req.PublicKey == "" || req.Signature == "" {
+		writeError(w, http.StatusBadRequest, "handle, developer_id, public_key, and signature are required")
+		return
+	}
+
+	// Validate handle format
+	if err := zns.ValidateHandle(req.Handle); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Verify developer exists and signature is valid
+	dev, err := s.store.GetDeveloper(req.DeveloperID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to look up developer")
+		return
+	}
+	if dev == nil {
+		writeError(w, http.StatusNotFound, "developer not found; register developer first")
+		return
+	}
+
+	// Verify signature
+	pubKey := strings.TrimPrefix(req.PublicKey, "ed25519:")
+	signable, _ := json.Marshal(map[string]string{
+		"handle":       req.Handle,
+		"developer_id": req.DeveloperID,
+		"public_key":   req.PublicKey,
+	})
+	valid, vErr := identity.Verify(pubKey, signable, req.Signature)
+	if vErr != nil || !valid {
+		writeError(w, http.StatusUnauthorized, "invalid signature")
+		return
+	}
+
+	registryHost := s.cfg.RegistryHost()
+
+	// Claim the handle
+	if err := s.store.ClaimHandle(req.DeveloperID, req.Handle, registryHost); err != nil {
+		if strings.Contains(err.Error(), "taken") || strings.Contains(err.Error(), "already") {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to claim handle: "+err.Error())
+		return
+	}
+
+	// Gossip the handle claim
+	ann := s.gossip.CreateHandleAnnouncement(dev, req.Handle, false, "", "claim",
+		s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+	s.gossip.BroadcastAnnouncement(ann)
+
+	s.eventBus.Publish(events.EventHandleClaimed, events.ZNSEventData{
+		Handle:      req.Handle,
+		DeveloperID: req.DeveloperID,
+		Action:      "claim",
+	})
+
+	writeJSON(w, http.StatusCreated, map[string]string{
+		"handle":       req.Handle,
+		"developer_id": req.DeveloperID,
+		"message":      "handle claimed successfully",
+	})
+}
+
+func (s *Server) handleGetHandle(w http.ResponseWriter, r *http.Request) {
+	handle := r.PathValue("handle")
+	if handle == "" {
+		writeError(w, http.StatusBadRequest, "handle is required")
+		return
+	}
+
+	registryHost := s.cfg.RegistryHost()
+	dev, err := s.store.GetDeveloperByHandle(handle, registryHost)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to look up handle")
+		return
+	}
+	if dev == nil {
+		writeError(w, http.StatusNotFound, "handle not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"handle":              dev.DevHandle,
+		"developer_id":        dev.DeveloperID,
+		"developer_name":      dev.Name,
+		"verified":            dev.DevHandleVerified,
+		"verification_method": dev.VerificationMethod,
+	})
+}
+
+func (s *Server) handleCheckHandleAvailable(w http.ResponseWriter, r *http.Request) {
+	handle := r.PathValue("handle")
+	if handle == "" {
+		writeError(w, http.StatusBadRequest, "handle is required")
+		return
+	}
+
+	// Validate format first
+	if err := zns.ValidateHandle(handle); err != nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"handle":    handle,
+			"available": false,
+			"reason":    err.Error(),
+		})
+		return
+	}
+
+	registryHost := s.cfg.RegistryHost()
+	dev, err := s.store.GetDeveloperByHandle(handle, registryHost)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check handle")
+		return
+	}
+
+	available := dev == nil
+	resp := map[string]interface{}{
+		"handle":    handle,
+		"available": available,
+	}
+	if !available {
+		resp["reason"] = "handle is already taken on this registry"
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleReleaseHandle(w http.ResponseWriter, r *http.Request) {
+	handle := r.PathValue("handle")
+	if handle == "" {
+		writeError(w, http.StatusBadRequest, "handle is required")
+		return
+	}
+
+	// Verify ownership via Authorization header
+	authHeader := r.Header.Get("Authorization")
+	registryHost := s.cfg.RegistryHost()
+	dev, err := s.store.GetDeveloperByHandle(handle, registryHost)
+	if err != nil || dev == nil {
+		writeError(w, http.StatusNotFound, "handle not found")
+		return
+	}
+
+	signable := []byte("release:" + handle)
+	if err := verifyOwnership(dev.PublicKey, signable, authHeader); err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized: "+err.Error())
+		return
+	}
+
+	if err := s.store.ReleaseHandle(dev.DeveloperID, handle); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to release handle: "+err.Error())
+		return
+	}
+
+	// Gossip the release
+	ann := s.gossip.CreateHandleAnnouncement(dev, handle, false, "", "release",
+		s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+	s.gossip.BroadcastAnnouncement(ann)
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "handle released"})
+}
+
+func (s *Server) handleVerifyHandle(w http.ResponseWriter, r *http.Request) {
+	handle := r.PathValue("handle")
+	if handle == "" {
+		writeError(w, http.StatusBadRequest, "handle is required")
+		return
+	}
+
+	var req models.HandleVerifyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+
+	registryHost := s.cfg.RegistryHost()
+	dev, err := s.store.GetDeveloperByHandle(handle, registryHost)
+	if err != nil || dev == nil {
+		writeError(w, http.StatusNotFound, "handle not found")
+		return
+	}
+
+	switch req.Method {
+	case "dns":
+		// Verify DNS TXT record at _zynd-verify.{domain}
+		matched, dnsErr := zns.VerifyDeveloperDNS(req.Proof, dev.PublicKey)
+		if dnsErr != nil {
+			writeError(w, http.StatusBadRequest, "DNS verification failed: "+dnsErr.Error())
+			return
+		}
+		if !matched {
+			writeError(w, http.StatusBadRequest, "DNS TXT record does not contain the developer's public key")
+			return
+		}
+	case "github":
+		// GitHub OAuth verification (simplified — just records the claim for now)
+		if req.Proof == "" {
+			writeError(w, http.StatusBadRequest, "github username is required as proof")
+			return
+		}
+	default:
+		writeError(w, http.StatusBadRequest, "method must be 'dns' or 'github'")
+		return
+	}
+
+	if err := s.store.UpdateHandleVerification(dev.DeveloperID, true, req.Method, req.Proof); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update verification: "+err.Error())
+		return
+	}
+
+	// Gossip the verification
+	ann := s.gossip.CreateHandleAnnouncement(dev, handle, true, req.Method, "verify",
+		s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+	s.gossip.BroadcastAnnouncement(ann)
+
+	s.eventBus.Publish(events.EventHandleVerified, events.ZNSEventData{
+		Handle:      handle,
+		DeveloperID: dev.DeveloperID,
+		Action:      "verify",
+	})
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"message": "handle verified via " + req.Method,
+		"handle":  handle,
+	})
+}
+
+func (s *Server) handleListHandleAgents(w http.ResponseWriter, r *http.Request) {
+	handle := r.PathValue("handle")
+	if handle == "" {
+		writeError(w, http.StatusBadRequest, "handle is required")
+		return
+	}
+
+	registryHost := s.cfg.RegistryHost()
+	names, err := s.store.ListZNSNamesByDeveloper(handle, registryHost)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list agents")
+		return
+	}
+	if names == nil {
+		names = []*models.ZNSName{}
+	}
+	writeJSON(w, http.StatusOK, names)
+}
+
+// --- Name Binding Endpoints ---
+
+func (s *Server) handleRegisterName(w http.ResponseWriter, r *http.Request) {
+	var req models.NameBindingRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+
+	if req.AgentName == "" || req.DeveloperHandle == "" || req.AgentID == "" || req.Signature == "" {
+		writeError(w, http.StatusBadRequest, "agent_name, developer_handle, agent_id, and signature are required")
+		return
+	}
+
+	if err := zns.ValidateAgentName(req.AgentName); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	registryHost := s.cfg.RegistryHost()
+	if registryHost == "" {
+		writeError(w, http.StatusBadRequest, "registry has no HTTPS endpoint configured; ZNS naming is unavailable")
+		return
+	}
+
+	// Verify developer handle exists
+	dev, err := s.store.GetDeveloperByHandle(req.DeveloperHandle, registryHost)
+	if err != nil || dev == nil {
+		writeError(w, http.StatusNotFound, "developer handle not found")
+		return
+	}
+
+	// Verify agent exists
+	agent, err := s.store.GetAgent(req.AgentID)
+	if err != nil || agent == nil {
+		writeError(w, http.StatusNotFound, "agent not found")
+		return
+	}
+
+	// Check if this agent name already exists under the same developer with a different key
+	existingName, _ := s.store.GetZNSNameByParts(req.DeveloperHandle, req.AgentName, registryHost)
+	if existingName != nil {
+		existingAgent, _ := s.store.GetAgent(existingName.AgentID)
+		if existingAgent != nil && existingAgent.PublicKey != agent.PublicKey {
+			writeError(w, http.StatusConflict,
+				fmt.Sprintf("agent name %q is already registered under %s with a different key; choose a different name",
+					req.AgentName, req.DeveloperHandle))
+			return
+		}
+	}
+
+	// Verify signature (developer signs the binding)
+	pubKey := strings.TrimPrefix(dev.PublicKey, "ed25519:")
+	signable, _ := json.Marshal(map[string]interface{}{
+		"agent_name":       req.AgentName,
+		"developer_handle": req.DeveloperHandle,
+		"agent_id":         req.AgentID,
+		"version":          req.Version,
+		"capability_tags":  req.CapabilityTags,
+	})
+	valid, vErr := identity.Verify(pubKey, signable, req.Signature)
+	if vErr != nil || !valid {
+		writeError(w, http.StatusUnauthorized, "invalid signature")
+		return
+	}
+
+	fqan := zns.BuildFQAN(registryHost, req.DeveloperHandle, req.AgentName)
+	now := models.NowRFC3339()
+
+	name := &models.ZNSName{
+		FQAN:            fqan,
+		AgentName:       req.AgentName,
+		DeveloperHandle: req.DeveloperHandle,
+		RegistryHost:    registryHost,
+		AgentID:         req.AgentID,
+		DeveloperID:     dev.DeveloperID,
+		CurrentVersion:  req.Version,
+		CapabilityTags:  req.CapabilityTags,
+		RegisteredAt:    now,
+		UpdatedAt:       now,
+		Signature:       req.Signature,
+	}
+
+	if err := s.store.CreateZNSName(name); err != nil {
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			writeError(w, http.StatusConflict, "name already registered")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to register name: "+err.Error())
+		return
+	}
+
+	// Create version record if version provided
+	if req.Version != "" {
+		ver := &models.ZNSVersion{
+			FQAN:         fqan,
+			Version:      req.Version,
+			AgentID:      req.AgentID,
+			RegisteredAt: now,
+			Signature:    req.Signature,
+		}
+		s.store.CreateZNSVersion(ver)
+	}
+
+	// Gossip the name binding
+	ann := s.gossip.CreateNameBindingAnnouncement(name, "register",
+		s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+	s.gossip.BroadcastAnnouncement(ann)
+
+	s.eventBus.Publish(events.EventNameRegistered, events.ZNSEventData{
+		FQAN:        fqan,
+		DeveloperID: dev.DeveloperID,
+		AgentID:     req.AgentID,
+		Action:      "register",
+	})
+
+	writeJSON(w, http.StatusCreated, map[string]string{
+		"fqan":     fqan,
+		"agent_id": req.AgentID,
+		"message":  "name registered successfully",
+	})
+}
+
+func (s *Server) handleGetName(w http.ResponseWriter, r *http.Request) {
+	devHandle := r.PathValue("developer")
+	agentName := r.PathValue("agent")
+	if devHandle == "" || agentName == "" {
+		writeError(w, http.StatusBadRequest, "developer and agent are required")
+		return
+	}
+
+	registryHost := s.cfg.RegistryHost()
+	name, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to look up name")
+		return
+	}
+	if name == nil {
+		writeError(w, http.StatusNotFound, "name not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, name)
+}
+
+func (s *Server) handleCheckNameAvailable(w http.ResponseWriter, r *http.Request) {
+	devHandle := r.PathValue("developer")
+	agentName := r.PathValue("agent")
+	if devHandle == "" || agentName == "" {
+		writeError(w, http.StatusBadRequest, "developer and agent are required")
+		return
+	}
+
+	// Validate format
+	if err := zns.ValidateAgentName(agentName); err != nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"developer":  devHandle,
+			"agent_name": agentName,
+			"available":  false,
+			"reason":     err.Error(),
+		})
+		return
+	}
+
+	registryHost := s.cfg.RegistryHost()
+	existing, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check name availability")
+		return
+	}
+
+	available := existing == nil
+	resp := map[string]interface{}{
+		"developer":  devHandle,
+		"agent_name": agentName,
+		"available":  available,
+	}
+	if !available {
+		resp["reason"] = "agent name is already registered under this developer"
+		resp["existing_agent_id"] = existing.AgentID
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleUpdateName(w http.ResponseWriter, r *http.Request) {
+	devHandle := r.PathValue("developer")
+	agentName := r.PathValue("agent")
+
+	registryHost := s.cfg.RegistryHost()
+	name, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	if err != nil || name == nil {
+		writeError(w, http.StatusNotFound, "name not found")
+		return
+	}
+
+	var req struct {
+		Version        string   `json:"version,omitempty"`
+		CapabilityTags []string `json:"capability_tags,omitempty"`
+		Signature      string   `json:"signature"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	now := models.NowRFC3339()
+	if req.Version != "" {
+		name.CurrentVersion = req.Version
+	}
+	if req.CapabilityTags != nil {
+		name.CapabilityTags = req.CapabilityTags
+	}
+	name.UpdatedAt = now
+	name.Signature = req.Signature
+
+	if err := s.store.UpdateZNSName(name); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update name: "+err.Error())
+		return
+	}
+
+	// Create version record if new version
+	if req.Version != "" {
+		ver := &models.ZNSVersion{
+			FQAN:         name.FQAN,
+			Version:      req.Version,
+			AgentID:      name.AgentID,
+			RegisteredAt: now,
+			Signature:    req.Signature,
+		}
+		s.store.CreateZNSVersion(ver)
+	}
+
+	// Gossip the update
+	ann := s.gossip.CreateNameBindingAnnouncement(name, "update",
+		s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+	s.gossip.BroadcastAnnouncement(ann)
+
+	writeJSON(w, http.StatusOK, name)
+}
+
+func (s *Server) handleReleaseName(w http.ResponseWriter, r *http.Request) {
+	devHandle := r.PathValue("developer")
+	agentName := r.PathValue("agent")
+
+	registryHost := s.cfg.RegistryHost()
+	name, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	if err != nil || name == nil {
+		writeError(w, http.StatusNotFound, "name not found")
+		return
+	}
+
+	// Verify ownership via Authorization header
+	authHeader := r.Header.Get("Authorization")
+	dev, _ := s.store.GetDeveloperByHandle(devHandle, registryHost)
+	if dev == nil {
+		writeError(w, http.StatusNotFound, "developer not found")
+		return
+	}
+	signable := []byte("release:" + name.FQAN)
+	if err := verifyOwnership(dev.PublicKey, signable, authHeader); err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized: "+err.Error())
+		return
+	}
+
+	if err := s.store.DeleteZNSName(name.FQAN); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to release name: "+err.Error())
+		return
+	}
+
+	// Gossip the release
+	ann := s.gossip.CreateNameBindingAnnouncement(name, "release",
+		s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+	s.gossip.BroadcastAnnouncement(ann)
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "name released"})
+}
+
+func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request) {
+	devHandle := r.PathValue("developer")
+	agentName := r.PathValue("agent")
+
+	registryHost := s.cfg.RegistryHost()
+	name, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	if err != nil || name == nil {
+		writeError(w, http.StatusNotFound, "name not found")
+		return
+	}
+
+	versions, err := s.store.GetZNSVersions(name.FQAN)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list versions")
+		return
+	}
+	if versions == nil {
+		versions = []*models.ZNSVersion{}
+	}
+	writeJSON(w, http.StatusOK, versions)
+}
+
+// --- Resolution Endpoint ---
+
+func (s *Server) handleResolveName(w http.ResponseWriter, r *http.Request) {
+	devHandle := r.PathValue("developer")
+	agentName := r.PathValue("agent")
+	if devHandle == "" || agentName == "" {
+		writeError(w, http.StatusBadRequest, "developer and agent path parameters are required")
+		return
+	}
+
+	registryHost := s.cfg.RegistryHost()
+
+	// 1. Try local ZNS names
+	name, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "resolution failed")
+		return
+	}
+
+	if name != nil {
+		agent, _ := s.store.GetAgent(name.AgentID)
+		dev, _ := s.store.GetDeveloperByHandle(devHandle, registryHost)
+		resp := s.buildResolveResponse(name, agent, dev)
+
+		s.eventBus.Publish(events.EventNameResolved, events.ZNSEventData{
+			FQAN:    name.FQAN,
+			AgentID: name.AgentID,
+			Action:  "resolve",
+		})
+
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+
+	// 2. Try gossip ZNS names
+	gossipName, err := s.store.GetGossipZNSNameByParts(devHandle, agentName)
+	if err == nil && gossipName != nil {
+		resp := &models.ZNSResolveResponse{
+			FQAN:            gossipName.FQAN,
+			AgentID:         gossipName.AgentID,
+			DeveloperHandle: gossipName.DeveloperHandle,
+			RegistryHost:    gossipName.RegistryHost,
+			Version:         gossipName.CurrentVersion,
+			Status:          "unknown",
+		}
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+
+	writeError(w, http.StatusNotFound, "name not found")
+}
+
+func (s *Server) buildResolveResponse(name *models.ZNSName, agent *models.RegistryRecord, dev *models.DeveloperRecord) *models.ZNSResolveResponse {
+	resp := &models.ZNSResolveResponse{
+		FQAN:            name.FQAN,
+		AgentID:         name.AgentID,
+		DeveloperID:     name.DeveloperID,
+		DeveloperHandle: name.DeveloperHandle,
+		RegistryHost:    name.RegistryHost,
+		Version:         name.CurrentVersion,
+	}
+
+	if agent != nil {
+		resp.AgentURL = agent.AgentURL
+		resp.PublicKey = agent.PublicKey
+		resp.Status = agent.Status
+		if agent.CapabilitySummary != nil {
+			resp.Protocols = agent.CapabilitySummary.Protocols
+		}
+	}
+
+	if dev != nil {
+		resp.VerificationTier = "self-claimed"
+		if dev.DevHandleVerified {
+			resp.VerificationTier = dev.VerificationMethod + "-verified"
+		}
+	}
+
+	// Enrich with trust score
+	if s.eigentrust != nil {
+		ts, tsErr := s.eigentrust.ComputeTrustScore(name.AgentID)
+		if tsErr == nil && ts != nil {
+			resp.TrustScore = ts.Score
+		}
+	}
+
+	return resp
+}
+
+// createZNSNameBinding is a helper used by handleRegisterAgent for atomic naming.
+func (s *Server) createZNSNameBinding(record *models.RegistryRecord, agentName, version, registryHost string) (string, error) {
+	if err := zns.ValidateAgentName(agentName); err != nil {
+		return "", err
+	}
+
+	// Look up the developer's handle
+	dev, err := s.store.GetDeveloper(record.DeveloperID)
+	if err != nil || dev == nil || dev.DevHandle == "" {
+		return "", fmt.Errorf("developer has no handle")
+	}
+
+	// Check if this agent name already exists under the same developer
+	existing, _ := s.store.GetZNSNameByParts(dev.DevHandle, agentName, registryHost)
+	if existing != nil {
+		// Same name exists — only allow if it's the same agent (same public key)
+		existingAgent, _ := s.store.GetAgent(existing.AgentID)
+		if existingAgent != nil && existingAgent.PublicKey != record.PublicKey {
+			return "", fmt.Errorf("agent name %q is already registered under %s with a different key; choose a different name", agentName, dev.DevHandle)
+		}
+		// Same agent re-registering with same name — return existing FQAN
+		if existing.AgentID == record.AgentID {
+			return existing.FQAN, nil
+		}
+	}
+
+	fqan := zns.BuildFQAN(registryHost, dev.DevHandle, agentName)
+	now := models.NowRFC3339()
+
+	name := &models.ZNSName{
+		FQAN:            fqan,
+		AgentName:       agentName,
+		DeveloperHandle: dev.DevHandle,
+		RegistryHost:    registryHost,
+		AgentID:         record.AgentID,
+		DeveloperID:     record.DeveloperID,
+		CurrentVersion:  version,
+		RegisteredAt:    now,
+		UpdatedAt:       now,
+		Signature:       record.Signature,
+	}
+
+	if err := s.store.CreateZNSName(name); err != nil {
+		return "", err
+	}
+
+	if version != "" {
+		ver := &models.ZNSVersion{
+			FQAN:         fqan,
+			Version:      version,
+			AgentID:      record.AgentID,
+			RegisteredAt: now,
+			Signature:    record.Signature,
+		}
+		s.store.CreateZNSVersion(ver)
+	}
+
+	// Gossip the name binding
+	ann := s.gossip.CreateNameBindingAnnouncement(name, "register",
+		s.nodeIdentity.RegistryID(), s.nodeIdentity.PublicKeyString(), s.nodeIdentity.Sign)
+	s.gossip.BroadcastAnnouncement(ann)
+
+	s.eventBus.Publish(events.EventNameRegistered, events.ZNSEventData{
+		FQAN:        fqan,
+		DeveloperID: record.DeveloperID,
+		AgentID:     record.AgentID,
+		Action:      "register",
+	})
+
+	return fqan, nil
+}
+
+// --- Registry Identity Proof ---
+
+func (s *Server) handleRegistryIdentityProof(w http.ResponseWriter, r *http.Request) {
+	// Serve the local registry's identity proof
+	regID := s.nodeIdentity.RegistryID()
+	proof, err := s.store.GetRegistryProof(regID)
+	if err != nil || proof == nil {
+		writeError(w, http.StatusNotFound, "no registry identity proof configured")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	json.NewEncoder(w).Encode(proof)
 }

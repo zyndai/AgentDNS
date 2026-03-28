@@ -43,6 +43,10 @@ type SearchResult struct {
 	Score             float64            `json:"score"`
 	ScoreBreakdown    *ScoreBreakdown    `json:"score_breakdown,omitempty"`
 	Card              *AgentCard         `json:"card,omitempty"` // included if enrich=true
+
+	// ZNS fields (populated when agent has a name binding)
+	FQAN            string `json:"fqan,omitempty"`
+	DeveloperHandle string `json:"developer_handle,omitempty"`
 }
 
 // ScoreBreakdown explains how the score was computed.

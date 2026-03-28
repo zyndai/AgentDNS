@@ -30,6 +30,27 @@ type GossipAnnouncement struct {
 	ProfileURL string `json:"profile_url,omitempty"`
 	GitHub     string `json:"github,omitempty"`
 	PublicKey  string `json:"public_key,omitempty"` // developer's own public key (for developer_announce)
+
+	// ZNS handle fields (for dev_handle type)
+	DevHandle          string `json:"dev_handle,omitempty"`
+	DevHandleVerified  bool   `json:"dev_handle_verified,omitempty"`
+	VerificationMethod string `json:"verification_method,omitempty"`
+
+	// ZNS name binding fields (for name_binding type)
+	FQAN           string   `json:"fqan,omitempty"`
+	AgentNameZNS   string   `json:"agent_name_zns,omitempty"` // distinct from Name to avoid collision
+	RegistryHost   string   `json:"registry_host,omitempty"`
+	Version        string   `json:"version,omitempty"`
+	CapabilityTags []string `json:"capability_tags,omitempty"`
+
+	// Registry verification fields (for registry_proof and peer_attestation types)
+	Domain             string   `json:"domain,omitempty"`
+	Ed25519PublicKey   string   `json:"ed25519_public_key,omitempty"`
+	TLSSPKIFingerprint string   `json:"tls_spki_fingerprint,omitempty"`
+	VerificationTier   string   `json:"verification_tier,omitempty"`
+	AttesterID         string   `json:"attester_id,omitempty"`
+	SubjectID          string   `json:"subject_id,omitempty"`
+	VerifiedLayers     []string `json:"verified_layers,omitempty"`
 }
 
 // GossipEntry is stored in the local gossip index -- a lightweight version
@@ -61,15 +82,16 @@ type GossipEntry struct {
 
 // PeerInfo describes a connected peer registry in the mesh.
 type PeerInfo struct {
-	RegistryID  string `json:"registry_id"`
-	Name        string `json:"name"`
-	Address     string `json:"address"`
-	PublicKey   string `json:"public_key"`
-	AgentCount  int    `json:"agent_count"`
-	ConnectedAt string `json:"connected_at"`
-	LastSeen    string `json:"last_seen"`
-	Latency     int    `json:"latency_ms"`             // last measured latency
-	BloomFilter []byte `json:"bloom_filter,omitempty"` // tags/categories bloom filter
+	RegistryID   string `json:"registry_id"`
+	Name         string `json:"name"`
+	Address      string `json:"address"`
+	PublicKey    string `json:"public_key"`
+	AgentCount   int    `json:"agent_count"`
+	ConnectedAt  string `json:"connected_at"`
+	LastSeen     string `json:"last_seen"`
+	Latency      int    `json:"latency_ms"`             // last measured latency
+	BloomFilter  []byte `json:"bloom_filter,omitempty"` // tags/categories bloom filter
+	RegistryHost string `json:"registry_host,omitempty"` // ZNS: the peer's domain name (e.g., "dns01.zynd.ai")
 }
 
 // Tombstone marks an agent for deletion across the network.

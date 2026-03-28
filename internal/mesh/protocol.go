@@ -32,12 +32,13 @@ type Envelope struct {
 
 // HelloMessage is exchanged during the initial handshake between two peers.
 type HelloMessage struct {
-	RegistryID string `json:"registry_id"`
-	Name       string `json:"name"`
-	PublicKey  string `json:"public_key"`
-	AgentCount int    `json:"agent_count"`
-	Version    string `json:"version"`
-	ListenPort int    `json:"listen_port"`
+	RegistryID   string `json:"registry_id"`
+	Name         string `json:"name"`
+	PublicKey    string `json:"public_key"`
+	AgentCount   int    `json:"agent_count"`
+	Version      string `json:"version"`
+	ListenPort   int    `json:"listen_port"`
+	RegistryHost string `json:"registry_host,omitempty"` // ZNS: domain name for this registry (e.g., "dns01.zynd.ai")
 }
 
 // HeartbeatMessage is sent periodically to maintain peer liveness.

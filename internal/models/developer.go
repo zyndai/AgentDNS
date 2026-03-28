@@ -23,6 +23,12 @@ type DeveloperRecord struct {
 	RegisteredAt  string `json:"registered_at" db:"registered_at"`
 	UpdatedAt     string `json:"updated_at" db:"updated_at"`
 	Signature     string `json:"signature" db:"signature"` // developer signs the registration
+
+	// ZNS handle fields (optional — developers can exist without handles)
+	DevHandle          string `json:"dev_handle,omitempty" db:"dev_handle"`                     // human-readable handle, e.g., "acme-corp"
+	DevHandleVerified  bool   `json:"dev_handle_verified,omitempty" db:"dev_handle_verified"`   // true if handle is domain/github verified
+	VerificationMethod string `json:"verification_method,omitempty" db:"verification_method"`   // "dns", "github", or "" (self-claimed)
+	VerificationProof  string `json:"verification_proof,omitempty" db:"verification_proof"`     // domain name or github username
 }
 
 // DeveloperRegistrationRequest is submitted to register a new developer identity.
@@ -32,6 +38,7 @@ type DeveloperRegistrationRequest struct {
 	ProfileURL string `json:"profile_url,omitempty"`
 	GitHub     string `json:"github,omitempty"`
 	Signature  string `json:"signature" validate:"required"`
+	Handle     string `json:"handle,omitempty"` // optional ZNS handle, claimed atomically during registration
 }
 
 // DeveloperUpdateRequest is submitted to update a developer profile.
@@ -64,6 +71,12 @@ type GossipDeveloperEntry struct {
 	ReceivedAt   string `json:"received_at" db:"received_at"`
 	Tombstoned   bool   `json:"tombstoned" db:"tombstoned"`
 	TombstoneAt  string `json:"tombstone_at,omitempty" db:"tombstone_at"`
+
+	// ZNS handle fields
+	DevHandle          string `json:"dev_handle,omitempty" db:"dev_handle"`
+	DevHandleVerified  bool   `json:"dev_handle_verified,omitempty" db:"dev_handle_verified"`
+	VerificationMethod string `json:"verification_method,omitempty" db:"verification_method"`
+	VerificationProof  string `json:"verification_proof,omitempty" db:"verification_proof"`
 }
 
 // GenerateDeveloperID derives a developer_id from an Ed25519 public key.

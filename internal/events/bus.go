@@ -22,6 +22,12 @@ const (
 	EventAgentHeartbeat      EventType = "agent_heartbeat"
 	EventAgentBecameInactive EventType = "agent_became_inactive"
 	EventAgentBecameActive   EventType = "agent_became_active"
+
+	// ZNS events
+	EventHandleClaimed  EventType = "handle_claimed"
+	EventHandleVerified EventType = "handle_verified"
+	EventNameRegistered EventType = "name_registered"
+	EventNameResolved   EventType = "name_resolved"
 )
 
 // Event is a single network activity event emitted on the bus.
@@ -38,6 +44,15 @@ type AgentEventData struct {
 	Category string   `json:"category"`
 	Tags     []string `json:"tags,omitempty"`
 	Summary  string   `json:"summary,omitempty"`
+}
+
+// ZNSEventData is the payload for ZNS naming events (handle_claimed, name_registered, etc.).
+type ZNSEventData struct {
+	FQAN        string `json:"fqan,omitempty"`
+	Handle      string `json:"handle,omitempty"`
+	DeveloperID string `json:"developer_id"`
+	AgentID     string `json:"agent_id,omitempty"`
+	Action      string `json:"action"` // claim, verify, release, register, resolve
 }
 
 // GossipEventData is the payload for gossip_incoming / gossip_outgoing events.

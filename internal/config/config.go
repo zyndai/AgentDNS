@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -53,10 +54,11 @@ type DHTConfig struct {
 
 // NodeConfig describes the node identity and type.
 type NodeConfig struct {
-	Name       string `toml:"name"`
-	Type       string `toml:"type"` // full, light, gateway
-	DataDir    string `toml:"data_dir"`
-	ExternalIP string `toml:"external_ip"`
+	Name          string `toml:"name"`
+	Type          string `toml:"type"` // full, light, gateway
+	DataDir       string `toml:"data_dir"`
+	ExternalIP    string `toml:"external_ip"`
+	HTTPSEndpoint string `toml:"https_endpoint"` // e.g. "https://dns01.zynd.ai" — used to derive registry host name for ZNS
 }
 
 // MeshConfig describes mesh networking parameters.
@@ -281,6 +283,20 @@ func Save(cfg *Config, path string) error {
 	}
 
 	return nil
+}
+
+// RegistryHost returns the hostname from the configured HTTPS endpoint,
+// stripped of scheme and port. This is the registry's name in the ZNS naming system.
+// Returns empty string if no HTTPS endpoint is configured.
+func (c *Config) RegistryHost() string {
+	if c.Node.HTTPSEndpoint == "" {
+		return ""
+	}
+	u, err := url.Parse(c.Node.HTTPSEndpoint)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
 }
 
 // DataDir returns the resolved data directory path, creating it if needed.

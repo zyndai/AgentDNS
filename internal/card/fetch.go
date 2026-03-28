@@ -62,10 +62,25 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.AgentC
 		// On Redis error, fall through to HTTP fetch (fail open)
 	}
 
-	// Tier 3: Fetch from URL — append /.well-known/agent.json if not already a full path
+	// Tier 3: Fetch from URL
+	// Try zynd-agent.json first (new format), fall back to agent.json (legacy)
+	baseURL := strings.TrimRight(agentURL, "/")
 	cardURL := agentURL
 	if !strings.HasSuffix(cardURL, ".json") && !strings.Contains(cardURL, ".well-known") {
-		cardURL = strings.TrimRight(cardURL, "/") + "/.well-known/agent.json"
+		// Try new Zynd format first
+		zyndURL := baseURL + "/.well-known/zynd-agent.json"
+		zResp, zErr := f.client.Get(zyndURL)
+		if zErr == nil && zResp.StatusCode == http.StatusOK {
+			// Use the Zynd card — close and proceed with this response
+			resp := zResp
+			_ = resp // proceed below
+			cardURL = zyndURL
+		} else {
+			if zResp != nil {
+				zResp.Body.Close()
+			}
+			cardURL = baseURL + "/.well-known/agent.json"
+		}
 	}
 	resp, err := f.client.Get(cardURL)
 	if err != nil {

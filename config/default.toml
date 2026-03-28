@@ -6,6 +6,7 @@ name = "my-registry"
 type = "full"                           # full | light | gateway
 data_dir = "/data"
 external_ip = "auto"
+https_endpoint = ""                     # e.g. "https://dns01.zynd.ai" — enables ZNS naming
 
 [mesh]
 listen_port = 4001

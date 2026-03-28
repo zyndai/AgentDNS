@@ -125,10 +125,17 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 		return false
 	}
 
-	// Dedup check -- use agent_id for agent announcements, developer_id for developer announcements
+	// Dedup check -- use appropriate key per announcement type
 	dedupID := ann.AgentID
-	if ann.Type == "developer_announce" {
+	switch ann.Type {
+	case "developer_announce", "dev_handle":
 		dedupID = ann.DeveloperID
+	case "name_binding":
+		dedupID = ann.FQAN
+	case "registry_proof":
+		dedupID = ann.Domain
+	case "peer_attestation":
+		dedupID = ann.AttesterID + ":" + ann.SubjectID
 	}
 	dedupKey := dedupID + ":" + ann.Timestamp
 	gh.mu.RLock()
@@ -163,6 +170,101 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 		case "deregister":
 			if err := gh.store.TombstoneGossipDeveloper(ann.DeveloperID); err != nil {
 				log.Printf("failed to tombstone gossip developer: %v", err)
+			}
+		}
+
+	case "dev_handle":
+		switch ann.Action {
+		case "claim", "verify":
+			// Update the gossip developer entry with handle info
+			entry := &models.GossipDeveloperEntry{
+				DeveloperID:        ann.DeveloperID,
+				Name:               ann.Name,
+				PublicKey:          ann.PublicKey,
+				HomeRegistry:       ann.HomeRegistry,
+				ReceivedAt:         time.Now().UTC().Format(time.RFC3339),
+				DevHandle:          ann.DevHandle,
+				DevHandleVerified:  ann.DevHandleVerified,
+				VerificationMethod: ann.VerificationMethod,
+			}
+			if err := gh.store.UpsertGossipDeveloper(entry); err != nil {
+				log.Printf("gossip: failed to store handle for developer %s: %v", ann.DeveloperID, err)
+			}
+		case "release":
+			// Clear handle on the gossip developer entry
+			entry := &models.GossipDeveloperEntry{
+				DeveloperID:  ann.DeveloperID,
+				Name:         ann.Name,
+				PublicKey:    ann.PublicKey,
+				HomeRegistry: ann.HomeRegistry,
+				ReceivedAt:   time.Now().UTC().Format(time.RFC3339),
+			}
+			if err := gh.store.UpsertGossipDeveloper(entry); err != nil {
+				log.Printf("gossip: failed to clear handle for developer %s: %v", ann.DeveloperID, err)
+			}
+		}
+
+	case "name_binding":
+		now := time.Now().UTC().Format(time.RFC3339)
+		switch ann.Action {
+		case "register", "update", "version":
+			entry := &models.GossipZNSName{
+				FQAN:            ann.FQAN,
+				AgentName:       ann.AgentNameZNS,
+				DeveloperHandle: ann.DevHandle,
+				RegistryHost:    ann.RegistryHost,
+				AgentID:         ann.AgentID,
+				CurrentVersion:  ann.Version,
+				CapabilityTags:  ann.CapabilityTags,
+				ReceivedAt:      now,
+			}
+			if err := gh.store.UpsertGossipZNSName(entry); err != nil {
+				log.Printf("gossip: failed to store ZNS name %s: %v", ann.FQAN, err)
+			}
+		case "release":
+			if err := gh.store.TombstoneGossipZNSName(ann.FQAN); err != nil {
+				log.Printf("gossip: failed to tombstone ZNS name %s: %v", ann.FQAN, err)
+			}
+		}
+
+	case "registry_proof":
+		switch ann.Action {
+		case "publish", "update":
+			proof := &models.RegistryIdentityProof{
+				Type:               "registry-identity-proof",
+				Version:            "1.0",
+				RegistryID:         ann.HomeRegistry,
+				Domain:             ann.Domain,
+				Ed25519PublicKey:   ann.Ed25519PublicKey,
+				TLSSPKIFingerprint: ann.TLSSPKIFingerprint,
+				VerificationTier:   ann.VerificationTier,
+				Signature:          ann.Signature,
+				ReceivedAt:         time.Now().UTC().Format(time.RFC3339),
+				IssuedAt:           ann.Timestamp,
+				ExpiresAt:          ann.Timestamp, // will be overwritten from proof data
+			}
+			if err := gh.store.UpsertRegistryProof(proof); err != nil {
+				log.Printf("gossip: failed to store registry proof for %s: %v", ann.Domain, err)
+			}
+		}
+
+	case "peer_attestation":
+		switch ann.Action {
+		case "attest":
+			att := &models.PeerAttestation{
+				AttesterID:     ann.AttesterID,
+				SubjectID:      ann.SubjectID,
+				VerifiedLayers: ann.VerifiedLayers,
+				AttestedAt:     ann.Timestamp,
+				Signature:      ann.Signature,
+			}
+			if err := gh.store.CreatePeerAttestation(att); err != nil {
+				log.Printf("gossip: failed to store peer attestation: %v", err)
+			}
+			// Check if subject reached mesh-verified threshold
+			count, _ := gh.store.CountPeerAttestations(ann.SubjectID)
+			if count >= 3 {
+				gh.store.UpdateRegistryVerificationTier(ann.SubjectID, "mesh-verified")
 			}
 		}
 
@@ -336,6 +438,122 @@ func (gh *GossipHandler) CreateStatusAnnouncement(
 	data, _ := json.Marshal(ann)
 	ann.Signature = signFn(data)
 
+	return ann
+}
+
+// CreateHandleAnnouncement creates a gossip announcement for a developer handle event.
+func (gh *GossipHandler) CreateHandleAnnouncement(
+	dev *models.DeveloperRecord,
+	handle string,
+	verified bool,
+	verificationMethod string,
+	action string,
+	registryID string,
+	pubKey string,
+	signFn func([]byte) string,
+) *models.GossipAnnouncement {
+	ann := &models.GossipAnnouncement{
+		Type:               "dev_handle",
+		DeveloperID:        dev.DeveloperID,
+		Name:               dev.Name,
+		HomeRegistry:       registryID,
+		Action:             action,
+		Timestamp:          time.Now().UTC().Format(time.RFC3339),
+		OriginPublicKey:    pubKey,
+		HopCount:           0,
+		MaxHops:            gh.cfg.MaxHops,
+		PublicKey:          dev.PublicKey,
+		DevHandle:          handle,
+		DevHandleVerified:  verified,
+		VerificationMethod: verificationMethod,
+	}
+
+	data, _ := json.Marshal(ann)
+	ann.Signature = signFn(data)
+	return ann
+}
+
+// CreateNameBindingAnnouncement creates a gossip announcement for a ZNS name binding event.
+func (gh *GossipHandler) CreateNameBindingAnnouncement(
+	name *models.ZNSName,
+	action string,
+	registryID string,
+	pubKey string,
+	signFn func([]byte) string,
+) *models.GossipAnnouncement {
+	ann := &models.GossipAnnouncement{
+		Type:            "name_binding",
+		HomeRegistry:    registryID,
+		Action:          action,
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		OriginPublicKey: pubKey,
+		HopCount:        0,
+		MaxHops:         gh.cfg.MaxHops,
+		FQAN:            name.FQAN,
+		AgentNameZNS:    name.AgentName,
+		DevHandle:       name.DeveloperHandle,
+		RegistryHost:    name.RegistryHost,
+		AgentID:         name.AgentID,
+		DeveloperID:     name.DeveloperID,
+		Version:         name.CurrentVersion,
+		CapabilityTags:  name.CapabilityTags,
+	}
+
+	data, _ := json.Marshal(ann)
+	ann.Signature = signFn(data)
+	return ann
+}
+
+// CreateRegistryProofAnnouncement creates a gossip announcement for a registry identity proof.
+func (gh *GossipHandler) CreateRegistryProofAnnouncement(
+	proof *models.RegistryIdentityProof,
+	action string,
+	registryID string,
+	pubKey string,
+	signFn func([]byte) string,
+) *models.GossipAnnouncement {
+	ann := &models.GossipAnnouncement{
+		Type:               "registry_proof",
+		HomeRegistry:       registryID,
+		Action:             action,
+		Timestamp:          time.Now().UTC().Format(time.RFC3339),
+		OriginPublicKey:    pubKey,
+		HopCount:           0,
+		MaxHops:            gh.cfg.MaxHops,
+		Domain:             proof.Domain,
+		Ed25519PublicKey:   proof.Ed25519PublicKey,
+		TLSSPKIFingerprint: proof.TLSSPKIFingerprint,
+		VerificationTier:   proof.VerificationTier,
+	}
+
+	data, _ := json.Marshal(ann)
+	ann.Signature = signFn(data)
+	return ann
+}
+
+// CreatePeerAttestationAnnouncement creates a gossip announcement for a peer attestation.
+func (gh *GossipHandler) CreatePeerAttestationAnnouncement(
+	att *models.PeerAttestation,
+	action string,
+	registryID string,
+	pubKey string,
+	signFn func([]byte) string,
+) *models.GossipAnnouncement {
+	ann := &models.GossipAnnouncement{
+		Type:            "peer_attestation",
+		HomeRegistry:    registryID,
+		Action:          action,
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		OriginPublicKey: pubKey,
+		HopCount:        0,
+		MaxHops:         gh.cfg.MaxHops,
+		AttesterID:      att.AttesterID,
+		SubjectID:       att.SubjectID,
+		VerifiedLayers:  att.VerifiedLayers,
+	}
+
+	data, _ := json.Marshal(ann)
+	ann.Signature = signFn(data)
 	return ann
 }
 

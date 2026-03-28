@@ -55,6 +55,11 @@ type CandidateResult struct {
 
 	// Optional enriched Agent Card
 	Card *models.AgentCard
+
+	// ZNS fields (populated when agent has a name binding)
+	FQAN            string
+	DeveloperHandle string
+	DeveloperID     string
 }
 
 // RankWeighted scores candidates using the weighted linear combination.
@@ -156,6 +161,7 @@ func ToSearchResults(candidates []*CandidateResult) []models.SearchResult {
 			Tags:         c.Tags,
 			HomeRegistry: c.HomeRegistry,
 			Status:       c.Status,
+			DeveloperID:  c.DeveloperID,
 			Score:        c.FinalScore,
 			ScoreBreakdown: &models.ScoreBreakdown{
 				TextRelevance:      c.TextRelevance,
@@ -164,7 +170,9 @@ func ToSearchResults(candidates []*CandidateResult) []models.SearchResult {
 				Freshness:          c.Freshness,
 				Availability:       c.Availability,
 			},
-			Card: c.Card,
+			Card:            c.Card,
+			FQAN:            c.FQAN,
+			DeveloperHandle: c.DeveloperHandle,
 		}
 	}
 	return results

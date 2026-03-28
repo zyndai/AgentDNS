@@ -77,6 +77,8 @@ func main() {
 		cmdDevInit()
 	case "dev-register":
 		cmdDevRegister()
+	case "dev-claim-handle":
+		cmdDevClaimHandle()
 	case "derive-agent":
 		cmdDeriveAgent()
 	case "register":
@@ -133,16 +135,17 @@ Commands:
   start         Start the registry node
 
   Developer Identity:
-  dev-init         Generate a developer keypair (stored at ~/.zynd/developer.json)
-  dev-register     Register developer identity on a registry node
-  derive-agent     Derive an agent keypair from developer key at a given index
-  auth login       Log in to a registry (supports restricted onboarding)
-  onboarding setup Generate a webhook secret for restricted onboarding
+  dev-init            Generate a developer keypair (stored at ~/.zynd/developer.json)
+  dev-register        Register developer identity on a registry node
+  dev-claim-handle    Claim a human-readable handle for your developer identity
+  derive-agent        Derive an agent keypair from developer key at a given index
+  auth login          Log in to a registry (supports restricted onboarding)
+  onboarding setup    Generate a webhook secret for restricted onboarding
 
   Agent Management:
-  register      Register an agent on this node (supports --developer-key for HD derivation)
+  register      Register an agent on this node (supports --developer-key for HD derivation, --agent-name for ZNS naming)
   deregister    Remove an agent from the registry
-  resolve       Get a specific agent's registry record
+  resolve       Get a specific agent's registry record (supports agdns: IDs and developer/agent names)
   card          Fetch an agent's dynamic Agent Card
 
   Discovery:
@@ -167,7 +170,11 @@ Examples:
   agentdns register --name "MyAgent" --agent-url "https://example.com/.well-known/agent.json" --category "tools" --tags "python,code" --summary "Does stuff"
   agentdns register --name "MyAgent" --agent-url "https://example.com/.well-known/agent.json" --category "tools" --developer-key ~/.zynd/developer.json --agent-index 0
   agentdns search "code review agent for Python security"
+  agentdns dev-claim-handle --handle acme-corp
+  agentdns dev-claim-handle --handle acme-corp --verify-dns acme-corp.com
+  agentdns register --name "MyAgent" --agent-url "https://example.com/.well-known/agent.json" --category "tools" --agent-name my-agent --developer-key ~/.zynd/developer.json --agent-index 0
   agentdns resolve agdns:7f3a9c2e...
+  agentdns resolve acme-corp/my-agent
   agentdns deregister agdns:7f3a9c2e...
   agentdns auth login --registry https://registry.example.com
   agentdns onboarding setup`)
@@ -179,6 +186,18 @@ func cmdInit() {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatalf("failed to get home directory: %v", err)
+	}
+
+	// Parse optional flags
+	var httpsEndpoint string
+	for i := 2; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "--https-endpoint":
+			if i+1 < len(os.Args) {
+				httpsEndpoint = os.Args[i+1]
+				i++
+			}
+		}
 	}
 
 	dataDir := filepath.Join(homeDir, ".zynd")
@@ -208,6 +227,9 @@ func cmdInit() {
 	// Generate default config
 	cfg := config.DefaultConfig()
 	cfg.Node.DataDir = filepath.Join(dataDir, "data")
+	if httpsEndpoint != "" {
+		cfg.Node.HTTPSEndpoint = httpsEndpoint
+	}
 	if err := config.Save(cfg, filepath.Join(dataDir, "config.toml")); err != nil {
 		log.Fatalf("failed to save config: %v", err)
 	}
@@ -217,6 +239,13 @@ func cmdInit() {
 	fmt.Printf("  Data dir:    %s\n", dataDir)
 	fmt.Printf("  Config:      %s\n", filepath.Join(dataDir, "config.toml"))
 	fmt.Printf("  Identity:    %s\n", filepath.Join(dataDir, "identity.json"))
+	if httpsEndpoint != "" {
+		fmt.Printf("  HTTPS:       %s\n", httpsEndpoint)
+		fmt.Printf("  ZNS Host:    %s\n", cfg.RegistryHost())
+	} else {
+		fmt.Println()
+		fmt.Println("  Tip: Run 'agentdns init --https-endpoint https://your-domain.com' to enable ZNS naming.")
+	}
 	fmt.Println()
 	fmt.Println("Start the node with: agentdns start")
 }
@@ -463,6 +492,7 @@ func cmdStart() {
 
 func cmdRegister() {
 	var name, agentURL, category, tagsStr, summary, developerKeyPath string
+	var agentNameZNS, versionZNS string
 	agentIndex := -1
 
 	for i := 2; i < len(os.Args); i++ {
@@ -500,6 +530,16 @@ func cmdRegister() {
 		case "--agent-index":
 			if i+1 < len(os.Args) {
 				fmt.Sscanf(os.Args[i+1], "%d", &agentIndex)
+				i++
+			}
+		case "--agent-name":
+			if i+1 < len(os.Args) {
+				agentNameZNS = os.Args[i+1]
+				i++
+			}
+		case "--version":
+			if i+1 < len(os.Args) {
+				versionZNS = os.Args[i+1]
 				i++
 			}
 		}
@@ -559,6 +599,14 @@ func cmdRegister() {
 			},
 		}
 
+		// Add ZNS naming fields if provided
+		if agentNameZNS != "" {
+			reqBody["agent_name"] = agentNameZNS
+		}
+		if versionZNS != "" {
+			reqBody["version"] = versionZNS
+		}
+
 		// Sign with agent key
 		signable, _ := json.Marshal(map[string]interface{}{
 			"name":       name,
@@ -583,6 +631,9 @@ func cmdRegister() {
 		if resp.StatusCode == http.StatusCreated {
 			fmt.Printf("Agent registered successfully (developer: %s, index: %d)!\n", developerID, agentIndex)
 			fmt.Printf("  Agent ID: %s\n", result["agent_id"])
+			if fqan, ok := result["fqan"]; ok {
+				fmt.Printf("  FQAN:     %s\n", fqan)
+			}
 		} else {
 			fmt.Fprintf(os.Stderr, "Registration failed: %v\n", result["error"])
 			os.Exit(1)
@@ -731,12 +782,39 @@ func cmdSearch() {
 
 func cmdResolve() {
 	if len(os.Args) < 3 {
-		fmt.Fprintln(os.Stderr, "Usage: agentdns resolve AGENT_ID")
+		fmt.Fprintln(os.Stderr, "Usage: agentdns resolve <agdns:ID | developer/agent>")
 		os.Exit(1)
 	}
 
-	agentID := os.Args[2]
-	resp, err := http.Get("http://localhost:8080/v1/agents/" + agentID)
+	target := os.Args[2]
+
+	// If target contains "/", treat as ZNS name (developer/agent)
+	if strings.Contains(target, "/") {
+		parts := strings.SplitN(target, "/", 2)
+		if len(parts) != 2 {
+			fmt.Fprintln(os.Stderr, "Invalid name format. Expected: developer/agent")
+			os.Exit(1)
+		}
+		resp, err := http.Get("http://localhost:8080/v1/resolve/" + parts[0] + "/" + parts[1])
+		if err != nil {
+			log.Fatalf("failed to connect to registry: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusNotFound {
+			fmt.Fprintln(os.Stderr, "Name not found")
+			os.Exit(1)
+		}
+
+		var result map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&result)
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	// Otherwise treat as agdns: ID (existing flow)
+	resp, err := http.Get("http://localhost:8080/v1/agents/" + target)
 	if err != nil {
 		log.Fatalf("failed to connect to registry: %v", err)
 	}
@@ -882,7 +960,7 @@ func cmdDevInit() {
 // --- Developer Register Command ---
 
 func cmdDevRegister() {
-	var name, profileURL, github string
+	var name, profileURL, github, handle string
 
 	for i := 2; i < len(os.Args); i++ {
 		switch os.Args[i] {
@@ -901,11 +979,16 @@ func cmdDevRegister() {
 				github = os.Args[i+1]
 				i++
 			}
+		case "--handle":
+			if i+1 < len(os.Args) {
+				handle = os.Args[i+1]
+				i++
+			}
 		}
 	}
 
 	if name == "" {
-		fmt.Fprintln(os.Stderr, "Usage: agentdns dev-register --name NAME [--profile-url URL] [--github HANDLE]")
+		fmt.Fprintln(os.Stderr, "Usage: agentdns dev-register --name NAME [--handle HANDLE] [--profile-url URL] [--github HANDLE]")
 		os.Exit(1)
 	}
 
@@ -924,8 +1007,17 @@ func cmdDevRegister() {
 		"github":      github,
 	}
 
+	if handle != "" {
+		reqBody["handle"] = handle
+	}
+
 	// Sign the registration
-	signable, _ := json.Marshal(reqBody)
+	signable, _ := json.Marshal(map[string]interface{}{
+		"name":        name,
+		"public_key":  kp.PublicKeyString(),
+		"profile_url": profileURL,
+		"github":      github,
+	})
 	reqBody["signature"] = kp.Sign(signable)
 
 	body, _ := json.Marshal(reqBody)
@@ -942,9 +1034,110 @@ func cmdDevRegister() {
 	if resp.StatusCode == http.StatusCreated {
 		fmt.Printf("Developer registered successfully!\n")
 		fmt.Printf("  Developer ID: %s\n", result["developer_id"])
+		if h, ok := result["handle"]; ok {
+			fmt.Printf("  Handle:       %s\n", h)
+		}
 	} else {
 		fmt.Fprintf(os.Stderr, "Registration failed: %v\n", result["error"])
 		os.Exit(1)
+	}
+}
+
+// --- Dev Claim Handle Command ---
+
+func cmdDevClaimHandle() {
+	var handle, verifyDNS, verifyGitHub string
+
+	for i := 2; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "--handle":
+			if i+1 < len(os.Args) {
+				handle = os.Args[i+1]
+				i++
+			}
+		case "--verify-dns":
+			if i+1 < len(os.Args) {
+				verifyDNS = os.Args[i+1]
+				i++
+			}
+		case "--verify-github":
+			verifyGitHub = "true"
+		}
+	}
+
+	if handle == "" {
+		fmt.Fprintln(os.Stderr, "Usage: agentdns dev-claim-handle --handle NAME [--verify-dns DOMAIN] [--verify-github]")
+		os.Exit(1)
+	}
+
+	homeDir, _ := os.UserHomeDir()
+	devKP, err := identity.LoadKeypair(filepath.Join(homeDir, ".zynd", "developer.json"))
+	if err != nil {
+		log.Fatalf("failed to load developer key: %v (run 'agentdns dev-init' first)", err)
+	}
+
+	developerID := devKP.DeveloperID()
+
+	// Sign the claim
+	signable, _ := json.Marshal(map[string]string{
+		"handle":       handle,
+		"developer_id": developerID,
+		"public_key":   devKP.PublicKeyString(),
+	})
+
+	reqBody := map[string]string{
+		"handle":       handle,
+		"developer_id": developerID,
+		"public_key":   devKP.PublicKeyString(),
+		"signature":    devKP.Sign(signable),
+	}
+
+	body, _ := json.Marshal(reqBody)
+	resp, err := http.Post("http://localhost:8080/v1/handles", "application/json", strings.NewReader(string(body)))
+	if err != nil {
+		log.Fatalf("failed to connect to registry: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if resp.StatusCode != http.StatusCreated {
+		fmt.Fprintf(os.Stderr, "Failed to claim handle: %v\n", result["error"])
+		os.Exit(1)
+	}
+
+	fmt.Printf("Handle claimed successfully!\n")
+	fmt.Printf("  Handle:       %s\n", handle)
+	fmt.Printf("  Developer ID: %s\n", developerID)
+
+	// If --verify-dns, submit verification
+	if verifyDNS != "" {
+		verifyBody, _ := json.Marshal(map[string]string{
+			"method": "dns",
+			"proof":  verifyDNS,
+		})
+		vResp, vErr := http.Post("http://localhost:8080/v1/handles/"+handle+"/verify",
+			"application/json", strings.NewReader(string(verifyBody)))
+		if vErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: DNS verification request failed: %v\n", vErr)
+			return
+		}
+		defer vResp.Body.Close()
+
+		var vResult map[string]interface{}
+		json.NewDecoder(vResp.Body).Decode(&vResult)
+
+		if vResp.StatusCode == http.StatusOK {
+			fmt.Printf("  DNS verified: %s\n", verifyDNS)
+		} else {
+			fmt.Fprintf(os.Stderr, "  DNS verification failed: %v\n", vResult["error"])
+		}
+	}
+
+	// If --verify-github
+	if verifyGitHub != "" {
+		fmt.Println("  GitHub verification: OAuth flow not yet implemented")
 	}
 }
 
