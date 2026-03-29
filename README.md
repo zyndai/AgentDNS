@@ -366,6 +366,14 @@ rate_limit_register = 10         # Requests per minute
 cors_origins = ["*"]
 ```
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture & Internals](docs/ARCHITECTURE.md) | How every layer works — identity, gossip mesh, search engine, DHT, ZNS naming, trust, caching, heartbeat, API, and event bus |
+| [Setup Guide](docs/SETUP.md) | Step-by-step setup for localhost and production — registry configuration, TLS, ZNS handle claiming, domain verification |
+| [Swagger API](docs/swagger.yaml) | OpenAPI spec for the REST API (also available at `/swagger/` when the node is running) |
+
 ## Project Structure
 
 ```
