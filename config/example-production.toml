@@ -48,7 +48,7 @@ max_gossip_entries = 2000000
 url = "redis://localhost:6379/0"
 password = ""
 db = 0
-prefix = "agdns:"
+prefix = ""
 
 [trust]
 min_display_score = 0.1

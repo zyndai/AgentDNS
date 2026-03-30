@@ -201,7 +201,7 @@ func DefaultConfig() *Config {
 		},
 		Redis: RedisConfig{
 			URL:    "",
-			Prefix: "agdns:",
+			Prefix: "",
 		},
 		Trust: TrustConfig{
 			MinDisplayScore: 0.1,

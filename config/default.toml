@@ -123,9 +123,9 @@ max_gossip_entries = 2000000        # Max gossip entries in memory buffer
 url = ""                            # e.g. "redis://localhost:6379/0"
 password = ""                       # Optional authentication password
 db = 0                              # Redis database number (0-15)
-prefix = "agdns:"                   # Key namespace prefix
-                                    # Use different prefixes for multi-node on same Redis:
-                                    #   Node A: "agdns:a:", Node B: "agdns:b:", etc.
+prefix = ""                         # Key namespace prefix
+                                    # Auto-derived from node name if empty: "agdns:{node.name}:"
+                                    # Set manually to override
 
 
 # --- Trust & Reputation ------------------------------------------------------

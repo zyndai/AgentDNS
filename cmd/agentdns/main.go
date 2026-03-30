@@ -293,11 +293,16 @@ func cmdStart() {
 	// Initialize Redis cache (optional — nil if not configured)
 	var redisCache *agcache.RedisCache
 	if cfg.Redis.URL != "" {
+		// Auto-derive prefix from node name if not explicitly set
+		redisPrefix := cfg.Redis.Prefix
+		if redisPrefix == "" {
+			redisPrefix = "agdns:" + cfg.Node.Name + ":"
+		}
 		redisCache, err = agcache.NewRedisCache(agcache.RedisConfig{
 			URL:      cfg.Redis.URL,
 			Password: cfg.Redis.Password,
 			DB:       cfg.Redis.DB,
-			Prefix:   cfg.Redis.Prefix,
+			Prefix:   redisPrefix,
 		})
 		if err != nil {
 			log.Printf("warning: failed to connect to Redis, running without cache: %v", err)
