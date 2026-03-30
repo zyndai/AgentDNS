@@ -1,0 +1,84 @@
+[node]
+name = "my-registry"
+type = "full"
+data_dir = "~/.zynd/data"
+external_ip = "auto"
+https_endpoint = "https://dns01.zynd.ai"
+
+[mesh]
+listen_port = 4001
+max_peers = 50
+bootstrap_peers = []
+tls_enabled = true
+
+[gossip]
+max_hops = 10
+max_announcements_per_second = 100
+dedup_window_seconds = 300
+
+[registry]
+postgres_url = "postgres://agentdns:CHANGE_ME@localhost:5432/agentdns?sslmode=require"
+max_local_agents = 100000
+
+[search]
+embedding_backend = "onnx"
+embedding_model = "bge-small-en-v1.5"
+embedding_dimensions = 384
+embedding_model_dir = "~/.zynd/models"
+embedding_endpoint = ""
+use_improved_keyword = true
+max_federated_peers = 10
+federated_timeout_ms = 2000
+default_max_results = 20
+
+[search.ranking]
+method = "weighted"
+text_relevance_weight = 0.30
+semantic_similarity_weight = 0.30
+trust_weight = 0.20
+freshness_weight = 0.10
+availability_weight = 0.10
+
+[cache]
+max_agent_cards = 100000
+agent_card_ttl_seconds = 3600
+max_gossip_entries = 2000000
+
+[redis]
+url = "redis://localhost:6379/0"
+password = ""
+db = 0
+prefix = "agdns:"
+
+[trust]
+min_display_score = 0.1
+
+[api]
+listen = "0.0.0.0:8080"
+rate_limit_search = 200
+rate_limit_register = 20
+cors_origins = ["https://yourdomain.com"]
+
+[bloom]
+expected_tokens = 500000
+false_positive_rate = 0.01
+update_interval_seconds = 300
+
+[onboarding]
+mode = "open"
+auth_url = ""
+webhook_secret = ""
+
+[heartbeat]
+enabled = true
+inactive_threshold_seconds = 300
+sweep_interval_seconds = 60
+max_clock_skew_seconds = 60
+
+[dht]
+enabled = true
+k = 20
+alpha = 3
+republish_interval = 3600
+expire_after = 86400
+lookup_timeout_ms = 5000

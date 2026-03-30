@@ -25,7 +25,6 @@ import (
 	"github.com/agentdns/agent-dns/internal/models"
 	"github.com/agentdns/agent-dns/internal/search"
 	"github.com/agentdns/agent-dns/internal/store"
-	"github.com/agentdns/agent-dns/internal/trust"
 	"github.com/agentdns/agent-dns/internal/zns"
 )
 
@@ -48,7 +47,6 @@ type Server struct {
 	cardFetcher  *card.Fetcher
 	peerManager  *mesh.PeerManager
 	gossip       *mesh.GossipHandler
-	eigentrust   *trust.EigenTrust
 	nodeIdentity *identity.Keypair
 	dht          *dhtNode // optional DHT for fallback lookups
 	httpServer   *http.Server
@@ -90,7 +88,6 @@ func NewServer(
 	cardFetcher *card.Fetcher,
 	peerManager *mesh.PeerManager,
 	gossipHandler *mesh.GossipHandler,
-	eigentrust *trust.EigenTrust,
 	nodeIdentity *identity.Keypair,
 ) *Server {
 	return &Server{
@@ -100,7 +97,6 @@ func NewServer(
 		cardFetcher:  cardFetcher,
 		peerManager:  peerManager,
 		gossip:       gossipHandler,
-		eigentrust:   eigentrust,
 		nodeIdentity: nodeIdentity,
 		startTime:    time.Now(),
 		eventBus:     events.NewBus(),
@@ -1973,13 +1969,7 @@ func (s *Server) buildResolveResponse(name *models.ZNSName, agent *models.Regist
 		}
 	}
 
-	// Enrich with trust score
-	if s.eigentrust != nil {
-		ts, tsErr := s.eigentrust.ComputeTrustScore(name.AgentID)
-		if tsErr == nil && ts != nil {
-			resp.TrustScore = ts.Score
-		}
-	}
+	resp.TrustScore = 0.5
 
 	return resp
 }

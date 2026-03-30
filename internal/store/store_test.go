@@ -28,7 +28,6 @@ func newTestStore(t *testing.T) Store {
 	s.pool.Exec(t.Context(), "DELETE FROM agents")
 	s.pool.Exec(t.Context(), "DELETE FROM gossip_entries")
 	s.pool.Exec(t.Context(), "DELETE FROM tombstones")
-	s.pool.Exec(t.Context(), "DELETE FROM attestations")
 	s.pool.Exec(t.Context(), "DELETE FROM node_meta")
 
 	t.Cleanup(func() { s.Close() })

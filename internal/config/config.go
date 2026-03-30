@@ -134,9 +134,7 @@ type RedisConfig struct {
 
 // TrustConfig tunes the trust/reputation system.
 type TrustConfig struct {
-	MinDisplayScore               float64 `toml:"min_display_score"`
-	EigentrustIterations          int     `toml:"eigentrust_iterations"`
-	AttestationGossipIntervalSecs int     `toml:"attestation_gossip_interval_seconds"`
+	MinDisplayScore float64 `toml:"min_display_score"`
 }
 
 // APIConfig configures the HTTP API gateway.
@@ -206,9 +204,7 @@ func DefaultConfig() *Config {
 			Prefix: "agdns:",
 		},
 		Trust: TrustConfig{
-			MinDisplayScore:               0.1,
-			EigentrustIterations:          5,
-			AttestationGossipIntervalSecs: 3600,
+			MinDisplayScore: 0.1,
 		},
 		API: APIConfig{
 			Listen:            "0.0.0.0:8080",

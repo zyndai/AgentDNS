@@ -129,12 +129,10 @@ prefix = "agdns:"                   # Key namespace prefix
 
 
 # --- Trust & Reputation ------------------------------------------------------
-# EigenTrust algorithm for transitive reputation scoring.
+# Trust scores are currently hardcoded (local=0.5, gossip=0.3).
+# This section controls display filtering only.
 [trust]
 min_display_score = 0.1             # Minimum trust score to show in search results
-eigentrust_iterations = 5           # Trust computation convergence iterations
-                                    # More iterations = more accurate, slower
-attestation_gossip_interval_seconds = 3600  # How often to gossip reputation attestations (1 hour)
 
 
 # --- HTTP API ----------------------------------------------------------------

@@ -49,7 +49,6 @@ import (
 	"github.com/agentdns/agent-dns/internal/models"
 	"github.com/agentdns/agent-dns/internal/search"
 	"github.com/agentdns/agent-dns/internal/store"
-	"github.com/agentdns/agent-dns/internal/trust"
 )
 
 const version = "0.2.0"
@@ -322,8 +321,6 @@ func cmdStart() {
 	engine := search.NewEngine(st, fetcher, cfg.Search, embedder)
 	peerMgr := mesh.NewPeerManager(cfg.Mesh, cfg.Bloom)
 	gossipHandler := mesh.NewGossipHandler(st, cfg.Gossip)
-	eigenTrust := trust.NewEigenTrust(st, cfg.Trust.EigentrustIterations)
-
 	// Set up gossip callback to index new entries
 	gossipHandler.SetAnnounceCallback(func(ann *models.GossipAnnouncement) {
 		entry := &models.GossipEntry{
@@ -407,7 +404,7 @@ func cmdStart() {
 	}()
 
 	// Start the API server
-	server := api.NewServer(cfg, st, engine, fetcher, peerMgr, gossipHandler, eigenTrust, kp)
+	server := api.NewServer(cfg, st, engine, fetcher, peerMgr, gossipHandler, kp)
 
 	// Wire DHT into API server for fallback agent lookups
 	if dhtNode != nil {

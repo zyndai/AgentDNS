@@ -662,48 +662,6 @@ func (s *PostgresStore) CleanExpiredTombstones() (int, error) {
 	return int(ct.RowsAffected()), nil
 }
 
-// --- Attestations ---
-
-func (s *PostgresStore) UpsertAttestation(a *models.ReputationAttestation) error {
-	_, err := s.pool.Exec(context.Background(), `
-		INSERT INTO attestations (agent_id, observer_registry, period, invocations,
-			successes, failures, avg_latency_ms, avg_rating, signature)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT(agent_id, observer_registry, period) DO UPDATE SET
-			invocations=EXCLUDED.invocations, successes=EXCLUDED.successes,
-			failures=EXCLUDED.failures, avg_latency_ms=EXCLUDED.avg_latency_ms,
-			avg_rating=EXCLUDED.avg_rating, signature=EXCLUDED.signature`,
-		a.AgentID, a.ObserverRegistry, a.Period, a.Invocations,
-		a.Successes, a.Failures, a.AvgLatencyMs, a.AvgRating, a.Signature,
-	)
-	return err
-}
-
-func (s *PostgresStore) GetAttestations(agentID string) ([]*models.ReputationAttestation, error) {
-	rows, err := s.pool.Query(context.Background(), `
-		SELECT agent_id, observer_registry, period, invocations, successes,
-			failures, avg_latency_ms, avg_rating, signature
-		FROM attestations WHERE agent_id = $1`, agentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var attestations []*models.ReputationAttestation
-	for rows.Next() {
-		a := &models.ReputationAttestation{}
-		if err := rows.Scan(
-			&a.AgentID, &a.ObserverRegistry, &a.Period, &a.Invocations,
-			&a.Successes, &a.Failures, &a.AvgLatencyMs, &a.AvgRating,
-			&a.Signature,
-		); err != nil {
-			return nil, err
-		}
-		attestations = append(attestations, a)
-	}
-	return attestations, nil
-}
-
 // --- Node Metadata ---
 
 func (s *PostgresStore) SetMeta(key, value string) error {

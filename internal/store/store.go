@@ -107,14 +107,6 @@ type Store interface {
 	// Returns the number of tombstones removed.
 	CleanExpiredTombstones() (int, error)
 
-	// --- Attestations ---
-
-	// UpsertAttestation stores a reputation attestation.
-	UpsertAttestation(a *models.ReputationAttestation) error
-
-	// GetAttestations retrieves all attestations for an agent.
-	GetAttestations(agentID string) ([]*models.ReputationAttestation, error)
-
 	// --- Node Metadata ---
 
 	// SetMeta stores a key-value pair in node metadata.

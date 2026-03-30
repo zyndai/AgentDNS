@@ -16,7 +16,6 @@ import (
 	"github.com/agentdns/agent-dns/internal/models"
 	"github.com/agentdns/agent-dns/internal/search"
 	"github.com/agentdns/agent-dns/internal/store"
-	"github.com/agentdns/agent-dns/internal/trust"
 )
 
 // setupTestServer creates a full test server with all components wired up.
@@ -53,9 +52,7 @@ func setupTestServer(t *testing.T) (*api.Server, *config.Config, *identity.Keypa
 	engine := search.NewEngine(st, fetcher, cfg.Search, embedder)
 	peerMgr := mesh.NewPeerManager(cfg.Mesh, cfg.Bloom)
 	gossipHandler := mesh.NewGossipHandler(st, cfg.Gossip)
-	eigenTrust := trust.NewEigenTrust(st, cfg.Trust.EigentrustIterations)
-
-	server := api.NewServer(cfg, st, engine, fetcher, peerMgr, gossipHandler, eigenTrust, kp)
+	server := api.NewServer(cfg, st, engine, fetcher, peerMgr, gossipHandler, kp)
 
 	return server, cfg, kp
 }
