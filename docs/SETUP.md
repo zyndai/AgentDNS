@@ -520,6 +520,23 @@ dns01.zynd.ai/acme-corp/doc-translator
   from https_endpoint
 ```
 
+> **Important: `https_endpoint` is not verified locally.**
+>
+> The registry does **not** check on startup that the domain in `https_endpoint` actually resolves to itself. You could configure `https_endpoint = "https://dns01.zynd.ai"` on a machine that has nothing to do with that domain, and the registry would mint FQANs under `dns01.zynd.ai/...` without complaint.
+>
+> **However, the 4-layer verification system catches this at the mesh level:**
+>
+> | Layer | What catches a false claim |
+> |---|---|
+> | **TLS (Layer 1)** | Peers connecting to your claimed domain would reach the real owner, not you |
+> | **RIP (Layer 2)** | `/.well-known/zynd-registry.json` on the real domain would have a different Ed25519 key than yours |
+> | **DNS TXT (Layer 3)** | `_zynd.{domain}` TXT record would list the real registry's key, not yours |
+> | **Peer Attestation (Layer 4)** | No peers would vouch for you since all verification layers fail |
+>
+> So fake FQANs would gossip out, but any peer that verifies registry identity would reject or distrust them. Your registry would remain stuck at the **Self-Announced** tier (lowest trust) and never reach Domain-Verified or higher.
+>
+> **Bottom line:** Always set `https_endpoint` to a domain you actually control and serve HTTPS from. The protection is enforced by the network, not by your local node.
+
 ---
 
 ## Developer Identity & Onboarding
