@@ -46,7 +46,7 @@ services:
       - "4001:4001"
     volumes:
       - registry-a-data:/data
-      - ./config/node-a-onnx.toml:/config/config.toml:ro
+      - ./config/default.toml:/config/config.toml:ro
     environment:
       - AGENTDNS_NODE_NAME=registry-a
       - LD_LIBRARY_PATH=/usr/local/lib
@@ -71,7 +71,7 @@ services:
       - "4002:4001"
     volumes:
       - registry-b-data:/data
-      - ./config/node-b-onnx.toml:/config/config.toml:ro
+      - ./config/default.toml:/config/config.toml:ro
     environment:
       - AGENTDNS_NODE_NAME=registry-b
       - LD_LIBRARY_PATH=/usr/local/lib
@@ -98,7 +98,7 @@ services:
       - "4003:4001"
     volumes:
       - registry-c-data:/data
-      - ./config/node-c-onnx.toml:/config/config.toml:ro
+      - ./config/default.toml:/config/config.toml:ro
     environment:
       - AGENTDNS_NODE_NAME=registry-c
       - LD_LIBRARY_PATH=/usr/local/lib

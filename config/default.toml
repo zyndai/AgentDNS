@@ -1,96 +1,195 @@
-# Agent DNS Registry Node Configuration
-# See https://github.com/agentdns/agent-dns for documentation
+# ============================================================================
+# Agent DNS — Complete Configuration Reference
+# ============================================================================
+#
+# This file documents every configuration option with defaults.
+# Copy this file and modify for your deployment:
+#
+#   cp config/default.toml ~/.zynd/config.toml
+#
+# All values shown are defaults — you only need to set what you change.
+# See docs/SETUP.md for deployment guides (localhost + production).
+# See docs/ARCHITECTURE.md for how each component works.
+# ============================================================================
 
+
+# --- Node Identity -----------------------------------------------------------
+# Core identity and type for this registry node.
 [node]
-name = "my-registry"
-type = "full"                           # full | light | gateway
-data_dir = "/data"
-external_ip = "auto"
-https_endpoint = ""                     # e.g. "https://dns01.zynd.ai" — enables ZNS naming
+name = "my-registry"                # Display name (shown to peers and in status)
+type = "full"                       # Node type: "full" | "light" | "gateway"
+                                    #   full    — stores agents, participates in gossip + DHT
+                                    #   light   — read-only, forwards to full nodes
+                                    #   gateway — HTTP proxy, no local storage
+data_dir = "~/.zynd/data"          # Local data directory for node state
+external_ip = "auto"                # Public IP for peer discovery ("auto" = detect)
+https_endpoint = ""                 # Public HTTPS URL, e.g. "https://dns01.zynd.ai"
+                                    # Enables ZNS naming — the hostname becomes the first
+                                    # part of every FQAN: dns01.zynd.ai/dev/agent
+                                    # WARNING: not verified locally — set only to domains
+                                    # you control. The mesh verifies via TLS + DNS + peer
+                                    # attestations (see docs/SETUP.md#registry-identity-verification)
 
+
+# --- Mesh (P2P Networking) ---------------------------------------------------
+# TCP transport for gossip, federated search, and DHT.
 [mesh]
-listen_port = 4001
-max_peers = 15
-bootstrap_peers = []
+listen_port = 4001                  # TCP port for peer-to-peer mesh connections
+max_peers = 15                      # Maximum simultaneous peer connections
+                                    # Oldest peer evicted when exceeded
+bootstrap_peers = []                # Initial peers to connect to on startup
+                                    # e.g. ["dns01.zynd.ai:4001", "dns02.zynd.ai:4001"]
+                                    # Leave empty for standalone / seed node
+tls_enabled = true                  # TLS encryption for mesh connections
+                                    # Uses self-signed certs from Ed25519 key
+                                    # Identity verified at application layer (HELLO handshake)
 
+
+# --- Gossip Protocol ---------------------------------------------------------
+# Controls how announcements propagate across the mesh.
 [gossip]
-max_hops = 10
-max_announcements_per_second = 100
-dedup_window_seconds = 300
+max_hops = 10                       # Maximum propagation depth per announcement
+                                    # Higher = wider reach, more bandwidth
+max_announcements_per_second = 100  # Rate limit for incoming gossip messages
+dedup_window_seconds = 300          # Ignore duplicate announcements within this window (5 min)
 
+
+# --- Registry (PostgreSQL) ---------------------------------------------------
+# Persistent storage for agents, developers, ZNS names, and gossip state.
 [registry]
 postgres_url = "postgres://agentdns:agentdns@localhost:5432/agentdns?sslmode=disable"
-max_local_agents = 100000
+                                    # PostgreSQL connection string
+                                    # For production use sslmode=require
+                                    # Connection pool: 2-20 connections, 30 min lifetime
+max_local_agents = 100000           # Soft limit on locally registered agents
 
+
+# --- Search Engine -----------------------------------------------------------
+# Hybrid search combining keyword (BM25) + semantic (vector) + federated.
 [search]
-# Embedding backend: "hash" (fast, no ML), "onnx" (local ML model), "http" (external API)
+
+# Embedding backend — converts text to vectors for semantic search:
+#   "hash"  — Feature hashing (FNV-64a + bigrams). Zero dependencies, fast.
+#             Good enough for basic search. No ML model needed.
+#   "onnx"  — In-process ONNX Runtime. Best quality, requires Rust tokenizers.
+#             Models: "all-MiniLM-L6-v2" (90MB, fast),
+#                     "bge-small-en-v1.5" (130MB, balanced, recommended),
+#                     "e5-small-v2" (130MB, multilingual)
+#   "http"  — External embedding API. Compatible with Ollama, OpenAI, etc.
 embedding_backend = "hash"
-# Model name (for ONNX): "all-MiniLM-L6-v2" (fast), "bge-small-en-v1.5" (balanced), "e5-small-v2" (quality)
-embedding_model = "all-MiniLM-L6-v2"
-embedding_dimensions = 384
-# Model directory (auto-download if not present)
-embedding_model_dir = "~/.zynd/models"
-# HTTP endpoint (for "http" backend, e.g., Ollama, OpenAI)
-embedding_endpoint = ""
-# Use improved BM25 with field boosting, stemming, and synonyms
-use_improved_keyword = true
-max_federated_peers = 10
-federated_timeout_ms = 1500
-default_max_results = 20
+embedding_model = "all-MiniLM-L6-v2"   # Model name (used by ONNX backend)
+embedding_dimensions = 384              # Vector dimensions (must match model)
+embedding_model_dir = "~/.zynd/models"  # Directory for ONNX model files
+                                        # Auto-downloads if missing
+embedding_endpoint = ""                 # HTTP URL for embedding service
+                                        # e.g. "http://localhost:11434/api/embeddings" (Ollama)
+                                        # e.g. "https://api.openai.com/v1/embeddings" (OpenAI)
 
+# Keyword search
+use_improved_keyword = true         # Use advanced BM25 with per-field boosting,
+                                    # Porter stemming, stopwords, and synonym expansion
+                                    # Disable for basic BM25 (faster, less accurate)
+
+# Federated search — queries peer registries for broader results
+max_federated_peers = 10            # Max peers to query per federated search
+federated_timeout_ms = 1500         # Per-peer timeout in milliseconds
+default_max_results = 20            # Default result limit if not specified in request
+
+# Ranking algorithm — how search results are scored and ordered
 [search.ranking]
-text_relevance_weight = 0.30
-semantic_similarity_weight = 0.30
-trust_weight = 0.20
-freshness_weight = 0.10
-availability_weight = 0.10
+method = "weighted"                 # "weighted" — linear combination with weights below
+                                    # "rrf"      — Reciprocal Rank Fusion (no tuning needed)
+text_relevance_weight = 0.30        # BM25 keyword match quality
+semantic_similarity_weight = 0.30   # Vector cosine similarity
+trust_weight = 0.20                 # EigenTrust reputation score
+freshness_weight = 0.10             # Recency (exponential decay, 0.5 at ~30 days)
+availability_weight = 0.10          # Agent card status (online=1.0, degraded=0.5, offline=0.0)
 
+
+# --- In-Process Cache --------------------------------------------------------
+# LRU caches for agent cards and gossip entries (per-instance, not shared).
 [cache]
-max_agent_cards = 50000
-agent_card_ttl_seconds = 3600
-max_gossip_entries = 2000000
+max_agent_cards = 50000             # Max cached agent cards in memory
+agent_card_ttl_seconds = 3600       # Agent card cache TTL (1 hour)
+max_gossip_entries = 2000000        # Max gossip entries in memory buffer
 
-# Redis cache layer (optional)
-# Leave url empty to disable Redis and use in-process caches only.
-# Redis is used for: Agent Card cache, search result cache,
-# bloom filters, rate limiting, peer heartbeat state.
+
+# --- Redis (Optional) --------------------------------------------------------
+# Shared cache layer for multi-instance deployments.
+# Used for: agent card cache, search results, bloom filters, rate limiting,
+# peer heartbeat state.
+# Leave url empty to disable — system works fine with in-process caches only.
 [redis]
-url = ""                                # e.g. "redis://localhost:6379/0"
-password = ""
-db = 0
-prefix = "agdns:"
+url = ""                            # e.g. "redis://localhost:6379/0"
+password = ""                       # Optional authentication password
+db = 0                              # Redis database number (0-15)
+prefix = "agdns:"                   # Key namespace prefix
+                                    # Use different prefixes for multi-node on same Redis:
+                                    #   Node A: "agdns:a:", Node B: "agdns:b:", etc.
 
+
+# --- Trust & Reputation ------------------------------------------------------
+# EigenTrust algorithm for transitive reputation scoring.
 [trust]
-min_display_score = 0.1
-eigentrust_iterations = 5
-attestation_gossip_interval_seconds = 3600
+min_display_score = 0.1             # Minimum trust score to show in search results
+eigentrust_iterations = 5           # Trust computation convergence iterations
+                                    # More iterations = more accurate, slower
+attestation_gossip_interval_seconds = 3600  # How often to gossip reputation attestations (1 hour)
 
+
+# --- HTTP API ----------------------------------------------------------------
+# REST API server configuration.
 [api]
-listen = "0.0.0.0:8080"
-rate_limit_search = 100
-rate_limit_register = 10
-cors_origins = ["*"]
+listen = "0.0.0.0:8080"            # HTTP listen address and port
+                                    # Use a reverse proxy (nginx/Caddy) for TLS termination
+rate_limit_search = 100             # Max search requests per minute per IP
+rate_limit_register = 10            # Max registration requests per minute per IP
+cors_origins = ["*"]                # Allowed CORS origins
+                                    # Restrict in production: ["https://yourdomain.com"]
 
+
+# --- Bloom Filter (Query Routing) --------------------------------------------
+# Probabilistic filters for smart peer selection during federated search.
+# Peers exchange bloom filters in heartbeats so the search engine can
+# target the most relevant peers for each query.
 [bloom]
-expected_tokens = 500000
-false_positive_rate = 0.01
-update_interval_seconds = 300
+expected_tokens = 500000            # Expected unique tokens (affects filter size)
+false_positive_rate = 0.01          # Target false positive rate (1%)
+                                    # Lower = more accurate, more memory
+update_interval_seconds = 300       # Rebuild bloom filter every N seconds (5 min)
 
+
+# --- Developer Onboarding ----------------------------------------------------
+# Controls how developers register on this registry.
 [onboarding]
-mode = "open"                              # "open" (self-register) or "restricted" (KYC/approval)
-auth_url = ""                              # org onboarding page URL (required when mode=restricted)
-webhook_secret = ""                        # shared secret for website → registry approve calls
+mode = "open"                       # "open"       — anyone can self-register
+                                    # "restricted" — requires KYC/approval via webhook
+auth_url = ""                       # External onboarding page URL
+                                    # Required when mode = "restricted"
+                                    # e.g. "https://yourorg.com/onboard"
+webhook_secret = ""                 # Shared secret for approval webhook
+                                    # External system calls POST /v1/admin/developers/approve
+                                    # with Authorization: Bearer {webhook_secret}
+                                    # Generate with: agentdns onboarding setup
 
+
+# --- Heartbeat & Liveness ----------------------------------------------------
+# Agents prove liveness via signed WebSocket heartbeats.
+# The liveness monitor sweeps for stale agents and marks them inactive.
 [heartbeat]
-enabled = true
-inactive_threshold_seconds = 300
-sweep_interval_seconds = 60
-max_clock_skew_seconds = 60
+enabled = true                      # Enable heartbeat monitoring
+inactive_threshold_seconds = 300    # Mark agent inactive after N seconds of silence (5 min)
+sweep_interval_seconds = 60         # How often the monitor checks for stale agents (1 min)
+max_clock_skew_seconds = 60         # Maximum allowed clock difference for heartbeat timestamps
+                                    # Prevents replay attacks
 
+
+# --- DHT (Distributed Hash Table) --------------------------------------------
+# Kademlia DHT for decentralized agent lookups beyond gossip reach.
 [dht]
-enabled = true
-k = 20                                 # k-bucket size
-alpha = 3                              # concurrent lookups per query
-republish_interval = 3600              # republish stored records (seconds)
-expire_after = 86400                   # expire records without republish (seconds)
-lookup_timeout_ms = 5000               # per-lookup timeout (milliseconds)
+enabled = true                      # Enable DHT (disable for light/gateway nodes)
+k = 20                              # k-bucket size (contacts per bucket)
+alpha = 3                           # Concurrent lookups per query
+republish_interval = 3600           # Re-publish stored records every N seconds (1 hour)
+expire_after = 86400                # Expire records not republished within N seconds (24 hours)
+lookup_timeout_ms = 5000            # Per-lookup timeout in milliseconds

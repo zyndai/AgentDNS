@@ -48,6 +48,7 @@ services:
       retries: 5
 
   # Registry Node A (primary seed node)
+  # Uncomment to enable. Uses config/default.toml with per-node overrides via environment.
   # registry-a:
   #   build: .
   #   ports:
@@ -55,7 +56,7 @@ services:
   #     - "4001:4001"
   #   volumes:
   #     - registry-a-data:/data
-  #     - ./config/node-a.toml:/config/config.toml:ro
+  #     - ./config/default.toml:/config/config.toml:ro
   #   environment:
   #     - AGENTDNS_NODE_NAME=registry-a
   #   depends_on:
@@ -77,7 +78,7 @@ services:
   #     - "4002:4001"
   #   volumes:
   #     - registry-b-data:/data
-  #     - ./config/node-b.toml:/config/config.toml:ro
+  #     - ./config/default.toml:/config/config.toml:ro
   #   environment:
   #     - AGENTDNS_NODE_NAME=registry-b
   #   depends_on:
@@ -101,7 +102,7 @@ services:
   #     - "4003:4001"
   #   volumes:
   #     - registry-c-data:/data
-  #     - ./config/node-c.toml:/config/config.toml:ro
+  #     - ./config/default.toml:/config/config.toml:ro
   #   environment:
   #     - AGENTDNS_NODE_NAME=registry-c
   #   depends_on:
