@@ -209,6 +209,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // --- Developer Handlers ---
 
 // handleRegisterDeveloper registers a new developer identity.
+//
+//	@Summary		Register a new developer
+//	@Description	Register a new developer identity with name, public_key, and signature. Self-registration is disabled in restricted mode.
+//	@Tags			Developers
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		models.DeveloperRegistrationRequest	true	"Developer registration payload"
+//	@Success		201		{object}	map[string]string					"developer_id and success message"
+//	@Failure		400		{object}	map[string]string					"Validation error"
+//	@Failure		401		{object}	map[string]string					"Invalid signature"
+//	@Failure		403		{object}	map[string]string					"Self-registration disabled"
+//	@Failure		409		{object}	map[string]string					"Developer already registered"
+//	@Failure		500		{object}	map[string]string					"Internal server error"
+//	@Router			/v1/developers [post]
 func (s *Server) handleRegisterDeveloper(w http.ResponseWriter, r *http.Request) {
 	// In restricted mode, self-registration is disabled
 	if s.cfg.Onboarding.Mode == "restricted" {
@@ -336,6 +350,16 @@ func (s *Server) handleRegisterDeveloper(w http.ResponseWriter, r *http.Request)
 }
 
 // handleGetDeveloper retrieves a developer by ID.
+//
+//	@Summary		Get developer by ID
+//	@Description	Retrieve a developer record by their developer_id. Falls back to gossip entries for remote developers.
+//	@Tags			Developers
+//	@Produce		json
+//	@Param			developerID	path		string					true	"Developer ID"
+//	@Success		200			{object}	models.DeveloperRecord	"Developer record"
+//	@Failure		404			{object}	map[string]string		"Developer not found"
+//	@Failure		500			{object}	map[string]string		"Internal server error"
+//	@Router			/v1/developers/{developerID} [get]
 func (s *Server) handleGetDeveloper(w http.ResponseWriter, r *http.Request) {
 	developerID := r.PathValue("developerID")
 	if developerID == "" {
@@ -370,6 +394,21 @@ func (s *Server) handleGetDeveloper(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleUpdateDeveloper updates a developer's profile.
+//
+//	@Summary		Update developer profile
+//	@Description	Update a developer's profile fields. Requires Authorization header with Bearer ed25519 signature.
+//	@Tags			Developers
+//	@Accept			json
+//	@Produce		json
+//	@Param			developerID		path		string							true	"Developer ID"
+//	@Param			Authorization	header		string							true	"Bearer ed25519:<base64sig>"
+//	@Param			body			body		models.DeveloperUpdateRequest	true	"Fields to update"
+//	@Success		200				{object}	models.DeveloperRecord			"Updated developer record"
+//	@Failure		400				{object}	map[string]string				"Invalid request body"
+//	@Failure		401				{object}	map[string]string				"Ownership verification failed"
+//	@Failure		404				{object}	map[string]string				"Developer not found"
+//	@Failure		500				{object}	map[string]string				"Internal server error"
+//	@Router			/v1/developers/{developerID} [put]
 func (s *Server) handleUpdateDeveloper(w http.ResponseWriter, r *http.Request) {
 	developerID := r.PathValue("developerID")
 	if developerID == "" {
@@ -430,6 +469,18 @@ func (s *Server) handleUpdateDeveloper(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDeleteDeveloper deregisters a developer identity.
+//
+//	@Summary		Delete developer
+//	@Description	Deregister a developer identity. Requires Authorization header with Bearer ed25519 signature.
+//	@Tags			Developers
+//	@Produce		json
+//	@Param			developerID		path		string				true	"Developer ID"
+//	@Param			Authorization	header		string				true	"Bearer ed25519:<base64sig>"
+//	@Success		200				{object}	map[string]string	"Deregistration confirmation"
+//	@Failure		401				{object}	map[string]string	"Ownership verification failed"
+//	@Failure		404				{object}	map[string]string	"Developer not found"
+//	@Failure		500				{object}	map[string]string	"Internal server error"
+//	@Router			/v1/developers/{developerID} [delete]
 func (s *Server) handleDeleteDeveloper(w http.ResponseWriter, r *http.Request) {
 	developerID := r.PathValue("developerID")
 	if developerID == "" {
@@ -462,6 +513,16 @@ func (s *Server) handleDeleteDeveloper(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleListDeveloperAgents lists all agents registered by a developer.
+//
+//	@Summary		List agents by developer
+//	@Description	Retrieve all agents registered by a given developer_id, including developer_id, agents array, and count.
+//	@Tags			Developers
+//	@Produce		json
+//	@Param			developerID	path		string				true	"Developer ID"
+//	@Success		200			{object}	map[string]interface{}	"developer_id, agents, and count"
+//	@Failure		400			{object}	map[string]string		"Missing developer_id"
+//	@Failure		500			{object}	map[string]string		"Internal server error"
+//	@Router			/v1/developers/{developerID}/agents [get]
 func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Request) {
 	developerID := r.PathValue("developerID")
 	if developerID == "" {
@@ -1174,7 +1235,19 @@ func (s *Server) handleRegistryInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleApproveDeveloper is called by the org website after KYC approval.
-// It generates a keypair, stores the developer, and returns the encrypted private key.
+//
+//	@Summary		Approve developer registration
+//	@Description	Approve a developer registration in restricted mode. Generates a keypair and returns the encrypted private key. Requires Bearer webhook token.
+//	@Tags			Admin
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string								true	"Bearer <webhook-secret>"
+//	@Param			body			body		models.DeveloperApprovalRequest		true	"Approval request with name and state"
+//	@Success		201				{object}	models.DeveloperApprovalResponse	"Developer approval response with encrypted private key"
+//	@Failure		400				{object}	map[string]string					"Validation error"
+//	@Failure		409				{object}	map[string]string					"Developer already registered"
+//	@Failure		500				{object}	map[string]string					"Internal server error"
+//	@Router			/v1/admin/developers/approve [post]
 func (s *Server) handleApproveDeveloper(w http.ResponseWriter, r *http.Request) {
 	var req models.DeveloperApprovalRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1339,6 +1412,21 @@ func rateLimited(rl *RateLimiter, next http.HandlerFunc) http.HandlerFunc {
 
 // --- Handle Endpoints ---
 
+// handleClaimHandle claims a ZNS developer handle.
+//
+//	@Summary		Claim a handle
+//	@Description	Claim a ZNS developer handle. Requires an existing developer identity and a valid signature.
+//	@Tags			Handles
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		models.HandleClaimRequest	true	"Handle claim payload"
+//	@Success		201		{object}	map[string]string			"handle, developer_id, and success message"
+//	@Failure		400		{object}	map[string]string			"Validation error"
+//	@Failure		401		{object}	map[string]string			"Invalid signature"
+//	@Failure		404		{object}	map[string]string			"Developer not found"
+//	@Failure		409		{object}	map[string]string			"Handle already taken"
+//	@Failure		500		{object}	map[string]string			"Internal server error"
+//	@Router			/v1/handles [post]
 func (s *Server) handleClaimHandle(w http.ResponseWriter, r *http.Request) {
 	var req models.HandleClaimRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1411,6 +1499,18 @@ func (s *Server) handleClaimHandle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleGetHandle gets the developer associated with a ZNS handle.
+//
+//	@Summary		Get developer by handle
+//	@Description	Retrieve the developer record associated with a ZNS handle, including verification status.
+//	@Tags			Handles
+//	@Produce		json
+//	@Param			handle	path		string				true	"ZNS handle (e.g. alice)"
+//	@Success		200		{object}	map[string]interface{}	"handle, developer_id, developer_name, verified, verification_method"
+//	@Failure		400		{object}	map[string]string		"Missing handle"
+//	@Failure		404		{object}	map[string]string		"Handle not found"
+//	@Failure		500		{object}	map[string]string		"Internal server error"
+//	@Router			/v1/handles/{handle} [get]
 func (s *Server) handleGetHandle(w http.ResponseWriter, r *http.Request) {
 	handle := r.PathValue("handle")
 	if handle == "" {
@@ -1438,6 +1538,17 @@ func (s *Server) handleGetHandle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleCheckHandleAvailable checks whether a ZNS handle is available.
+//
+//	@Summary		Check handle availability
+//	@Description	Check whether a ZNS handle is available on this registry. Returns availability and optional reason if taken.
+//	@Tags			Handles
+//	@Produce		json
+//	@Param			handle	path		string				true	"ZNS handle to check"
+//	@Success		200		{object}	map[string]interface{}	"handle, available, and optional reason"
+//	@Failure		400		{object}	map[string]string		"Missing handle"
+//	@Failure		500		{object}	map[string]string		"Internal server error"
+//	@Router			/v1/handles/{handle}/available [get]
 func (s *Server) handleCheckHandleAvailable(w http.ResponseWriter, r *http.Request) {
 	handle := r.PathValue("handle")
 	if handle == "" {
@@ -1473,6 +1584,20 @@ func (s *Server) handleCheckHandleAvailable(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// handleReleaseHandle releases a claimed ZNS handle.
+//
+//	@Summary		Release a handle
+//	@Description	Release a previously claimed ZNS handle. Requires Authorization header with Bearer ed25519 signature.
+//	@Tags			Handles
+//	@Produce		json
+//	@Param			handle			path		string				true	"ZNS handle to release"
+//	@Param			Authorization	header		string				true	"Bearer ed25519:<base64sig>"
+//	@Success		200				{object}	map[string]string	"Release confirmation"
+//	@Failure		400				{object}	map[string]string	"Missing handle"
+//	@Failure		401				{object}	map[string]string	"Ownership verification failed"
+//	@Failure		404				{object}	map[string]string	"Handle not found"
+//	@Failure		500				{object}	map[string]string	"Internal server error"
+//	@Router			/v1/handles/{handle} [delete]
 func (s *Server) handleReleaseHandle(w http.ResponseWriter, r *http.Request) {
 	handle := r.PathValue("handle")
 	if handle == "" {
@@ -1508,6 +1633,20 @@ func (s *Server) handleReleaseHandle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "handle released"})
 }
 
+// handleVerifyHandle verifies a ZNS handle via DNS or GitHub.
+//
+//	@Summary		Verify a handle
+//	@Description	Verify a ZNS handle ownership via DNS TXT record or GitHub. Sets the verified flag and verification method on success.
+//	@Tags			Handles
+//	@Accept			json
+//	@Produce		json
+//	@Param			handle	path		string						true	"ZNS handle to verify"
+//	@Param			body	body		models.HandleVerifyRequest	true	"Verification method and proof"
+//	@Success		200		{object}	map[string]string			"Verification confirmation"
+//	@Failure		400		{object}	map[string]string			"Verification failed or invalid method"
+//	@Failure		404		{object}	map[string]string			"Handle not found"
+//	@Failure		500		{object}	map[string]string			"Internal server error"
+//	@Router			/v1/handles/{handle}/verify [post]
 func (s *Server) handleVerifyHandle(w http.ResponseWriter, r *http.Request) {
 	handle := r.PathValue("handle")
 	if handle == "" {
@@ -1573,6 +1712,17 @@ func (s *Server) handleVerifyHandle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleListHandleAgents lists all ZNS name bindings (agent bindings) for a handle.
+//
+//	@Summary		List agents for a handle
+//	@Description	List all ZNS name bindings (agent names) registered under a given developer handle.
+//	@Tags			Handles
+//	@Produce		json
+//	@Param			handle	path		string				true	"ZNS developer handle"
+//	@Success		200		{array}		models.ZNSName		"List of ZNS name bindings"
+//	@Failure		400		{object}	map[string]string	"Missing handle"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/v1/handles/{handle}/agents [get]
 func (s *Server) handleListHandleAgents(w http.ResponseWriter, r *http.Request) {
 	handle := r.PathValue("handle")
 	if handle == "" {
@@ -1594,6 +1744,21 @@ func (s *Server) handleListHandleAgents(w http.ResponseWriter, r *http.Request) 
 
 // --- Name Binding Endpoints ---
 
+// handleRegisterName registers an agent name binding (ZNS FQAN).
+//
+//	@Summary		Register an agent name
+//	@Description	Register a ZNS agent name binding, creating a Fully Qualified Agent Name (FQAN) under a developer handle.
+//	@Tags			Names
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		models.NameBindingRequest	true	"Name binding payload"
+//	@Success		201		{object}	map[string]string			"fqan, agent_id, and success message"
+//	@Failure		400		{object}	map[string]string			"Validation error"
+//	@Failure		401		{object}	map[string]string			"Invalid signature"
+//	@Failure		404		{object}	map[string]string			"Developer handle or agent not found"
+//	@Failure		409		{object}	map[string]string			"Name already registered"
+//	@Failure		500		{object}	map[string]string			"Internal server error"
+//	@Router			/v1/names [post]
 func (s *Server) handleRegisterName(w http.ResponseWriter, r *http.Request) {
 	var req models.NameBindingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1715,6 +1880,19 @@ func (s *Server) handleRegisterName(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleGetName gets a ZNS name binding by developer handle and agent name.
+//
+//	@Summary		Get name binding
+//	@Description	Retrieve a ZNS name binding record by developer handle and agent name path parameters.
+//	@Tags			Names
+//	@Produce		json
+//	@Param			developer	path		string			true	"Developer handle"
+//	@Param			agent		path		string			true	"Agent name"
+//	@Success		200			{object}	models.ZNSName	"ZNS name binding"
+//	@Failure		400			{object}	map[string]string	"Missing path parameters"
+//	@Failure		404			{object}	map[string]string	"Name not found"
+//	@Failure		500			{object}	map[string]string	"Internal server error"
+//	@Router			/v1/names/{developer}/{agent} [get]
 func (s *Server) handleGetName(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
 	agentName := r.PathValue("agent")
@@ -1737,6 +1915,18 @@ func (s *Server) handleGetName(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, name)
 }
 
+// handleCheckNameAvailable checks whether a ZNS agent name is available.
+//
+//	@Summary		Check name availability
+//	@Description	Check whether a ZNS agent name is available under a given developer handle.
+//	@Tags			Names
+//	@Produce		json
+//	@Param			developer	path		string				true	"Developer handle"
+//	@Param			agent		path		string				true	"Agent name"
+//	@Success		200			{object}	map[string]interface{}	"developer, agent_name, available, and optional reason"
+//	@Failure		400			{object}	map[string]string		"Missing path parameters"
+//	@Failure		500			{object}	map[string]string		"Internal server error"
+//	@Router			/v1/names/{developer}/{agent}/available [get]
 func (s *Server) handleCheckNameAvailable(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
 	agentName := r.PathValue("agent")
@@ -1776,6 +1966,21 @@ func (s *Server) handleCheckNameAvailable(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// handleUpdateName updates a ZNS name binding's version or capability tags.
+//
+//	@Summary		Update name binding
+//	@Description	Update the version and/or capability_tags of an existing ZNS agent name binding.
+//	@Tags			Names
+//	@Accept			json
+//	@Produce		json
+//	@Param			developer	path		string			true	"Developer handle"
+//	@Param			agent		path		string			true	"Agent name"
+//	@Param			body		body		object			true	"Fields to update (version, capability_tags, signature)"
+//	@Success		200			{object}	models.ZNSName	"Updated ZNS name binding"
+//	@Failure		400			{object}	map[string]string	"Invalid request body"
+//	@Failure		404			{object}	map[string]string	"Name not found"
+//	@Failure		500			{object}	map[string]string	"Internal server error"
+//	@Router			/v1/names/{developer}/{agent} [put]
 func (s *Server) handleUpdateName(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
 	agentName := r.PathValue("agent")
@@ -1832,6 +2037,20 @@ func (s *Server) handleUpdateName(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, name)
 }
 
+// handleReleaseName releases a ZNS agent name binding.
+//
+//	@Summary		Release a name binding
+//	@Description	Release a ZNS agent name binding. Requires Authorization header with Bearer ed25519 signature.
+//	@Tags			Names
+//	@Produce		json
+//	@Param			developer		path		string				true	"Developer handle"
+//	@Param			agent			path		string				true	"Agent name"
+//	@Param			Authorization	header		string				true	"Bearer ed25519:<base64sig>"
+//	@Success		200				{object}	map[string]string	"Release confirmation"
+//	@Failure		401				{object}	map[string]string	"Ownership verification failed"
+//	@Failure		404				{object}	map[string]string	"Name or developer not found"
+//	@Failure		500				{object}	map[string]string	"Internal server error"
+//	@Router			/v1/names/{developer}/{agent} [delete]
 func (s *Server) handleReleaseName(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
 	agentName := r.PathValue("agent")
@@ -1869,6 +2088,18 @@ func (s *Server) handleReleaseName(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "name released"})
 }
 
+// handleListVersions lists version history for a ZNS name binding.
+//
+//	@Summary		List version history
+//	@Description	Retrieve the full version history for a ZNS agent name binding.
+//	@Tags			Names
+//	@Produce		json
+//	@Param			developer	path		string				true	"Developer handle"
+//	@Param			agent		path		string				true	"Agent name"
+//	@Success		200			{array}		models.ZNSVersion	"List of version records"
+//	@Failure		404			{object}	map[string]string	"Name not found"
+//	@Failure		500			{object}	map[string]string	"Internal server error"
+//	@Router			/v1/names/{developer}/{agent}/versions [get]
 func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
 	agentName := r.PathValue("agent")
@@ -1893,6 +2124,19 @@ func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request) {
 
 // --- Resolution Endpoint ---
 
+// handleResolveName resolves a FQAN to agent details.
+//
+//	@Summary		Resolve a FQAN
+//	@Description	Resolve a Fully Qualified Agent Name (FQAN) to its agent details, including agent_url, public_key, and trust information.
+//	@Tags			Resolution
+//	@Produce		json
+//	@Param			developer	path		string						true	"Developer handle"
+//	@Param			agent		path		string						true	"Agent name"
+//	@Success		200			{object}	models.ZNSResolveResponse	"Resolved agent details"
+//	@Failure		400			{object}	map[string]string			"Missing path parameters"
+//	@Failure		404			{object}	map[string]string			"Name not found"
+//	@Failure		500			{object}	map[string]string			"Internal server error"
+//	@Router			/v1/resolve/{developer}/{agent} [get]
 func (s *Server) handleResolveName(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
 	agentName := r.PathValue("agent")

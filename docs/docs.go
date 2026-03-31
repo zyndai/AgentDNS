@@ -45,9 +45,77 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/admin/developers/approve": {
+            "post": {
+                "description": "Approve a developer registration in restricted mode. Generates a keypair and returns the encrypted private key. Requires Bearer webhook token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Approve developer registration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer \u003cwebhook-secret\u003e",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Approval request with name and state",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.DeveloperApprovalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Developer approval response with encrypted private key",
+                        "schema": {
+                            "$ref": "#/definitions/models.DeveloperApprovalResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Developer already registered",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/agents": {
             "post": {
-                "description": "Register a new AI agent on the registry network. Requires name, agent_url, category, and public_key.",
+                "description": "Register a new AI agent on the registry network. Requires name, agent_url, category, and public_key. Optionally includes developer_id and developer_proof for developer chain of trust.",
                 "consumes": [
                     "application/json"
                 ],
@@ -65,7 +133,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.RegistrationRequest"
+                            "$ref": "#/definitions/models.RegistrationRequest"
                         }
                     }
                 ],
@@ -141,7 +209,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Agent registry record",
                         "schema": {
-                            "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.RegistryRecord"
+                            "$ref": "#/definitions/models.RegistryRecord"
                         }
                     },
                     "400": {
@@ -199,7 +267,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.UpdateRequest"
+                            "$ref": "#/definitions/models.UpdateRequest"
                         }
                     }
                 ],
@@ -207,7 +275,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Updated agent record",
                         "schema": {
-                            "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.RegistryRecord"
+                            "$ref": "#/definitions/models.RegistryRecord"
                         }
                     },
                     "400": {
@@ -320,7 +388,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Agent card",
                         "schema": {
-                            "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.AgentCard"
+                            "$ref": "#/definitions/models.AgentCard"
                         }
                     },
                     "400": {
@@ -388,6 +456,1111 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/developers": {
+            "post": {
+                "description": "Register a new developer identity with name, public_key, and signature. Self-registration is disabled in restricted mode.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Developers"
+                ],
+                "summary": "Register a new developer",
+                "parameters": [
+                    {
+                        "description": "Developer registration payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.DeveloperRegistrationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "developer_id and success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid signature",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Self-registration disabled",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Developer already registered",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/developers/{developerID}": {
+            "get": {
+                "description": "Retrieve a developer record by their developer_id. Falls back to gossip entries for remote developers.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Developers"
+                ],
+                "summary": "Get developer by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Developer ID",
+                        "name": "developerID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Developer record",
+                        "schema": {
+                            "$ref": "#/definitions/models.DeveloperRecord"
+                        }
+                    },
+                    "404": {
+                        "description": "Developer not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update a developer's profile fields. Requires Authorization header with Bearer ed25519 signature.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Developers"
+                ],
+                "summary": "Update developer profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Developer ID",
+                        "name": "developerID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer ed25519:\u003cbase64sig\u003e",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.DeveloperUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated developer record",
+                        "schema": {
+                            "$ref": "#/definitions/models.DeveloperRecord"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Ownership verification failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Developer not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deregister a developer identity. Requires Authorization header with Bearer ed25519 signature.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Developers"
+                ],
+                "summary": "Delete developer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Developer ID",
+                        "name": "developerID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer ed25519:\u003cbase64sig\u003e",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Deregistration confirmation",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Ownership verification failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Developer not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/developers/{developerID}/agents": {
+            "get": {
+                "description": "Retrieve all agents registered by a given developer_id, including developer_id, agents array, and count.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Developers"
+                ],
+                "summary": "List agents by developer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Developer ID",
+                        "name": "developerID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "developer_id, agents, and count",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Missing developer_id",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/handles": {
+            "post": {
+                "description": "Claim a ZNS developer handle. Requires an existing developer identity and a valid signature.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Handles"
+                ],
+                "summary": "Claim a handle",
+                "parameters": [
+                    {
+                        "description": "Handle claim payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.HandleClaimRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "handle, developer_id, and success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid signature",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Developer not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Handle already taken",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/handles/{handle}": {
+            "get": {
+                "description": "Retrieve the developer record associated with a ZNS handle, including verification status.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Handles"
+                ],
+                "summary": "Get developer by handle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ZNS handle (e.g. alice)",
+                        "name": "handle",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "handle, developer_id, developer_name, verified, verification_method",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Missing handle",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Handle not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Release a previously claimed ZNS handle. Requires Authorization header with Bearer ed25519 signature.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Handles"
+                ],
+                "summary": "Release a handle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ZNS handle to release",
+                        "name": "handle",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer ed25519:\u003cbase64sig\u003e",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Release confirmation",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Missing handle",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Ownership verification failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Handle not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/handles/{handle}/agents": {
+            "get": {
+                "description": "List all ZNS name bindings (agent names) registered under a given developer handle.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Handles"
+                ],
+                "summary": "List agents for a handle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ZNS developer handle",
+                        "name": "handle",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of ZNS name bindings",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ZNSName"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Missing handle",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/handles/{handle}/available": {
+            "get": {
+                "description": "Check whether a ZNS handle is available on this registry. Returns availability and optional reason if taken.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Handles"
+                ],
+                "summary": "Check handle availability",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ZNS handle to check",
+                        "name": "handle",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "handle, available, and optional reason",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Missing handle",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/handles/{handle}/verify": {
+            "post": {
+                "description": "Verify a ZNS handle ownership via DNS TXT record or GitHub. Sets the verified flag and verification method on success.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Handles"
+                ],
+                "summary": "Verify a handle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ZNS handle to verify",
+                        "name": "handle",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Verification method and proof",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.HandleVerifyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Verification confirmation",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Verification failed or invalid method",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Handle not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/names": {
+            "post": {
+                "description": "Register a ZNS agent name binding, creating a Fully Qualified Agent Name (FQAN) under a developer handle.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Names"
+                ],
+                "summary": "Register an agent name",
+                "parameters": [
+                    {
+                        "description": "Name binding payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.NameBindingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "fqan, agent_id, and success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid signature",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Developer handle or agent not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Name already registered",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/names/{developer}/{agent}": {
+            "get": {
+                "description": "Retrieve a ZNS name binding record by developer handle and agent name path parameters.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Names"
+                ],
+                "summary": "Get name binding",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Developer handle",
+                        "name": "developer",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent name",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "ZNS name binding",
+                        "schema": {
+                            "$ref": "#/definitions/models.ZNSName"
+                        }
+                    },
+                    "400": {
+                        "description": "Missing path parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Name not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update the version and/or capability_tags of an existing ZNS agent name binding.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Names"
+                ],
+                "summary": "Update name binding",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Developer handle",
+                        "name": "developer",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent name",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update (version, capability_tags, signature)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated ZNS name binding",
+                        "schema": {
+                            "$ref": "#/definitions/models.ZNSName"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Name not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Release a ZNS agent name binding. Requires Authorization header with Bearer ed25519 signature.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Names"
+                ],
+                "summary": "Release a name binding",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Developer handle",
+                        "name": "developer",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent name",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer ed25519:\u003cbase64sig\u003e",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Release confirmation",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Ownership verification failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Name or developer not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/names/{developer}/{agent}/available": {
+            "get": {
+                "description": "Check whether a ZNS agent name is available under a given developer handle.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Names"
+                ],
+                "summary": "Check name availability",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Developer handle",
+                        "name": "developer",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent name",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "developer, agent_name, available, and optional reason",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Missing path parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/names/{developer}/{agent}/versions": {
+            "get": {
+                "description": "Retrieve the full version history for a ZNS agent name binding.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Names"
+                ],
+                "summary": "List version history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Developer handle",
+                        "name": "developer",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent name",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of version records",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ZNSVersion"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Name not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/network/peers": {
             "get": {
                 "description": "Returns a list of all connected peer registries in the mesh network.",
@@ -406,7 +1579,7 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "array",
                                 "items": {
-                                    "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.PeerInfo"
+                                    "$ref": "#/definitions/models.PeerInfo"
                                 }
                             }
                         }
@@ -432,7 +1605,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.PeerInfo"
+                            "$ref": "#/definitions/models.PeerInfo"
                         }
                     }
                 ],
@@ -472,7 +1645,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Network statistics",
                         "schema": {
-                            "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.NetworkStats"
+                            "$ref": "#/definitions/models.NetworkStats"
                         }
                     }
                 }
@@ -492,7 +1665,70 @@ const docTemplate = `{
                     "200": {
                         "description": "Node status",
                         "schema": {
-                            "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.NetworkStatus"
+                            "$ref": "#/definitions/models.NetworkStatus"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/resolve/{developer}/{agent}": {
+            "get": {
+                "description": "Resolve a Fully Qualified Agent Name (FQAN) to its agent details, including agent_url, public_key, and trust information.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Resolution"
+                ],
+                "summary": "Resolve a FQAN",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Developer handle",
+                        "name": "developer",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent name",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Resolved agent details",
+                        "schema": {
+                            "$ref": "#/definitions/models.ZNSResolveResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Missing path parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Name not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -518,7 +1754,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.SearchRequest"
+                            "$ref": "#/definitions/models.SearchRequest"
                         }
                     }
                 ],
@@ -526,7 +1762,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Search results",
                         "schema": {
-                            "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.SearchResponse"
+                            "$ref": "#/definitions/models.SearchResponse"
                         }
                     },
                     "400": {
@@ -587,7 +1823,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_agentdns_agent-dns_internal_models.AgentCard": {
+        "models.AgentCard": {
             "type": "object",
             "properties": {
                 "agent_id": {
@@ -596,20 +1832,23 @@ const docTemplate = `{
                 "capabilities": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.Capability"
+                        "$ref": "#/definitions/models.Capability"
                     }
                 },
                 "endpoints": {
-                    "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.Endpoints"
+                    "$ref": "#/definitions/models.Endpoints"
                 },
                 "last_heartbeat": {
                     "type": "string"
                 },
                 "metadata": {
-                    "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.CardMeta"
+                    "$ref": "#/definitions/models.CardMeta"
                 },
                 "pricing": {
-                    "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.Pricing"
+                    "$ref": "#/definitions/models.Pricing"
+                },
+                "schema_version": {
+                    "type": "string"
                 },
                 "signature": {
                     "type": "string"
@@ -622,14 +1861,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "trust": {
-                    "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.TrustInfo"
+                    "$ref": "#/definitions/models.TrustInfo"
                 },
                 "version": {
                     "type": "string"
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.Capability": {
+        "models.Capability": {
             "type": "object",
             "properties": {
                 "description": {
@@ -638,7 +1877,7 @@ const docTemplate = `{
                 "examples": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.Example"
+                        "$ref": "#/definitions/models.Example"
                     }
                 },
                 "input_schema": {
@@ -671,7 +1910,54 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.CardMeta": {
+        "models.CapabilitySummary": {
+            "type": "object",
+            "properties": {
+                "input_types": {
+                    "description": "e.g., [\"text\", \"code\", \"image\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "languages": {
+                    "description": "e.g., [\"python\", \"javascript\", \"go\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "models": {
+                    "description": "e.g., [\"gpt-4\", \"claude-3.5-sonnet\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "output_types": {
+                    "description": "e.g., [\"text\", \"json\", \"markdown\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "protocols": {
+                    "description": "e.g., [\"a2a\", \"mcp\", \"jsonrpc\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "skills": {
+                    "description": "e.g., [\"code-review\", \"linting\", \"security-audit\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "models.CardMeta": {
             "type": "object",
             "properties": {
                 "documentation": {
@@ -691,7 +1977,173 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.Endpoints": {
+        "models.DeveloperApprovalRequest": {
+            "type": "object",
+            "properties": {
+                "callback_port": {
+                    "description": "optional — only used by CLI flow",
+                    "type": "integer"
+                },
+                "metadata": {
+                    "description": "org-specific (email, kyc_id, etc.)",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "state": {
+                    "description": "used to encrypt private key",
+                    "type": "string"
+                }
+            }
+        },
+        "models.DeveloperApprovalResponse": {
+            "type": "object",
+            "properties": {
+                "developer_id": {
+                    "type": "string"
+                },
+                "private_key_enc": {
+                    "description": "AES-GCM encrypted with SHA256(state)",
+                    "type": "string"
+                },
+                "public_key": {
+                    "description": "ed25519:\u003cbase64\u003e — for org-side key custody",
+                    "type": "string"
+                }
+            }
+        },
+        "models.DeveloperProof": {
+            "type": "object",
+            "properties": {
+                "agent_index": {
+                    "description": "derivation index",
+                    "type": "integer"
+                },
+                "developer_public_key": {
+                    "description": "ed25519:\u003cbase64\u003e",
+                    "type": "string"
+                },
+                "developer_signature": {
+                    "description": "ed25519:\u003cbase64\u003e over (agent_pub || index)",
+                    "type": "string"
+                }
+            }
+        },
+        "models.DeveloperRecord": {
+            "type": "object",
+            "properties": {
+                "dev_handle": {
+                    "description": "ZNS handle fields (optional — developers can exist without handles)",
+                    "type": "string"
+                },
+                "dev_handle_verified": {
+                    "description": "true if handle is domain/github verified",
+                    "type": "boolean"
+                },
+                "developer_id": {
+                    "description": "agdns:dev:\u003chash\u003e",
+                    "type": "string"
+                },
+                "github": {
+                    "description": "optional GitHub handle",
+                    "type": "string"
+                },
+                "home_registry": {
+                    "description": "registry where first registered",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "human-readable developer name",
+                    "type": "string"
+                },
+                "profile_url": {
+                    "description": "optional website/profile",
+                    "type": "string"
+                },
+                "public_key": {
+                    "description": "ed25519:\u003cbase64\u003e",
+                    "type": "string"
+                },
+                "registered_at": {
+                    "type": "string"
+                },
+                "schema_version": {
+                    "description": "schema version",
+                    "type": "string"
+                },
+                "signature": {
+                    "description": "developer signs the registration",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "verification_method": {
+                    "description": "\"dns\", \"github\", or \"\" (self-claimed)",
+                    "type": "string"
+                },
+                "verification_proof": {
+                    "description": "domain name or github username",
+                    "type": "string"
+                }
+            }
+        },
+        "models.DeveloperRegistrationRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "public_key",
+                "signature"
+            ],
+            "properties": {
+                "github": {
+                    "type": "string"
+                },
+                "handle": {
+                    "description": "optional ZNS handle, claimed atomically during registration",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "profile_url": {
+                    "type": "string"
+                },
+                "public_key": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.DeveloperUpdateRequest": {
+            "type": "object",
+            "required": [
+                "signature"
+            ],
+            "properties": {
+                "github": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "profile_url": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.Endpoints": {
             "type": "object",
             "properties": {
                 "health": {
@@ -705,7 +2157,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.Example": {
+        "models.Example": {
             "type": "object",
             "properties": {
                 "input": {
@@ -716,7 +2168,79 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.NetworkStats": {
+        "models.HandleClaimRequest": {
+            "type": "object",
+            "required": [
+                "developer_id",
+                "handle",
+                "public_key",
+                "signature"
+            ],
+            "properties": {
+                "developer_id": {
+                    "type": "string"
+                },
+                "handle": {
+                    "type": "string"
+                },
+                "public_key": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.HandleVerifyRequest": {
+            "type": "object",
+            "required": [
+                "method",
+                "proof"
+            ],
+            "properties": {
+                "method": {
+                    "description": "\"dns\" or \"github\"",
+                    "type": "string"
+                },
+                "proof": {
+                    "description": "domain name or github username",
+                    "type": "string"
+                }
+            }
+        },
+        "models.NameBindingRequest": {
+            "type": "object",
+            "required": [
+                "agent_id",
+                "agent_name",
+                "developer_handle",
+                "signature"
+            ],
+            "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
+                "agent_name": {
+                    "type": "string"
+                },
+                "capability_tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "developer_handle": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.NetworkStats": {
             "type": "object",
             "properties": {
                 "estimated_agents": {
@@ -737,7 +2261,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.NetworkStatus": {
+        "models.NetworkStatus": {
             "type": "object",
             "properties": {
                 "cached_cards": {
@@ -770,7 +2294,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.PeerInfo": {
+        "models.PeerInfo": {
             "type": "object",
             "properties": {
                 "address": {
@@ -802,12 +2326,16 @@ const docTemplate = `{
                 "public_key": {
                     "type": "string"
                 },
+                "registry_host": {
+                    "description": "ZNS: the peer's domain name (e.g., \"dns01.zynd.ai\")",
+                    "type": "string"
+                },
                 "registry_id": {
                     "type": "string"
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.Pricing": {
+        "models.Pricing": {
             "type": "object",
             "properties": {
                 "currency": {
@@ -833,7 +2361,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.RegistrationRequest": {
+        "models.RegistrationRequest": {
             "type": "object",
             "required": [
                 "agent_url",
@@ -844,13 +2372,27 @@ const docTemplate = `{
                 "summary"
             ],
             "properties": {
+                "agent_name": {
+                    "description": "ZNS naming fields (optional — requires developer with claimed handle)",
+                    "type": "string"
+                },
                 "agent_url": {
                     "type": "string"
+                },
+                "capability_summary": {
+                    "$ref": "#/definitions/models.CapabilitySummary"
                 },
                 "category": {
                     "type": "string",
                     "maxLength": 50,
                     "minLength": 1
+                },
+                "developer_id": {
+                    "description": "Developer identity fields (optional -- agents can register without a developer)",
+                    "type": "string"
+                },
+                "developer_proof": {
+                    "$ref": "#/definitions/models.DeveloperProof"
                 },
                 "name": {
                     "type": "string",
@@ -873,22 +2415,51 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "version": {
+                    "description": "semver, e.g., \"2.1.0\"",
+                    "type": "string"
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.RegistryRecord": {
+        "models.RegistryRecord": {
             "type": "object",
             "properties": {
                 "agent_id": {
                     "type": "string"
                 },
+                "agent_index": {
+                    "type": "integer"
+                },
                 "agent_url": {
                     "type": "string"
+                },
+                "capability_summary": {
+                    "$ref": "#/definitions/models.CapabilitySummary"
                 },
                 "category": {
                     "type": "string"
                 },
+                "codebase_hash": {
+                    "description": "Codebase integrity",
+                    "type": "string"
+                },
+                "developer_id": {
+                    "description": "Developer identity fields (optional for backward compatibility)",
+                    "type": "string"
+                },
+                "developer_proof": {
+                    "description": "stored as JSONB",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.DeveloperProof"
+                        }
+                    ]
+                },
                 "home_registry": {
+                    "type": "string"
+                },
+                "last_heartbeat": {
                     "type": "string"
                 },
                 "name": {
@@ -903,7 +2474,14 @@ const docTemplate = `{
                 "registered_at": {
                     "type": "string"
                 },
+                "schema_version": {
+                    "type": "string"
+                },
                 "signature": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Heartbeat liveness fields (server-managed, excluded from signing)",
                     "type": "string"
                 },
                 "summary": {
@@ -923,7 +2501,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.ScoreBreakdown": {
+        "models.ScoreBreakdown": {
             "type": "object",
             "properties": {
                 "availability": {
@@ -943,10 +2521,14 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.SearchRequest": {
+        "models.SearchRequest": {
             "type": "object",
             "properties": {
                 "category": {
+                    "type": "string"
+                },
+                "developer_id": {
+                    "description": "filter by developer",
                     "type": "string"
                 },
                 "enrich": {
@@ -955,14 +2537,45 @@ const docTemplate = `{
                 "federated": {
                     "type": "boolean"
                 },
+                "languages": {
+                    "description": "e.g., [\"python\", \"javascript\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "max_results": {
                     "type": "integer"
                 },
                 "min_trust_score": {
                     "type": "number"
                 },
+                "models": {
+                    "description": "e.g., [\"gpt-4\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "protocols": {
+                    "description": "e.g., [\"a2a\", \"mcp\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "query": {
                     "type": "string"
+                },
+                "skills": {
+                    "description": "Capability filters",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "status": {
                     "description": "online, offline, any",
@@ -979,41 +2592,57 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.SearchResponse": {
+        "models.SearchResponse": {
             "type": "object",
             "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "offset": {
+                    "type": "integer"
+                },
                 "results": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.SearchResult"
+                        "$ref": "#/definitions/models.SearchResult"
                     }
                 },
                 "search_stats": {
-                    "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.SearchStats"
+                    "$ref": "#/definitions/models.SearchStats"
                 },
                 "total_found": {
                     "type": "integer"
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.SearchResult": {
+        "models.SearchResult": {
             "type": "object",
             "properties": {
                 "agent_id": {
                     "type": "string"
                 },
-                "agent_url": {
-                    "type": "string"
+                "capability_summary": {
+                    "$ref": "#/definitions/models.CapabilitySummary"
                 },
                 "card": {
                     "description": "included if enrich=true",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.AgentCard"
+                            "$ref": "#/definitions/models.AgentCard"
                         }
                     ]
                 },
                 "category": {
+                    "type": "string"
+                },
+                "developer_handle": {
+                    "type": "string"
+                },
+                "developer_id": {
+                    "type": "string"
+                },
+                "fqan": {
+                    "description": "ZNS fields (populated when agent has a name binding)",
                     "type": "string"
                 },
                 "home_registry": {
@@ -1026,7 +2655,10 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "score_breakdown": {
-                    "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.ScoreBreakdown"
+                    "$ref": "#/definitions/models.ScoreBreakdown"
+                },
+                "status": {
+                    "type": "string"
                 },
                 "summary": {
                     "type": "string"
@@ -1039,7 +2671,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.SearchStats": {
+        "models.SearchStats": {
             "type": "object",
             "properties": {
                 "federated_results": {
@@ -1059,7 +2691,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.TrustInfo": {
+        "models.TrustInfo": {
             "type": "object",
             "properties": {
                 "avg_rating": {
@@ -1077,12 +2709,12 @@ const docTemplate = `{
                 "verifications": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_agentdns_agent-dns_internal_models.Verification"
+                        "$ref": "#/definitions/models.Verification"
                     }
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.UpdateRequest": {
+        "models.UpdateRequest": {
             "type": "object",
             "required": [
                 "signature"
@@ -1091,7 +2723,13 @@ const docTemplate = `{
                 "agent_url": {
                     "type": "string"
                 },
+                "capability_summary": {
+                    "$ref": "#/definitions/models.CapabilitySummary"
+                },
                 "category": {
+                    "type": "string"
+                },
+                "codebase_hash": {
                     "type": "string"
                 },
                 "signature": {
@@ -1111,7 +2749,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_agentdns_agent-dns_internal_models.Verification": {
+        "models.Verification": {
             "type": "object",
             "properties": {
                 "issued": {
@@ -1121,6 +2759,122 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ZNSName": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "description": "agdns:\u003chash\u003e",
+                    "type": "string"
+                },
+                "agent_name": {
+                    "description": "e.g., \"doc-translator\"",
+                    "type": "string"
+                },
+                "capability_tags": {
+                    "description": "stored as TEXT[]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "current_version": {
+                    "type": "string"
+                },
+                "developer_handle": {
+                    "description": "e.g., \"acme-corp\"",
+                    "type": "string"
+                },
+                "developer_id": {
+                    "description": "agdns:dev:\u003chash\u003e",
+                    "type": "string"
+                },
+                "fqan": {
+                    "description": "PRIMARY KEY",
+                    "type": "string"
+                },
+                "registered_at": {
+                    "type": "string"
+                },
+                "registry_host": {
+                    "description": "e.g., \"dns01.zynd.ai\"",
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ZNSResolveResponse": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
+                "agent_url": {
+                    "type": "string"
+                },
+                "developer_handle": {
+                    "type": "string"
+                },
+                "developer_id": {
+                    "type": "string"
+                },
+                "fqan": {
+                    "type": "string"
+                },
+                "protocols": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "public_key": {
+                    "type": "string"
+                },
+                "registry_host": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "trust_score": {
+                    "type": "number"
+                },
+                "verification_tier": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ZNSVersion": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "description": "agent_id at this version",
+                    "type": "string"
+                },
+                "build_hash": {
+                    "type": "string"
+                },
+                "fqan": {
+                    "type": "string"
+                },
+                "registered_at": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "version": {
                     "type": "string"
                 }
             }

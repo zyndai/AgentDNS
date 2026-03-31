@@ -1,21 +1,23 @@
 basePath: /
 definitions:
-  github_com_agentdns_agent-dns_internal_models.AgentCard:
+  models.AgentCard:
     properties:
       agent_id:
         type: string
       capabilities:
         items:
-          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.Capability'
+          $ref: '#/definitions/models.Capability'
         type: array
       endpoints:
-        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.Endpoints'
+        $ref: '#/definitions/models.Endpoints'
       last_heartbeat:
         type: string
       metadata:
-        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.CardMeta'
+        $ref: '#/definitions/models.CardMeta'
       pricing:
-        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.Pricing'
+        $ref: '#/definitions/models.Pricing'
+      schema_version:
+        type: string
       signature:
         type: string
       signed_at:
@@ -24,17 +26,17 @@ definitions:
         description: online, offline, degraded, maintenance
         type: string
       trust:
-        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.TrustInfo'
+        $ref: '#/definitions/models.TrustInfo'
       version:
         type: string
     type: object
-  github_com_agentdns_agent-dns_internal_models.Capability:
+  models.Capability:
     properties:
       description:
         type: string
       examples:
         items:
-          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.Example'
+          $ref: '#/definitions/models.Example'
         type: array
       input_schema:
         additionalProperties: true
@@ -57,7 +59,40 @@ definitions:
           type: string
         type: array
     type: object
-  github_com_agentdns_agent-dns_internal_models.CardMeta:
+  models.CapabilitySummary:
+    properties:
+      input_types:
+        description: e.g., ["text", "code", "image"]
+        items:
+          type: string
+        type: array
+      languages:
+        description: e.g., ["python", "javascript", "go"]
+        items:
+          type: string
+        type: array
+      models:
+        description: e.g., ["gpt-4", "claude-3.5-sonnet"]
+        items:
+          type: string
+        type: array
+      output_types:
+        description: e.g., ["text", "json", "markdown"]
+        items:
+          type: string
+        type: array
+      protocols:
+        description: e.g., ["a2a", "mcp", "jsonrpc"]
+        items:
+          type: string
+        type: array
+      skills:
+        description: e.g., ["code-review", "linting", "security-audit"]
+        items:
+          type: string
+        type: array
+    type: object
+  models.CardMeta:
     properties:
       documentation:
         type: string
@@ -70,7 +105,124 @@ definitions:
       source_code:
         type: string
     type: object
-  github_com_agentdns_agent-dns_internal_models.Endpoints:
+  models.DeveloperApprovalRequest:
+    properties:
+      callback_port:
+        description: optional — only used by CLI flow
+        type: integer
+      metadata:
+        additionalProperties:
+          type: string
+        description: org-specific (email, kyc_id, etc.)
+        type: object
+      name:
+        type: string
+      state:
+        description: used to encrypt private key
+        type: string
+    type: object
+  models.DeveloperApprovalResponse:
+    properties:
+      developer_id:
+        type: string
+      private_key_enc:
+        description: AES-GCM encrypted with SHA256(state)
+        type: string
+      public_key:
+        description: ed25519:<base64> — for org-side key custody
+        type: string
+    type: object
+  models.DeveloperProof:
+    properties:
+      agent_index:
+        description: derivation index
+        type: integer
+      developer_public_key:
+        description: ed25519:<base64>
+        type: string
+      developer_signature:
+        description: ed25519:<base64> over (agent_pub || index)
+        type: string
+    type: object
+  models.DeveloperRecord:
+    properties:
+      dev_handle:
+        description: ZNS handle fields (optional — developers can exist without handles)
+        type: string
+      dev_handle_verified:
+        description: true if handle is domain/github verified
+        type: boolean
+      developer_id:
+        description: agdns:dev:<hash>
+        type: string
+      github:
+        description: optional GitHub handle
+        type: string
+      home_registry:
+        description: registry where first registered
+        type: string
+      name:
+        description: human-readable developer name
+        type: string
+      profile_url:
+        description: optional website/profile
+        type: string
+      public_key:
+        description: ed25519:<base64>
+        type: string
+      registered_at:
+        type: string
+      schema_version:
+        description: schema version
+        type: string
+      signature:
+        description: developer signs the registration
+        type: string
+      updated_at:
+        type: string
+      verification_method:
+        description: '"dns", "github", or "" (self-claimed)'
+        type: string
+      verification_proof:
+        description: domain name or github username
+        type: string
+    type: object
+  models.DeveloperRegistrationRequest:
+    properties:
+      github:
+        type: string
+      handle:
+        description: optional ZNS handle, claimed atomically during registration
+        type: string
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      profile_url:
+        type: string
+      public_key:
+        type: string
+      signature:
+        type: string
+    required:
+    - name
+    - public_key
+    - signature
+    type: object
+  models.DeveloperUpdateRequest:
+    properties:
+      github:
+        type: string
+      name:
+        type: string
+      profile_url:
+        type: string
+      signature:
+        type: string
+    required:
+    - signature
+    type: object
+  models.Endpoints:
     properties:
       health:
         type: string
@@ -79,14 +231,64 @@ definitions:
       websocket:
         type: string
     type: object
-  github_com_agentdns_agent-dns_internal_models.Example:
+  models.Example:
     properties:
       input:
         type: string
       output:
         type: string
     type: object
-  github_com_agentdns_agent-dns_internal_models.NetworkStats:
+  models.HandleClaimRequest:
+    properties:
+      developer_id:
+        type: string
+      handle:
+        type: string
+      public_key:
+        type: string
+      signature:
+        type: string
+    required:
+    - developer_id
+    - handle
+    - public_key
+    - signature
+    type: object
+  models.HandleVerifyRequest:
+    properties:
+      method:
+        description: '"dns" or "github"'
+        type: string
+      proof:
+        description: domain name or github username
+        type: string
+    required:
+    - method
+    - proof
+    type: object
+  models.NameBindingRequest:
+    properties:
+      agent_id:
+        type: string
+      agent_name:
+        type: string
+      capability_tags:
+        items:
+          type: string
+        type: array
+      developer_handle:
+        type: string
+      signature:
+        type: string
+      version:
+        type: string
+    required:
+    - agent_id
+    - agent_name
+    - developer_handle
+    - signature
+    type: object
+  models.NetworkStats:
     properties:
       estimated_agents:
         type: integer
@@ -100,7 +302,7 @@ definitions:
       searches_per_hour:
         type: integer
     type: object
-  github_com_agentdns_agent-dns_internal_models.NetworkStatus:
+  models.NetworkStatus:
     properties:
       cached_cards:
         type: integer
@@ -122,7 +324,7 @@ definitions:
       version:
         type: string
     type: object
-  github_com_agentdns_agent-dns_internal_models.PeerInfo:
+  models.PeerInfo:
     properties:
       address:
         type: string
@@ -144,10 +346,13 @@ definitions:
         type: string
       public_key:
         type: string
+      registry_host:
+        description: 'ZNS: the peer''s domain name (e.g., "dns01.zynd.ai")'
+        type: string
       registry_id:
         type: string
     type: object
-  github_com_agentdns_agent-dns_internal_models.Pricing:
+  models.Pricing:
     properties:
       currency:
         type: string
@@ -165,14 +370,26 @@ definitions:
           type: number
         type: object
     type: object
-  github_com_agentdns_agent-dns_internal_models.RegistrationRequest:
+  models.RegistrationRequest:
     properties:
+      agent_name:
+        description: ZNS naming fields (optional — requires developer with claimed
+          handle)
+        type: string
       agent_url:
         type: string
+      capability_summary:
+        $ref: '#/definitions/models.CapabilitySummary'
       category:
         maxLength: 50
         minLength: 1
         type: string
+      developer_id:
+        description: Developer identity fields (optional -- agents can register without
+          a developer)
+        type: string
+      developer_proof:
+        $ref: '#/definitions/models.DeveloperProof'
       name:
         maxLength: 100
         minLength: 1
@@ -189,6 +406,9 @@ definitions:
           type: string
         maxItems: 20
         type: array
+      version:
+        description: semver, e.g., "2.1.0"
+        type: string
     required:
     - agent_url
     - category
@@ -197,15 +417,31 @@ definitions:
     - signature
     - summary
     type: object
-  github_com_agentdns_agent-dns_internal_models.RegistryRecord:
+  models.RegistryRecord:
     properties:
       agent_id:
         type: string
+      agent_index:
+        type: integer
       agent_url:
         type: string
+      capability_summary:
+        $ref: '#/definitions/models.CapabilitySummary'
       category:
         type: string
+      codebase_hash:
+        description: Codebase integrity
+        type: string
+      developer_id:
+        description: Developer identity fields (optional for backward compatibility)
+        type: string
+      developer_proof:
+        allOf:
+        - $ref: '#/definitions/models.DeveloperProof'
+        description: stored as JSONB
       home_registry:
+        type: string
+      last_heartbeat:
         type: string
       name:
         type: string
@@ -215,7 +451,12 @@ definitions:
         type: string
       registered_at:
         type: string
+      schema_version:
+        type: string
       signature:
+        type: string
+      status:
+        description: Heartbeat liveness fields (server-managed, excluded from signing)
         type: string
       summary:
         type: string
@@ -228,7 +469,7 @@ definitions:
       updated_at:
         type: string
     type: object
-  github_com_agentdns_agent-dns_internal_models.ScoreBreakdown:
+  models.ScoreBreakdown:
     properties:
       availability:
         type: number
@@ -241,20 +482,45 @@ definitions:
       trust_score:
         type: number
     type: object
-  github_com_agentdns_agent-dns_internal_models.SearchRequest:
+  models.SearchRequest:
     properties:
       category:
+        type: string
+      developer_id:
+        description: filter by developer
         type: string
       enrich:
         type: boolean
       federated:
         type: boolean
+      languages:
+        description: e.g., ["python", "javascript"]
+        items:
+          type: string
+        type: array
       max_results:
         type: integer
       min_trust_score:
         type: number
+      models:
+        description: e.g., ["gpt-4"]
+        items:
+          type: string
+        type: array
+      offset:
+        type: integer
+      protocols:
+        description: e.g., ["a2a", "mcp"]
+        items:
+          type: string
+        type: array
       query:
         type: string
+      skills:
+        description: Capability filters
+        items:
+          type: string
+        type: array
       status:
         description: online, offline, any
         type: string
@@ -265,28 +531,39 @@ definitions:
       timeout_ms:
         type: integer
     type: object
-  github_com_agentdns_agent-dns_internal_models.SearchResponse:
+  models.SearchResponse:
     properties:
+      has_more:
+        type: boolean
+      offset:
+        type: integer
       results:
         items:
-          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.SearchResult'
+          $ref: '#/definitions/models.SearchResult'
         type: array
       search_stats:
-        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.SearchStats'
+        $ref: '#/definitions/models.SearchStats'
       total_found:
         type: integer
     type: object
-  github_com_agentdns_agent-dns_internal_models.SearchResult:
+  models.SearchResult:
     properties:
       agent_id:
         type: string
-      agent_url:
-        type: string
+      capability_summary:
+        $ref: '#/definitions/models.CapabilitySummary'
       card:
         allOf:
-        - $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.AgentCard'
+        - $ref: '#/definitions/models.AgentCard'
         description: included if enrich=true
       category:
+        type: string
+      developer_handle:
+        type: string
+      developer_id:
+        type: string
+      fqan:
+        description: ZNS fields (populated when agent has a name binding)
         type: string
       home_registry:
         type: string
@@ -295,7 +572,9 @@ definitions:
       score:
         type: number
       score_breakdown:
-        $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.ScoreBreakdown'
+        $ref: '#/definitions/models.ScoreBreakdown'
+      status:
+        type: string
       summary:
         type: string
       tags:
@@ -303,7 +582,7 @@ definitions:
           type: string
         type: array
     type: object
-  github_com_agentdns_agent-dns_internal_models.SearchStats:
+  models.SearchStats:
     properties:
       federated_results:
         type: integer
@@ -316,7 +595,7 @@ definitions:
       peers_queried:
         type: integer
     type: object
-  github_com_agentdns_agent-dns_internal_models.TrustInfo:
+  models.TrustInfo:
     properties:
       avg_rating:
         type: number
@@ -328,14 +607,18 @@ definitions:
         type: number
       verifications:
         items:
-          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.Verification'
+          $ref: '#/definitions/models.Verification'
         type: array
     type: object
-  github_com_agentdns_agent-dns_internal_models.UpdateRequest:
+  models.UpdateRequest:
     properties:
       agent_url:
         type: string
+      capability_summary:
+        $ref: '#/definitions/models.CapabilitySummary'
       category:
+        type: string
+      codebase_hash:
         type: string
       signature:
         type: string
@@ -350,13 +633,92 @@ definitions:
     required:
     - signature
     type: object
-  github_com_agentdns_agent-dns_internal_models.Verification:
+  models.Verification:
     properties:
       issued:
         type: string
       issuer:
         type: string
       type:
+        type: string
+    type: object
+  models.ZNSName:
+    properties:
+      agent_id:
+        description: agdns:<hash>
+        type: string
+      agent_name:
+        description: e.g., "doc-translator"
+        type: string
+      capability_tags:
+        description: stored as TEXT[]
+        items:
+          type: string
+        type: array
+      current_version:
+        type: string
+      developer_handle:
+        description: e.g., "acme-corp"
+        type: string
+      developer_id:
+        description: agdns:dev:<hash>
+        type: string
+      fqan:
+        description: PRIMARY KEY
+        type: string
+      registered_at:
+        type: string
+      registry_host:
+        description: e.g., "dns01.zynd.ai"
+        type: string
+      signature:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.ZNSResolveResponse:
+    properties:
+      agent_id:
+        type: string
+      agent_url:
+        type: string
+      developer_handle:
+        type: string
+      developer_id:
+        type: string
+      fqan:
+        type: string
+      protocols:
+        items:
+          type: string
+        type: array
+      public_key:
+        type: string
+      registry_host:
+        type: string
+      status:
+        type: string
+      trust_score:
+        type: number
+      verification_tier:
+        type: string
+      version:
+        type: string
+    type: object
+  models.ZNSVersion:
+    properties:
+      agent_id:
+        description: agent_id at this version
+        type: string
+      build_hash:
+        type: string
+      fqan:
+        type: string
+      registered_at:
+        type: string
+      signature:
+        type: string
+      version:
         type: string
     type: object
 host: localhost:8080
@@ -387,19 +749,66 @@ paths:
       summary: Health check
       tags:
       - Health
+  /v1/admin/developers/approve:
+    post:
+      consumes:
+      - application/json
+      description: Approve a developer registration in restricted mode. Generates
+        a keypair and returns the encrypted private key. Requires Bearer webhook token.
+      parameters:
+      - description: Bearer <webhook-secret>
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Approval request with name and state
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.DeveloperApprovalRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Developer approval response with encrypted private key
+          schema:
+            $ref: '#/definitions/models.DeveloperApprovalResponse'
+        "400":
+          description: Validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Developer already registered
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Approve developer registration
+      tags:
+      - Admin
   /v1/agents:
     post:
       consumes:
       - application/json
       description: Register a new AI agent on the registry network. Requires name,
-        agent_url, category, and public_key.
+        agent_url, category, and public_key. Optionally includes developer_id and
+        developer_proof for developer chain of trust.
       parameters:
       - description: Agent registration payload
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.RegistrationRequest'
+          $ref: '#/definitions/models.RegistrationRequest'
       produces:
       - application/json
       responses:
@@ -490,7 +899,7 @@ paths:
         "200":
           description: Agent registry record
           schema:
-            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.RegistryRecord'
+            $ref: '#/definitions/models.RegistryRecord'
         "400":
           description: Missing agent_id
           schema:
@@ -528,14 +937,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.UpdateRequest'
+          $ref: '#/definitions/models.UpdateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Updated agent record
           schema:
-            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.RegistryRecord'
+            $ref: '#/definitions/models.RegistryRecord'
         "400":
           description: Invalid request body
           schema:
@@ -573,7 +982,7 @@ paths:
         "200":
           description: Agent card
           schema:
-            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.AgentCard'
+            $ref: '#/definitions/models.AgentCard'
         "400":
           description: Missing agent_id
           schema:
@@ -618,6 +1027,758 @@ paths:
       summary: List categories
       tags:
       - Search
+  /v1/developers:
+    post:
+      consumes:
+      - application/json
+      description: Register a new developer identity with name, public_key, and signature.
+        Self-registration is disabled in restricted mode.
+      parameters:
+      - description: Developer registration payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.DeveloperRegistrationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: developer_id and success message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid signature
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Self-registration disabled
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Developer already registered
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new developer
+      tags:
+      - Developers
+  /v1/developers/{developerID}:
+    delete:
+      description: Deregister a developer identity. Requires Authorization header
+        with Bearer ed25519 signature.
+      parameters:
+      - description: Developer ID
+        in: path
+        name: developerID
+        required: true
+        type: string
+      - description: Bearer ed25519:<base64sig>
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Deregistration confirmation
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Ownership verification failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Developer not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete developer
+      tags:
+      - Developers
+    get:
+      description: Retrieve a developer record by their developer_id. Falls back to
+        gossip entries for remote developers.
+      parameters:
+      - description: Developer ID
+        in: path
+        name: developerID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Developer record
+          schema:
+            $ref: '#/definitions/models.DeveloperRecord'
+        "404":
+          description: Developer not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get developer by ID
+      tags:
+      - Developers
+    put:
+      consumes:
+      - application/json
+      description: Update a developer's profile fields. Requires Authorization header
+        with Bearer ed25519 signature.
+      parameters:
+      - description: Developer ID
+        in: path
+        name: developerID
+        required: true
+        type: string
+      - description: Bearer ed25519:<base64sig>
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.DeveloperUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated developer record
+          schema:
+            $ref: '#/definitions/models.DeveloperRecord'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Ownership verification failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Developer not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update developer profile
+      tags:
+      - Developers
+  /v1/developers/{developerID}/agents:
+    get:
+      description: Retrieve all agents registered by a given developer_id, including
+        developer_id, agents array, and count.
+      parameters:
+      - description: Developer ID
+        in: path
+        name: developerID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: developer_id, agents, and count
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Missing developer_id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List agents by developer
+      tags:
+      - Developers
+  /v1/handles:
+    post:
+      consumes:
+      - application/json
+      description: Claim a ZNS developer handle. Requires an existing developer identity
+        and a valid signature.
+      parameters:
+      - description: Handle claim payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.HandleClaimRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: handle, developer_id, and success message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid signature
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Developer not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Handle already taken
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Claim a handle
+      tags:
+      - Handles
+  /v1/handles/{handle}:
+    delete:
+      description: Release a previously claimed ZNS handle. Requires Authorization
+        header with Bearer ed25519 signature.
+      parameters:
+      - description: ZNS handle to release
+        in: path
+        name: handle
+        required: true
+        type: string
+      - description: Bearer ed25519:<base64sig>
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Release confirmation
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Missing handle
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Ownership verification failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Handle not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Release a handle
+      tags:
+      - Handles
+    get:
+      description: Retrieve the developer record associated with a ZNS handle, including
+        verification status.
+      parameters:
+      - description: ZNS handle (e.g. alice)
+        in: path
+        name: handle
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: handle, developer_id, developer_name, verified, verification_method
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Missing handle
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Handle not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get developer by handle
+      tags:
+      - Handles
+  /v1/handles/{handle}/agents:
+    get:
+      description: List all ZNS name bindings (agent names) registered under a given
+        developer handle.
+      parameters:
+      - description: ZNS developer handle
+        in: path
+        name: handle
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of ZNS name bindings
+          schema:
+            items:
+              $ref: '#/definitions/models.ZNSName'
+            type: array
+        "400":
+          description: Missing handle
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List agents for a handle
+      tags:
+      - Handles
+  /v1/handles/{handle}/available:
+    get:
+      description: Check whether a ZNS handle is available on this registry. Returns
+        availability and optional reason if taken.
+      parameters:
+      - description: ZNS handle to check
+        in: path
+        name: handle
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: handle, available, and optional reason
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Missing handle
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Check handle availability
+      tags:
+      - Handles
+  /v1/handles/{handle}/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verify a ZNS handle ownership via DNS TXT record or GitHub. Sets
+        the verified flag and verification method on success.
+      parameters:
+      - description: ZNS handle to verify
+        in: path
+        name: handle
+        required: true
+        type: string
+      - description: Verification method and proof
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.HandleVerifyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Verification confirmation
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Verification failed or invalid method
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Handle not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verify a handle
+      tags:
+      - Handles
+  /v1/names:
+    post:
+      consumes:
+      - application/json
+      description: Register a ZNS agent name binding, creating a Fully Qualified Agent
+        Name (FQAN) under a developer handle.
+      parameters:
+      - description: Name binding payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.NameBindingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: fqan, agent_id, and success message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid signature
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Developer handle or agent not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Name already registered
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register an agent name
+      tags:
+      - Names
+  /v1/names/{developer}/{agent}:
+    delete:
+      description: Release a ZNS agent name binding. Requires Authorization header
+        with Bearer ed25519 signature.
+      parameters:
+      - description: Developer handle
+        in: path
+        name: developer
+        required: true
+        type: string
+      - description: Agent name
+        in: path
+        name: agent
+        required: true
+        type: string
+      - description: Bearer ed25519:<base64sig>
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Release confirmation
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Ownership verification failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Name or developer not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Release a name binding
+      tags:
+      - Names
+    get:
+      description: Retrieve a ZNS name binding record by developer handle and agent
+        name path parameters.
+      parameters:
+      - description: Developer handle
+        in: path
+        name: developer
+        required: true
+        type: string
+      - description: Agent name
+        in: path
+        name: agent
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: ZNS name binding
+          schema:
+            $ref: '#/definitions/models.ZNSName'
+        "400":
+          description: Missing path parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Name not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get name binding
+      tags:
+      - Names
+    put:
+      consumes:
+      - application/json
+      description: Update the version and/or capability_tags of an existing ZNS agent
+        name binding.
+      parameters:
+      - description: Developer handle
+        in: path
+        name: developer
+        required: true
+        type: string
+      - description: Agent name
+        in: path
+        name: agent
+        required: true
+        type: string
+      - description: Fields to update (version, capability_tags, signature)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated ZNS name binding
+          schema:
+            $ref: '#/definitions/models.ZNSName'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Name not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update name binding
+      tags:
+      - Names
+  /v1/names/{developer}/{agent}/available:
+    get:
+      description: Check whether a ZNS agent name is available under a given developer
+        handle.
+      parameters:
+      - description: Developer handle
+        in: path
+        name: developer
+        required: true
+        type: string
+      - description: Agent name
+        in: path
+        name: agent
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: developer, agent_name, available, and optional reason
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Missing path parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Check name availability
+      tags:
+      - Names
+  /v1/names/{developer}/{agent}/versions:
+    get:
+      description: Retrieve the full version history for a ZNS agent name binding.
+      parameters:
+      - description: Developer handle
+        in: path
+        name: developer
+        required: true
+        type: string
+      - description: Agent name
+        in: path
+        name: agent
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of version records
+          schema:
+            items:
+              $ref: '#/definitions/models.ZNSVersion'
+            type: array
+        "404":
+          description: Name not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List version history
+      tags:
+      - Names
   /v1/network/peers:
     get:
       description: Returns a list of all connected peer registries in the mesh network.
@@ -629,7 +1790,7 @@ paths:
           schema:
             additionalProperties:
               items:
-                $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.PeerInfo'
+                $ref: '#/definitions/models.PeerInfo'
               type: array
             type: object
       summary: List peers
@@ -646,7 +1807,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.PeerInfo'
+          $ref: '#/definitions/models.PeerInfo'
       produces:
       - application/json
       responses:
@@ -675,7 +1836,7 @@ paths:
         "200":
           description: Network statistics
           schema:
-            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.NetworkStats'
+            $ref: '#/definitions/models.NetworkStats'
       summary: Get network stats
       tags:
       - Network
@@ -689,10 +1850,53 @@ paths:
         "200":
           description: Node status
           schema:
-            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.NetworkStatus'
+            $ref: '#/definitions/models.NetworkStatus'
       summary: Get node status
       tags:
       - Network
+  /v1/resolve/{developer}/{agent}:
+    get:
+      description: Resolve a Fully Qualified Agent Name (FQAN) to its agent details,
+        including agent_url, public_key, and trust information.
+      parameters:
+      - description: Developer handle
+        in: path
+        name: developer
+        required: true
+        type: string
+      - description: Agent name
+        in: path
+        name: agent
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Resolved agent details
+          schema:
+            $ref: '#/definitions/models.ZNSResolveResponse'
+        "400":
+          description: Missing path parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Name not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Resolve a FQAN
+      tags:
+      - Resolution
   /v1/search:
     post:
       consumes:
@@ -705,14 +1909,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.SearchRequest'
+          $ref: '#/definitions/models.SearchRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Search results
           schema:
-            $ref: '#/definitions/github_com_agentdns_agent-dns_internal_models.SearchResponse'
+            $ref: '#/definitions/models.SearchResponse'
         "400":
           description: Invalid request or missing query
           schema:
