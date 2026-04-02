@@ -17,6 +17,8 @@ import (
 	"github.com/gorilla/websocket"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
+	"github.com/agentdns/agent-dns/docs"
+
 	"github.com/agentdns/agent-dns/internal/card"
 	"github.com/agentdns/agent-dns/internal/config"
 	"github.com/agentdns/agent-dns/internal/events"
@@ -179,7 +181,11 @@ func (s *Server) Start() error {
 	// WebSocket activity stream
 	mux.HandleFunc("GET /v1/ws/activity", s.handleActivityStream)
 
-	// Swagger UI
+	// Swagger UI — add production host from config alongside localhost
+	if host := s.cfg.RegistryHost(); host != "" {
+		docs.SwaggerInfo.Host = host
+		docs.SwaggerInfo.Schemes = []string{"https"}
+	}
 	mux.Handle("GET /swagger/", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
 	))
