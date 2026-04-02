@@ -81,6 +81,7 @@ type RegistrationRequest struct {
 
 // UpdateRequest is submitted by agent owners to update their registry record.
 type UpdateRequest struct {
+	Name              *string            `json:"name,omitempty"`
 	AgentURL          *string            `json:"agent_url,omitempty"`
 	Category          *string            `json:"category,omitempty"`
 	Tags              []string           `json:"tags,omitempty"`

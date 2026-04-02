@@ -845,6 +845,9 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Apply updates
+	if req.Name != nil {
+		existing.Name = *req.Name
+	}
 	if req.AgentURL != nil {
 		existing.AgentURL = *req.AgentURL
 	}
