@@ -168,10 +168,22 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/info", s.handleRegistryInfo)
 
 	// Admin endpoints (webhook-authenticated)
-	if s.cfg.Onboarding.Mode == "restricted" && s.cfg.Onboarding.WebhookSecret != "" {
+	// Always register the endpoint, but check config inside handler for better error messages
+	mux.HandleFunc("POST /v1/admin/developers/approve", func(w http.ResponseWriter, r *http.Request) {
+		// Check if properly configured
+		if s.cfg.Onboarding.Mode != "restricted" {
+			writeError(w, http.StatusServiceUnavailable,
+				fmt.Sprintf("onboarding mode is '%s', expected 'restricted'", s.cfg.Onboarding.Mode))
+			return
+		}
+		if s.cfg.Onboarding.WebhookSecret == "" {
+			writeError(w, http.StatusServiceUnavailable, "webhook_secret not configured")
+			return
+		}
+		// Apply webhook auth middleware inline
 		webhookAuth := WebhookAuthMiddleware(s.cfg.Onboarding.WebhookSecret)
-		mux.HandleFunc("POST /v1/admin/developers/approve", webhookAuth(s.handleApproveDeveloper))
-	}
+		webhookAuth(s.handleApproveDeveloper)(w, r)
+	})
 
 	// Health check
 	mux.HandleFunc("GET /health", s.handleHealth)
