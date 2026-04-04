@@ -17,8 +17,6 @@ import (
 	"github.com/gorilla/websocket"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
-	"github.com/agentdns/agent-dns/docs"
-
 	"github.com/agentdns/agent-dns/internal/card"
 	"github.com/agentdns/agent-dns/internal/config"
 	"github.com/agentdns/agent-dns/internal/events"
@@ -181,13 +179,40 @@ func (s *Server) Start() error {
 	// WebSocket activity stream
 	mux.HandleFunc("GET /v1/ws/activity", s.handleActivityStream)
 
-	// Swagger UI — add production host from config alongside localhost
-	if host := s.cfg.RegistryHost(); host != "" {
-		docs.SwaggerInfo.Host = host
-		docs.SwaggerInfo.Schemes = []string{"https"}
-	}
+	// Swagger UI — dynamically set host and scheme based on request
+	// This uses a plugin to detect the current domain from browser location
 	mux.Handle("GET /swagger/", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
+		httpSwagger.BeforeScript(`const DynamicUrlPlugin = (system) => ({
+  rootInjects: {
+    setScheme: (scheme) => {
+      const jsonSpec = system.getState().toJSON().spec.json;
+      const schemes = Array.isArray(scheme) ? scheme : [scheme];
+      const newJsonSpec = Object.assign({}, jsonSpec, { schemes });
+      return system.specActions.updateJsonSpec(newJsonSpec);
+    },
+    setHost: (host) => {
+      const jsonSpec = system.getState().toJSON().spec.json;
+      const newJsonSpec = Object.assign({}, jsonSpec, { host });
+      return system.specActions.updateJsonSpec(newJsonSpec);
+    },
+    setBasePath: (basePath) => {
+      const jsonSpec = system.getState().toJSON().spec.json;
+      const newJsonSpec = Object.assign({}, jsonSpec, { basePath });
+      return system.specActions.updateJsonSpec(newJsonSpec);
+    }
+  }
+});`),
+		httpSwagger.Plugins([]string{"DynamicUrlPlugin"}),
+		httpSwagger.UIConfig(map[string]string{
+			"onComplete": `() => {
+    const currentUrl = new URL(window.location.href);
+    const scheme = currentUrl.protocol.replace(':', '');
+    const host = currentUrl.host;
+    window.ui.setScheme(scheme);
+    window.ui.setHost(host);
+  }`,
+		}),
 	))
 
 	// Apply middleware
