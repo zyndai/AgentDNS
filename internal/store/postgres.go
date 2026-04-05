@@ -130,6 +130,9 @@ func (s *PostgresStore) migrate() error {
 	-- Schema evolution: add schema_version column if not present
 	ALTER TABLE agents ADD COLUMN IF NOT EXISTS schema_version TEXT NOT NULL DEFAULT '1.0';
 
+	-- Schema evolution: add codebase_hash column if not present
+	ALTER TABLE agents ADD COLUMN IF NOT EXISTS codebase_hash TEXT NOT NULL DEFAULT '';
+
 	-- Developer identity table
 	CREATE TABLE IF NOT EXISTS developers (
 		developer_id    TEXT PRIMARY KEY,
