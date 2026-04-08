@@ -45,6 +45,12 @@ type RegistryRecord struct {
 	// Heartbeat liveness fields (server-managed, excluded from signing)
 	Status        string `json:"status,omitempty" db:"status"`
 	LastHeartbeat string `json:"last_heartbeat,omitempty" db:"last_heartbeat"`
+
+	// Service directory fields (entity_type discriminates agent vs service)
+	EntityType      string          `json:"entity_type,omitempty" db:"entity_type"`
+	ServiceEndpoint string          `json:"service_endpoint,omitempty" db:"service_endpoint"`
+	OpenAPIURL      string          `json:"openapi_url,omitempty" db:"openapi_url"`
+	ServicePricing  *ServicePricing `json:"service_pricing,omitempty" db:"-"`
 }
 
 // CapabilitySummary provides searchable metadata about agent capabilities.
@@ -77,6 +83,12 @@ type RegistrationRequest struct {
 	// ZNS naming fields (optional — requires developer with claimed handle)
 	AgentName string `json:"agent_name,omitempty"` // e.g., "doc-translator" — triggers FQAN creation
 	Version   string `json:"version,omitempty"`    // semver, e.g., "2.1.0"
+
+	// Service directory fields
+	EntityType      string          `json:"entity_type,omitempty"`
+	ServiceEndpoint string          `json:"service_endpoint,omitempty"`
+	OpenAPIURL      string          `json:"openapi_url,omitempty"`
+	ServicePricing  *ServicePricing `json:"service_pricing,omitempty"`
 }
 
 // UpdateRequest is submitted by agent owners to update their registry record.
@@ -145,6 +157,14 @@ func (r *RegistryRecord) Validate() error {
 	}
 	if len(r.Tags) > 20 {
 		return fmt.Errorf("maximum 20 tags allowed")
+	}
+	if r.EntityType != "" && !ValidEntityTypes[r.EntityType] {
+		return fmt.Errorf("invalid entity_type: %s (must be 'agent' or 'service')", r.EntityType)
+	}
+	if r.EntityType == "service" {
+		if err := ValidateServiceFields(r); err != nil {
+			return err
+		}
 	}
 	return nil
 }

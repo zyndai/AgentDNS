@@ -15,6 +15,10 @@ type GossipAnnouncement struct {
 	AgentURL          string             `json:"agent_url,omitempty"`
 	Action            string             `json:"action"` // register, update, deregister, agent_status
 	Status            string             `json:"status,omitempty"`
+	EntityType        string             `json:"entity_type,omitempty"`
+	ServiceEndpoint   string             `json:"service_endpoint,omitempty"`
+	OpenAPIURL        string             `json:"openapi_url,omitempty"`
+	ServicePricing    *ServicePricing    `json:"service_pricing,omitempty"`
 	Timestamp         string             `json:"timestamp"`
 	OriginPublicKey   string             `json:"origin_public_key"` // public key of originating registry
 	Signature         string             `json:"signature"`         // signed by originating registry
@@ -78,6 +82,12 @@ type GossipEntry struct {
 
 	// Origin registry public key — pinned on first register to prevent spoofed updates
 	OriginPublicKey string `json:"origin_public_key,omitempty" db:"origin_public_key"`
+
+	// Service directory fields
+	EntityType      string          `json:"entity_type,omitempty" db:"entity_type"`
+	ServiceEndpoint string          `json:"service_endpoint,omitempty" db:"service_endpoint"`
+	OpenAPIURL      string          `json:"openapi_url,omitempty" db:"openapi_url"`
+	ServicePricing  *ServicePricing `json:"service_pricing,omitempty" db:"-"`
 }
 
 // PeerInfo describes a connected peer registry in the mesh.

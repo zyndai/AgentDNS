@@ -13,6 +13,7 @@ type SearchRequest struct {
 	MinTrustScore float64  `json:"min_trust_score,omitempty"`
 	Status        string   `json:"status,omitempty"`       // online, offline, any
 	DeveloperID   string   `json:"developer_id,omitempty"` // filter by developer
+	EntityType    string   `json:"entity_type,omitempty"`
 	MaxResults    int      `json:"max_results,omitempty"`
 	Offset        int      `json:"offset,omitempty"`
 	Federated     bool     `json:"federated"`
@@ -47,6 +48,12 @@ type SearchResult struct {
 	// ZNS fields (populated when agent has a name binding)
 	FQAN            string `json:"fqan,omitempty"`
 	DeveloperHandle string `json:"developer_handle,omitempty"`
+
+	// Service directory fields
+	EntityType      string          `json:"entity_type,omitempty"`
+	ServiceEndpoint string          `json:"service_endpoint,omitempty"`
+	OpenAPIURL      string          `json:"openapi_url,omitempty"`
+	ServicePricing  *ServicePricing `json:"service_pricing,omitempty"`
 }
 
 // ScoreBreakdown explains how the score was computed.
