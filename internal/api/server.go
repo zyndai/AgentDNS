@@ -108,8 +108,9 @@ func (s *Server) EventBus() *events.Bus {
 	return s.eventBus
 }
 
-// Start begins serving the HTTP API.
-func (s *Server) Start() error {
+// Handler builds the full HTTP handler (mux + middleware) without starting a
+// listener. Useful for httptest-based integration tests.
+func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	// Rate limiters for endpoint groups
@@ -171,9 +172,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/info", s.handleRegistryInfo)
 
 	// Admin endpoints (webhook-authenticated)
-	// Always register the endpoint, but check config inside handler for better error messages
 	mux.HandleFunc("POST /v1/admin/developers/approve", func(w http.ResponseWriter, r *http.Request) {
-		// Check if properly configured
 		if s.cfg.Onboarding.Mode != "restricted" {
 			writeError(w, http.StatusServiceUnavailable,
 				fmt.Sprintf("onboarding mode is '%s', expected 'restricted'", s.cfg.Onboarding.Mode))
@@ -183,7 +182,6 @@ func (s *Server) Start() error {
 			writeError(w, http.StatusServiceUnavailable, "webhook_secret not configured")
 			return
 		}
-		// Apply webhook auth middleware inline
 		webhookAuth := WebhookAuthMiddleware(s.cfg.Onboarding.WebhookSecret)
 		webhookAuth(s.handleApproveDeveloper)(w, r)
 	})
@@ -195,7 +193,6 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/ws/activity", s.handleActivityStream)
 
 	// Swagger UI — dynamically set host and scheme based on request
-	// This uses a plugin to detect the current domain from browser location
 	mux.Handle("GET /swagger/", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
 		httpSwagger.BeforeScript(`const DynamicUrlPlugin = (system) => ({
@@ -234,6 +231,13 @@ func (s *Server) Start() error {
 	var handler http.Handler = mux
 	handler = CORSMiddleware(s.cfg.API.CORSOrigins)(handler)
 	handler = LoggingMiddleware(handler)
+
+	return handler
+}
+
+// Start begins serving the HTTP API.
+func (s *Server) Start() error {
+	handler := s.Handler()
 
 	s.httpServer = &http.Server{
 		Addr:         s.cfg.API.Listen,
