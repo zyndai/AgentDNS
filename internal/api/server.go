@@ -131,6 +131,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/agents/{agentID}/card", s.handleGetAgentCard)
 	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
 
+	// Service registration alias (same handler, entity_type defaults to "agent" if not set)
+	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterAgent))
+
 	// Search
 	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))
 	mux.HandleFunc("GET /v1/categories", s.handleGetCategories)
@@ -612,6 +615,21 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Default and validate EntityType
+	entityType := req.EntityType
+	if entityType == "" {
+		entityType = "agent"
+	}
+	if !models.ValidEntityTypes[entityType] {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid entity_type: %s", entityType))
+		return
+	}
+
+	// For services, default AgentURL to ServiceEndpoint if not provided
+	if entityType == "service" && req.AgentURL == "" {
+		req.AgentURL = req.ServiceEndpoint
+	}
+
 	// Validate required fields
 	if req.Name == "" || req.AgentURL == "" || req.Category == "" || req.PublicKey == "" {
 		writeError(w, http.StatusBadRequest, "name, agent_url, category, and public_key are required")
@@ -710,23 +728,27 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 
 	now := models.NowRFC3339()
 	record := &models.RegistryRecord{
-		AgentID:        agentID,
-		Name:           req.Name,
-		Owner:          owner,
-		AgentURL:       req.AgentURL,
-		Category:       req.Category,
-		Tags:           req.Tags,
-		Summary:        req.Summary,
-		PublicKey:      req.PublicKey,
-		HomeRegistry:   s.nodeIdentity.RegistryID(),
-		SchemaVersion:  models.CurrentSchemaVersion,
-		RegisteredAt:   now,
-		UpdatedAt:      now,
-		TTL:            86400,
-		Signature:      req.Signature,
-		DeveloperID:    developerID,
-		AgentIndex:     agentIndex,
-		DeveloperProof: developerProof,
+		AgentID:         agentID,
+		Name:            req.Name,
+		Owner:           owner,
+		AgentURL:        req.AgentURL,
+		Category:        req.Category,
+		Tags:            req.Tags,
+		Summary:         req.Summary,
+		PublicKey:       req.PublicKey,
+		HomeRegistry:    s.nodeIdentity.RegistryID(),
+		SchemaVersion:   models.CurrentSchemaVersion,
+		RegisteredAt:    now,
+		UpdatedAt:       now,
+		TTL:             86400,
+		Signature:       req.Signature,
+		DeveloperID:     developerID,
+		AgentIndex:      agentIndex,
+		DeveloperProof:  developerProof,
+		EntityType:      entityType,
+		ServiceEndpoint: req.ServiceEndpoint,
+		OpenAPIURL:      req.OpenAPIURL,
+		ServicePricing:  req.ServicePricing,
 	}
 
 	if record.Tags == nil {

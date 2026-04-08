@@ -182,6 +182,17 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 		}
 	}
 
+	// Filter by EntityType if requested
+	if req.EntityType != "" {
+		filtered := make([]*ranking.CandidateResult, 0, len(allCandidates))
+		for _, c := range allCandidates {
+			if c.EntityType == req.EntityType {
+				filtered = append(filtered, c)
+			}
+		}
+		allCandidates = filtered
+	}
+
 	// Step 4: Deduplicate and rank
 	allCandidates = ranking.Deduplicate(allCandidates)
 	allCandidates = e.ranker.Rank(allCandidates)
@@ -292,18 +303,22 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 		}
 
 		candidateMap[kr.DocID] = &ranking.CandidateResult{
-			AgentID:       agent.AgentID,
-			Name:          agent.Name,
-			Summary:       agent.Summary,
-			Category:      agent.Category,
-			Tags:          agent.Tags,
-			AgentURL:      agent.AgentURL,
-			HomeRegistry:  agent.HomeRegistry,
-			Status:        agent.Status,
-			UpdatedAt:     agent.UpdatedAt,
-			TextRelevance: normalizedScore,
-			TrustScore:    0.5,
-			Availability:  1.0,
+			AgentID:         agent.AgentID,
+			Name:            agent.Name,
+			Summary:         agent.Summary,
+			Category:        agent.Category,
+			Tags:            agent.Tags,
+			AgentURL:        agent.AgentURL,
+			HomeRegistry:    agent.HomeRegistry,
+			Status:          agent.Status,
+			UpdatedAt:       agent.UpdatedAt,
+			TextRelevance:   normalizedScore,
+			TrustScore:      0.5,
+			Availability:    1.0,
+			EntityType:      agent.EntityType,
+			ServiceEndpoint: agent.ServiceEndpoint,
+			OpenAPIURL:      agent.OpenAPIURL,
+			ServicePricing:  agent.ServicePricing,
 		}
 	}
 
@@ -339,6 +354,10 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 				SemanticSimilarity: sr.Score,
 				TrustScore:         0.5,
 				Availability:       1.0,
+				EntityType:         agent.EntityType,
+				ServiceEndpoint:    agent.ServiceEndpoint,
+				OpenAPIURL:         agent.OpenAPIURL,
+				ServicePricing:     agent.ServicePricing,
 			}
 		}
 	}
@@ -398,8 +417,12 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 			UpdatedAt:          entry.ReceivedAt,
 			TextRelevance:      textScore,
 			SemanticSimilarity: semanticScore,
-			TrustScore:         0.3, // lower default for remote agents
-			Availability:       0.9, // active gossip agent
+			TrustScore:         0.3,
+			Availability:       0.9,
+			EntityType:         entry.EntityType,
+			ServiceEndpoint:    entry.ServiceEndpoint,
+			OpenAPIURL:         entry.OpenAPIURL,
+			ServicePricing:     entry.ServicePricing,
 		})
 	}
 

@@ -60,6 +60,12 @@ type CandidateResult struct {
 	FQAN            string
 	DeveloperHandle string
 	DeveloperID     string
+
+	// Service directory fields
+	EntityType      string
+	ServiceEndpoint string
+	OpenAPIURL      string
+	ServicePricing  *models.ServicePricing
 }
 
 // RankWeighted scores candidates using the weighted linear combination.
@@ -173,6 +179,10 @@ func ToSearchResults(candidates []*CandidateResult) []models.SearchResult {
 			Card:            c.Card,
 			FQAN:            c.FQAN,
 			DeveloperHandle: c.DeveloperHandle,
+			EntityType:      c.EntityType,
+			ServiceEndpoint: c.ServiceEndpoint,
+			OpenAPIURL:      c.OpenAPIURL,
+			ServicePricing:  c.ServicePricing,
 		}
 	}
 	return results

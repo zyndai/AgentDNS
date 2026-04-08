@@ -298,6 +298,10 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 				DeveloperProof:     ann.DeveloperProof,
 				OriginPublicKey:    ann.OriginPublicKey,
 				Status:             "active",
+				EntityType:         ann.EntityType,
+				ServiceEndpoint:    ann.ServiceEndpoint,
+				OpenAPIURL:         ann.OpenAPIURL,
+				ServicePricing:     ann.ServicePricing,
 			}
 			if err := gh.store.UpsertGossipEntry(entry); err != nil {
 				log.Printf("failed to store gossip entry: %v", err)
@@ -366,6 +370,10 @@ func (gh *GossipHandler) CreateAnnouncement(
 		OriginPublicKey: pubKey,
 		HopCount:        0,
 		MaxHops:         gh.cfg.MaxHops,
+		EntityType:      agent.EntityType,
+		ServiceEndpoint: agent.ServiceEndpoint,
+		OpenAPIURL:      agent.OpenAPIURL,
+		ServicePricing:  agent.ServicePricing,
 	}
 
 	// Include developer identity fields if present
