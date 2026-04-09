@@ -31,7 +31,7 @@ jobs:
             go build -v -o agentdns ./cmd/agentdns
 
             echo "==> [Server 1] Restarting..."
-            sudo pkill -f agentdns || true
+            pkill -f agentdns 2>/dev/null || true
             sudo nohup ./agentdns > agentdns.log 2>&1 &
 
   deploy-server-2:
@@ -60,5 +60,5 @@ jobs:
             go build -v -o agentdns ./cmd/agentdns
 
             echo "==> [Server 2] Restarting..."
-            sudo pkill -f agentdns || true
+            sudo pkill -f agentdns 2>/dev/null || true
             sudo nohup ./agentdns > agentdns.log 2>&1 & 
