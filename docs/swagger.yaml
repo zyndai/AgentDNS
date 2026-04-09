@@ -370,6 +370,22 @@ definitions:
           type: number
         type: object
     type: object
+  models.PricingModel:
+    properties:
+      base_price:
+        type: number
+      currency:
+        description: USD, USDC
+        type: string
+      details:
+        type: string
+      type:
+        description: free, per-call, subscription, usage-based
+        type: string
+      unit:
+        description: request, token, month
+        type: string
+    type: object
   models.RegistrationRequest:
     properties:
       agent_name:
@@ -385,8 +401,7 @@ definitions:
         minLength: 1
         type: string
       developer_id:
-        description: Developer identity fields (optional -- agents can register without
-          a developer)
+        description: Developer identity fields
         type: string
       developer_proof:
         $ref: '#/definitions/models.DeveloperProof'
@@ -394,7 +409,13 @@ definitions:
         maxLength: 100
         minLength: 1
         type: string
+      openapi_url:
+        type: string
+      pricing_model:
+        $ref: '#/definitions/models.PricingModel'
       public_key:
+        type: string
+      service_endpoint:
         type: string
       signature:
         type: string
@@ -406,11 +427,13 @@ definitions:
           type: string
         maxItems: 20
         type: array
+      type:
+        description: 'Entity type: "agent" (default) or "service"'
+        type: string
       version:
         description: semver, e.g., "2.1.0"
         type: string
     required:
-    - agent_url
     - category
     - name
     - public_key
@@ -433,7 +456,7 @@ definitions:
         description: Codebase integrity
         type: string
       developer_id:
-        description: Developer identity fields (optional for backward compatibility)
+        description: Developer identity fields
         type: string
       developer_proof:
         allOf:
@@ -445,13 +468,21 @@ definitions:
         type: string
       name:
         type: string
+      openapi_url:
+        type: string
       owner:
         type: string
+      pricing_model:
+        allOf:
+        - $ref: '#/definitions/models.PricingModel'
+        description: stored as JSONB
       public_key:
         type: string
       registered_at:
         type: string
       schema_version:
+        type: string
+      service_endpoint:
         type: string
       signature:
         type: string
@@ -466,6 +497,9 @@ definitions:
         type: array
       ttl:
         type: integer
+      type:
+        description: 'Entity type: "agent" (default) or "service"'
+        type: string
       updated_at:
         type: string
     type: object
@@ -486,6 +520,9 @@ definitions:
     properties:
       category:
         type: string
+      developer_handle:
+        description: filter by developer handle
+        type: string
       developer_id:
         description: filter by developer
         type: string
@@ -493,6 +530,9 @@ definitions:
         type: boolean
       federated:
         type: boolean
+      fqan:
+        description: filter by exact FQAN
+        type: string
       languages:
         description: e.g., ["python", "javascript"]
         items:
@@ -530,6 +570,9 @@ definitions:
         type: array
       timeout_ms:
         type: integer
+      type:
+        description: '"agent", "service", or "" (any)'
+        type: string
     type: object
   models.SearchResponse:
     properties:
@@ -563,16 +606,20 @@ definitions:
       developer_id:
         type: string
       fqan:
-        description: ZNS fields (populated when agent has a name binding)
+        description: ZNS fields (populated when entity has a name binding)
         type: string
       home_registry:
         type: string
       name:
         type: string
+      openapi_url:
+        type: string
       score:
         type: number
       score_breakdown:
         $ref: '#/definitions/models.ScoreBreakdown'
+      service_endpoint:
+        type: string
       status:
         type: string
       summary:
@@ -581,6 +628,9 @@ definitions:
         items:
           type: string
         type: array
+      type:
+        description: Entity type
+        type: string
     type: object
   models.SearchStats:
     properties:
@@ -619,6 +669,8 @@ definitions:
       category:
         type: string
       codebase_hash:
+        type: string
+      name:
         type: string
       signature:
         type: string
@@ -1932,6 +1984,55 @@ paths:
       summary: Search for agents
       tags:
       - Search
+  /v1/services:
+    post:
+      consumes:
+      - application/json
+      description: Register a stateless API service on the registry. Same as POST
+        /v1/agents with type=service. Does not require agent_url.
+      parameters:
+      - description: Service registration payload (set type to service)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.RegistrationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: agent_id and success message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid signature
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Service already registered
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new service
+      tags:
+      - Services
   /v1/tags:
     get:
       description: Get all agent tags currently in use across registered agents.

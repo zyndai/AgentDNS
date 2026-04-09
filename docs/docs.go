@@ -1786,6 +1786,79 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/services": {
+            "post": {
+                "description": "Register a stateless API service on the registry. Same as POST /v1/agents with type=service. Does not require agent_url.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Services"
+                ],
+                "summary": "Register a new service",
+                "parameters": [
+                    {
+                        "description": "Service registration payload (set type to service)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.RegistrationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "agent_id and success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid signature",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Service already registered",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/tags": {
             "get": {
                 "description": "Get all agent tags currently in use across registered agents.",
@@ -2361,10 +2434,32 @@ const docTemplate = `{
                 }
             }
         },
+        "models.PricingModel": {
+            "type": "object",
+            "properties": {
+                "base_price": {
+                    "type": "number"
+                },
+                "currency": {
+                    "description": "USD, USDC",
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "free, per-call, subscription, usage-based",
+                    "type": "string"
+                },
+                "unit": {
+                    "description": "request, token, month",
+                    "type": "string"
+                }
+            }
+        },
         "models.RegistrationRequest": {
             "type": "object",
             "required": [
-                "agent_url",
                 "category",
                 "name",
                 "public_key",
@@ -2388,7 +2483,7 @@ const docTemplate = `{
                     "minLength": 1
                 },
                 "developer_id": {
-                    "description": "Developer identity fields (optional -- agents can register without a developer)",
+                    "description": "Developer identity fields",
                     "type": "string"
                 },
                 "developer_proof": {
@@ -2399,7 +2494,16 @@ const docTemplate = `{
                     "maxLength": 100,
                     "minLength": 1
                 },
+                "openapi_url": {
+                    "type": "string"
+                },
+                "pricing_model": {
+                    "$ref": "#/definitions/models.PricingModel"
+                },
                 "public_key": {
+                    "type": "string"
+                },
+                "service_endpoint": {
                     "type": "string"
                 },
                 "signature": {
@@ -2415,6 +2519,10 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "type": {
+                    "description": "Entity type: \"agent\" (default) or \"service\"",
+                    "type": "string"
                 },
                 "version": {
                     "description": "semver, e.g., \"2.1.0\"",
@@ -2445,7 +2553,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "developer_id": {
-                    "description": "Developer identity fields (optional for backward compatibility)",
+                    "description": "Developer identity fields",
                     "type": "string"
                 },
                 "developer_proof": {
@@ -2465,8 +2573,19 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "openapi_url": {
+                    "type": "string"
+                },
                 "owner": {
                     "type": "string"
+                },
+                "pricing_model": {
+                    "description": "stored as JSONB",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.PricingModel"
+                        }
+                    ]
                 },
                 "public_key": {
                     "type": "string"
@@ -2475,6 +2594,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "schema_version": {
+                    "type": "string"
+                },
+                "service_endpoint": {
                     "type": "string"
                 },
                 "signature": {
@@ -2495,6 +2617,10 @@ const docTemplate = `{
                 },
                 "ttl": {
                     "type": "integer"
+                },
+                "type": {
+                    "description": "Entity type: \"agent\" (default) or \"service\"",
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string"
@@ -2527,6 +2653,10 @@ const docTemplate = `{
                 "category": {
                     "type": "string"
                 },
+                "developer_handle": {
+                    "description": "filter by developer handle",
+                    "type": "string"
+                },
                 "developer_id": {
                     "description": "filter by developer",
                     "type": "string"
@@ -2536,6 +2666,10 @@ const docTemplate = `{
                 },
                 "federated": {
                     "type": "boolean"
+                },
+                "fqan": {
+                    "description": "filter by exact FQAN",
+                    "type": "string"
                 },
                 "languages": {
                     "description": "e.g., [\"python\", \"javascript\"]",
@@ -2589,6 +2723,10 @@ const docTemplate = `{
                 },
                 "timeout_ms": {
                     "type": "integer"
+                },
+                "type": {
+                    "description": "\"agent\", \"service\", or \"\" (any)",
+                    "type": "string"
                 }
             }
         },
@@ -2642,7 +2780,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "fqan": {
-                    "description": "ZNS fields (populated when agent has a name binding)",
+                    "description": "ZNS fields (populated when entity has a name binding)",
                     "type": "string"
                 },
                 "home_registry": {
@@ -2651,11 +2789,17 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "openapi_url": {
+                    "type": "string"
+                },
                 "score": {
                     "type": "number"
                 },
                 "score_breakdown": {
                     "$ref": "#/definitions/models.ScoreBreakdown"
+                },
+                "service_endpoint": {
+                    "type": "string"
                 },
                 "status": {
                     "type": "string"
@@ -2668,6 +2812,10 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "type": {
+                    "description": "Entity type",
+                    "type": "string"
                 }
             }
         },
@@ -2730,6 +2878,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "codebase_hash": {
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 },
                 "signature": {
