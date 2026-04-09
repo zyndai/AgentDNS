@@ -131,8 +131,10 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/agents/{agentID}/card", s.handleGetAgentCard)
 	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
 
-	// Service registration alias (same handler, different route for clarity)
+	// Service management
 	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterService))
+	mux.HandleFunc("GET /v1/services", s.handleListServices)
+	mux.HandleFunc("GET /v1/services/{agentID}", s.handleGetAgent) // reuse agent handler
 
 	// Search
 	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))
@@ -901,6 +903,52 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 //	@Router			/v1/services [post]
 func (s *Server) handleRegisterService(w http.ResponseWriter, r *http.Request) {
 	s.handleRegisterAgent(w, r)
+}
+
+// handleListServices returns all registered services.
+//
+//	@Summary		List services
+//	@Description	List all registered services. Supports pagination with limit and offset query params.
+//	@Tags			Services
+//	@Produce		json
+//	@Param			category	query		string	false	"Filter by category"
+//	@Param			limit		query		int		false	"Max results (default 50)"
+//	@Param			offset		query		int		false	"Pagination offset"
+//	@Success		200			{object}	map[string]interface{}	"List of services"
+//	@Failure		500			{object}	map[string]string		"Internal server error"
+//	@Router			/v1/services [get]
+func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
+	category := r.URL.Query().Get("category")
+	limit := 50
+	offset := 0
+	if l := r.URL.Query().Get("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		fmt.Sscanf(o, "%d", &offset)
+	}
+
+	agents, err := s.store.ListAgents(category, limit, offset)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list services: "+err.Error())
+		return
+	}
+
+	// Filter to services only
+	var services []*models.RegistryRecord
+	for _, a := range agents {
+		if a.Type == "service" {
+			services = append(services, a)
+		}
+	}
+	if services == nil {
+		services = []*models.RegistryRecord{}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"services": services,
+		"count":    len(services),
+	})
 }
 
 // handleUpdateAgent updates an existing agent's registry record.

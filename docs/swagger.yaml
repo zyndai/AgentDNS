@@ -1985,6 +1985,39 @@ paths:
       tags:
       - Search
   /v1/services:
+    get:
+      description: List all registered services. Supports pagination with limit and
+        offset query params.
+      parameters:
+      - description: Filter by category
+        in: query
+        name: category
+        type: string
+      - description: Max results (default 50)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of services
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List services
+      tags:
+      - Services
     post:
       consumes:
       - application/json
