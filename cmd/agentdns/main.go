@@ -2,7 +2,7 @@
 //
 //	@title			Agent DNS Registry API
 //	@version		0.2.0
-//	@description	Decentralized Agent Registry Network — register, discover, and resolve AI agents across a federated mesh.
+//	@description	Decentralized Agent Registry Network — register, discover, and resolve AI entities across a federated mesh.
 //
 //	@contact.name	Agent DNS
 //	@contact.url	https://github.com/agentdns/agent-dns

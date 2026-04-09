@@ -779,7 +779,7 @@ info:
     name: Agent DNS
     url: https://github.com/agentdns/agent-dns
   description: Decentralized Agent Registry Network — register, discover, and resolve
-    AI agents across a federated mesh.
+    AI entities across a federated mesh.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -849,7 +849,7 @@ paths:
       - Admin
   /v1/categories:
     get:
-      description: Get all agent categories currently registered in the system.
+      description: Get all entity categories currently registered in the system.
       produces:
       - application/json
       responses:
@@ -1059,8 +1059,7 @@ paths:
       - Developers
   /v1/developers/{developerID}/entities:
     get:
-      description: 'Retrieve all agents and services registered by a developer. Alias:
-        GET /v1/developers/{id}/agents.'
+      description: 'Retrieve all entities registered by a developer. Alias: GET /v1/developers/{id}/agents.'
       parameters:
       - description: Developer ID
         in: path
@@ -1131,10 +1130,10 @@ paths:
     post:
       consumes:
       - application/json
-      description: 'Register an agent or service. Set type to "service" for services
-        (agent_url not required). Alias: POST /v1/agents, POST /v1/services.'
+      description: 'Register an entity. Set type to "service" for services (agent_url
+        not required). Alias: POST /v1/agents, POST /v1/services.'
       parameters:
-      - description: Agent registration payload
+      - description: Entity registration payload
         in: body
         name: body
         required: true
@@ -1162,7 +1161,7 @@ paths:
               type: string
             type: object
         "409":
-          description: Agent already registered
+          description: Entity already registered
           schema:
             additionalProperties:
               type: string
@@ -1178,8 +1177,8 @@ paths:
       - Entities
   /v1/entities/{agentID}:
     delete:
-      description: 'Deregister an agent or service. Creates a tombstone that propagates
-        via gossip. Alias: DELETE /v1/agents/{id}.'
+      description: 'Deregister an entity. Creates a tombstone that propagates via
+        gossip. Alias: DELETE /v1/agents/{id}.'
       parameters:
       - description: Entity ID
         in: path
@@ -1217,8 +1216,8 @@ paths:
       tags:
       - Entities
     get:
-      description: 'Retrieve a registry record for a specific agent or service. Alias:
-        GET /v1/agents/{id}, GET /v1/services/{id}.'
+      description: 'Retrieve a registry record for a specific entity. Alias: GET /v1/agents/{id},
+        GET /v1/services/{id}.'
       parameters:
       - description: Entity ID (e.g. zns:7f3a9c2e... or zns:svc:7f3a9c2e...)
         in: path
@@ -1256,8 +1255,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: 'Update fields on an existing agent or service. Only provided fields
-        are changed. Alias: PUT /v1/agents/{id}.'
+      description: 'Update fields on an existing entity. Only provided fields are
+        changed. Alias: PUT /v1/agents/{id}.'
       parameters:
       - description: Entity ID
         in: path
@@ -1480,40 +1479,6 @@ paths:
       summary: Get developer by handle
       tags:
       - Handles
-  /v1/handles/{handle}/agents:
-    get:
-      description: List all ZNS name bindings (entity names) registered under a given
-        developer handle.
-      parameters:
-      - description: ZNS developer handle
-        in: path
-        name: handle
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: List of ZNS name bindings
-          schema:
-            items:
-              $ref: '#/definitions/models.ZNSName'
-            type: array
-        "400":
-          description: Missing handle
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: List entities for a handle
-      tags:
-      - Handles
   /v1/handles/{handle}/available:
     get:
       description: Check whether a ZNS handle is available on this registry. Returns
@@ -1545,6 +1510,40 @@ paths:
               type: string
             type: object
       summary: Check handle availability
+      tags:
+      - Handles
+  /v1/handles/{handle}/entities:
+    get:
+      description: List all ZNS name bindings (entity names) registered under a given
+        developer handle.
+      parameters:
+      - description: ZNS developer handle
+        in: path
+        name: handle
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of ZNS name bindings
+          schema:
+            items:
+              $ref: '#/definitions/models.ZNSName'
+            type: array
+        "400":
+          description: Missing handle
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List entities for a handle
       tags:
       - Handles
   /v1/handles/{handle}/verify:
@@ -1832,7 +1831,7 @@ paths:
       - Names
   /v1/names/{developer}/{entity}/versions:
     get:
-      description: Retrieve the full version history for a ZNS agent name binding.
+      description: Retrieve the full version history for a ZNS entity name binding.
       parameters:
       - description: Developer handle
         in: path
@@ -1918,7 +1917,7 @@ paths:
   /v1/network/stats:
     get:
       description: Returns estimated global network statistics including registry
-        and agent counts.
+        and entity counts.
       produces:
       - application/json
       responses:
@@ -1932,7 +1931,7 @@ paths:
   /v1/network/status:
     get:
       description: Returns the current registry node's identity, uptime, peer count,
-        and agent statistics.
+        and entity statistics.
       produces:
       - application/json
       responses:
@@ -1990,7 +1989,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Search the registry for agents by natural language query, with
+      description: Search the registry for entities by natural language query, with
         optional category/tag/trust filters.
       parameters:
       - description: Search query and filters
@@ -2018,12 +2017,12 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: Search for agents
+      summary: Search for entities
       tags:
       - Search
   /v1/tags:
     get:
-      description: Get all agent tags currently in use across registered agents.
+      description: Get all entity tags currently in use across registered entities.
       produces:
       - application/json
       responses:

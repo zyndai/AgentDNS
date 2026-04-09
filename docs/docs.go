@@ -115,7 +115,7 @@ const docTemplate = `{
         },
         "/v1/categories": {
             "get": {
-                "description": "Get all agent categories currently registered in the system.",
+                "description": "Get all entity categories currently registered in the system.",
                 "produces": [
                     "application/json"
                 ],
@@ -425,7 +425,7 @@ const docTemplate = `{
         },
         "/v1/developers/{developerID}/entities": {
             "get": {
-                "description": "Retrieve all agents and services registered by a developer. Alias: GET /v1/developers/{id}/agents.",
+                "description": "Retrieve all entities registered by a developer. Alias: GET /v1/developers/{id}/agents.",
                 "produces": [
                     "application/json"
                 ],
@@ -527,7 +527,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Register an agent or service. Set type to \"service\" for services (agent_url not required). Alias: POST /v1/agents, POST /v1/services.",
+                "description": "Register an entity. Set type to \"service\" for services (agent_url not required). Alias: POST /v1/agents, POST /v1/services.",
                 "consumes": [
                     "application/json"
                 ],
@@ -540,7 +540,7 @@ const docTemplate = `{
                 "summary": "Register a new entity",
                 "parameters": [
                     {
-                        "description": "Agent registration payload",
+                        "description": "Entity registration payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -578,7 +578,7 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "Agent already registered",
+                        "description": "Entity already registered",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -600,7 +600,7 @@ const docTemplate = `{
         },
         "/v1/entities/{agentID}": {
             "get": {
-                "description": "Retrieve a registry record for a specific agent or service. Alias: GET /v1/agents/{id}, GET /v1/services/{id}.",
+                "description": "Retrieve a registry record for a specific entity. Alias: GET /v1/agents/{id}, GET /v1/services/{id}.",
                 "produces": [
                     "application/json"
                 ],
@@ -654,7 +654,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Update fields on an existing agent or service. Only provided fields are changed. Alias: PUT /v1/agents/{id}.",
+                "description": "Update fields on an existing entity. Only provided fields are changed. Alias: PUT /v1/agents/{id}.",
                 "consumes": [
                     "application/json"
                 ],
@@ -720,7 +720,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Deregister an agent or service. Creates a tombstone that propagates via gossip. Alias: DELETE /v1/agents/{id}.",
+                "description": "Deregister an entity. Creates a tombstone that propagates via gossip. Alias: DELETE /v1/agents/{id}.",
                 "produces": [
                     "application/json"
                 ],
@@ -1045,7 +1045,55 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/handles/{handle}/agents": {
+        "/v1/handles/{handle}/available": {
+            "get": {
+                "description": "Check whether a ZNS handle is available on this registry. Returns availability and optional reason if taken.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Handles"
+                ],
+                "summary": "Check handle availability",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ZNS handle to check",
+                        "name": "handle",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "handle, available, and optional reason",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Missing handle",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/handles/{handle}/entities": {
             "get": {
                 "description": "List all ZNS name bindings (entity names) registered under a given developer handle.",
                 "produces": [
@@ -1072,54 +1120,6 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/models.ZNSName"
                             }
-                        }
-                    },
-                    "400": {
-                        "description": "Missing handle",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/handles/{handle}/available": {
-            "get": {
-                "description": "Check whether a ZNS handle is available on this registry. Returns availability and optional reason if taken.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Handles"
-                ],
-                "summary": "Check handle availability",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ZNS handle to check",
-                        "name": "handle",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "handle, available, and optional reason",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -1560,7 +1560,7 @@ const docTemplate = `{
         },
         "/v1/names/{developer}/{entity}/versions": {
             "get": {
-                "description": "Retrieve the full version history for a ZNS agent name binding.",
+                "description": "Retrieve the full version history for a ZNS entity name binding.",
                 "produces": [
                     "application/json"
                 ],
@@ -1687,7 +1687,7 @@ const docTemplate = `{
         },
         "/v1/network/stats": {
             "get": {
-                "description": "Returns estimated global network statistics including registry and agent counts.",
+                "description": "Returns estimated global network statistics including registry and entity counts.",
                 "produces": [
                     "application/json"
                 ],
@@ -1707,7 +1707,7 @@ const docTemplate = `{
         },
         "/v1/network/status": {
             "get": {
-                "description": "Returns the current registry node's identity, uptime, peer count, and agent statistics.",
+                "description": "Returns the current registry node's identity, uptime, peer count, and entity statistics.",
                 "produces": [
                     "application/json"
                 ],
@@ -1790,7 +1790,7 @@ const docTemplate = `{
         },
         "/v1/search": {
             "post": {
-                "description": "Search the registry for agents by natural language query, with optional category/tag/trust filters.",
+                "description": "Search the registry for entities by natural language query, with optional category/tag/trust filters.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1800,7 +1800,7 @@ const docTemplate = `{
                 "tags": [
                     "Search"
                 ],
-                "summary": "Search for agents",
+                "summary": "Search for entities",
                 "parameters": [
                     {
                         "description": "Search query and filters",
@@ -1842,7 +1842,7 @@ const docTemplate = `{
         },
         "/v1/tags": {
             "get": {
-                "description": "Get all agent tags currently in use across registered agents.",
+                "description": "Get all entity tags currently in use across registered entities.",
                 "produces": [
                     "application/json"
                 ],
@@ -3021,7 +3021,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{"http"},
 	Title:            "Agent DNS Registry API",
-	Description:      "Decentralized Agent Registry Network — register, discover, and resolve AI agents across a federated mesh.",
+	Description:      "Decentralized Agent Registry Network — register, discover, and resolve AI entities across a federated mesh.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

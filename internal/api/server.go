@@ -154,7 +154,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/handles/{handle}/available", s.handleCheckHandleAvailable)
 	mux.HandleFunc("DELETE /v1/handles/{handle}", s.handleReleaseHandle)
 	mux.HandleFunc("POST /v1/handles/{handle}/verify", s.handleVerifyHandle)
-	mux.HandleFunc("GET /v1/handles/{handle}/agents", s.handleListHandleAgents)
+	mux.HandleFunc("GET /v1/handles/{handle}/entities", s.handleListHandleAgents)
 
 	// ZNS: Name bindings
 	mux.HandleFunc("POST /v1/names", rateLimited(registerRL, s.handleRegisterName))
@@ -570,7 +570,7 @@ func (s *Server) handleDeleteDeveloper(w http.ResponseWriter, r *http.Request) {
 // handleListDeveloperAgents lists all entities registered by a developer.
 //
 //	@Summary		List entities by developer
-//	@Description	Retrieve all agents and services registered by a developer. Alias: GET /v1/developers/{id}/agents.
+//	@Description	Retrieve all entities registered by a developer. Alias: GET /v1/developers/{id}/agents.
 //	@Tags			Developers
 //	@Produce		json
 //	@Param			developerID	path		string				true	"Developer ID"
@@ -622,20 +622,20 @@ func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// --- Agent Handlers ---
+// --- Entity Handlers ---
 
-// handleRegisterAgent registers a new agent or service on the registry.
+// handleRegisterAgent registers a new entity on the registry.
 //
 //	@Summary		Register a new entity
-//	@Description	Register an agent or service. Set type to "service" for services (agent_url not required). Alias: POST /v1/agents, POST /v1/services.
+//	@Description	Register an entity. Set type to "service" for services (agent_url not required). Alias: POST /v1/agents, POST /v1/services.
 //	@Tags			Entities
 //	@Accept			json
 //	@Produce		json
-//	@Param			body	body		models.RegistrationRequest	true	"Agent registration payload"
+//	@Param			body	body		models.RegistrationRequest	true	"Entity registration payload"
 //	@Success		201		{object}	map[string]string			"agent_id and success message"
 //	@Failure		400		{object}	map[string]string			"Validation error"
 //	@Failure		401		{object}	map[string]string			"Invalid signature"
-//	@Failure		409		{object}	map[string]string			"Agent already registered"
+//	@Failure		409		{object}	map[string]string			"Entity already registered"
 //	@Failure		500		{object}	map[string]string			"Internal server error"
 //	@Router			/v1/entities [post]
 func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
@@ -843,7 +843,7 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 // handleGetAgent retrieves a single entity (agent or service) by ID.
 //
 //	@Summary		Get entity by ID
-//	@Description	Retrieve a registry record for a specific agent or service. Alias: GET /v1/agents/{id}, GET /v1/services/{id}.
+//	@Description	Retrieve a registry record for a specific entity. Alias: GET /v1/agents/{id}, GET /v1/services/{id}.
 //	@Tags			Entities
 //	@Produce		json
 //	@Param			agentID	path		string					true	"Entity ID (e.g. zns:7f3a9c2e... or zns:svc:7f3a9c2e...)"
@@ -953,7 +953,7 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 // handleUpdateAgent updates an existing entity's registry record.
 //
 //	@Summary		Update an entity
-//	@Description	Update fields on an existing agent or service. Only provided fields are changed. Alias: PUT /v1/agents/{id}.
+//	@Description	Update fields on an existing entity. Only provided fields are changed. Alias: PUT /v1/agents/{id}.
 //	@Tags			Entities
 //	@Accept			json
 //	@Produce		json
@@ -1045,7 +1045,7 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 // handleDeleteAgent deregisters an entity from the registry.
 //
 //	@Summary		Delete an entity
-//	@Description	Deregister an agent or service. Creates a tombstone that propagates via gossip. Alias: DELETE /v1/agents/{id}.
+//	@Description	Deregister an entity. Creates a tombstone that propagates via gossip. Alias: DELETE /v1/agents/{id}.
 //	@Tags			Entities
 //	@Produce		json
 //	@Param			agentID	path		string			true	"Entity ID"
@@ -1148,8 +1148,8 @@ func (s *Server) handleGetAgentCard(w http.ResponseWriter, r *http.Request) {
 
 // handleSearch performs a ranked search across local and gossip indexes.
 //
-//	@Summary		Search for agents
-//	@Description	Search the registry for agents by natural language query, with optional category/tag/trust filters.
+//	@Summary		Search for entities
+//	@Description	Search the registry for entities by natural language query, with optional category/tag/trust filters.
 //	@Tags			Search
 //	@Accept			json
 //	@Produce		json
@@ -1243,10 +1243,10 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// handleGetCategories returns all known agent categories.
+// handleGetCategories returns all known entity categories.
 //
 //	@Summary		List categories
-//	@Description	Get all agent categories currently registered in the system.
+//	@Description	Get all entity categories currently registered in the system.
 //	@Tags			Search
 //	@Produce		json
 //	@Success		200	{object}	map[string][]string	"List of categories"
@@ -1264,10 +1264,10 @@ func (s *Server) handleGetCategories(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]string{"categories": categories})
 }
 
-// handleGetTags returns all known agent tags.
+// handleGetTags returns all known entity tags.
 //
 //	@Summary		List tags
-//	@Description	Get all agent tags currently in use across registered agents.
+//	@Description	Get all entity tags currently in use across registered entities.
 //	@Tags			Search
 //	@Produce		json
 //	@Success		200	{object}	map[string][]string	"List of tags"
@@ -1290,7 +1290,7 @@ func (s *Server) handleGetTags(w http.ResponseWriter, r *http.Request) {
 // handleNetworkStatus returns the current node's status.
 //
 //	@Summary		Get node status
-//	@Description	Returns the current registry node's identity, uptime, peer count, and agent statistics.
+//	@Description	Returns the current registry node's identity, uptime, peer count, and entity statistics.
 //	@Tags			Network
 //	@Produce		json
 //	@Success		200	{object}	models.NetworkStatus	"Node status"
@@ -1360,7 +1360,7 @@ func (s *Server) handleAddPeer(w http.ResponseWriter, r *http.Request) {
 // handleNetworkStats returns estimated global network statistics.
 //
 //	@Summary		Get network stats
-//	@Description	Returns estimated global network statistics including registry and agent counts.
+//	@Description	Returns estimated global network statistics including registry and entity counts.
 //	@Tags			Network
 //	@Produce		json
 //	@Success		200	{object}	models.NetworkStats	"Network statistics"
@@ -1963,7 +1963,7 @@ func (s *Server) handleVerifyHandle(w http.ResponseWriter, r *http.Request) {
 //	@Success		200		{array}		models.ZNSName		"List of ZNS name bindings"
 //	@Failure		400		{object}	map[string]string	"Missing handle"
 //	@Failure		500		{object}	map[string]string	"Internal server error"
-//	@Router			/v1/handles/{handle}/agents [get]
+//	@Router			/v1/handles/{handle}/entities [get]
 func (s *Server) handleListHandleAgents(w http.ResponseWriter, r *http.Request) {
 	handle := r.PathValue("handle")
 	if handle == "" {
@@ -2332,7 +2332,7 @@ func (s *Server) handleReleaseName(w http.ResponseWriter, r *http.Request) {
 // handleListVersions lists version history for a ZNS name binding.
 //
 //	@Summary		List version history
-//	@Description	Retrieve the full version history for a ZNS agent name binding.
+//	@Description	Retrieve the full version history for a ZNS entity name binding.
 //	@Tags			Names
 //	@Produce		json
 //	@Param			developer	path		string				true	"Developer handle"
