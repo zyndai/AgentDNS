@@ -1,7 +1,5 @@
 # Zynd Services Directory — Research & Strategy
 
-> **Context**: Chandan suggested listing external services/tools (like MPP's directory at mpp.dev/services) on ZyndAI so agents can discover and use them alongside other agents. This document captures the full competitive research and strategic recommendation.
-
 ---
 
 ## 1. The Landscape (TL;DR)
