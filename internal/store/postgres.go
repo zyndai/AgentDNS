@@ -586,12 +586,18 @@ func (s *PostgresStore) UpsertGossipEntry(entry *models.GossipEntry) error {
 		status = "inactive"
 	}
 
+	entityType := entry.Type
+	if entityType == "" {
+		entityType = "agent"
+	}
+
 	_, err = s.pool.Exec(context.Background(), `
 		INSERT INTO gossip_entries (agent_id, name, category, tags, summary,
 			home_registry, agent_url, received_at, tombstoned,
 			developer_id, developer_public_key, developer_proof,
-			origin_public_key, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			origin_public_key, status,
+			type, service_endpoint, openapi_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT(agent_id) DO UPDATE SET
 			name=EXCLUDED.name, category=EXCLUDED.category, tags=EXCLUDED.tags,
 			summary=EXCLUDED.summary, agent_url=EXCLUDED.agent_url,
@@ -599,7 +605,8 @@ func (s *PostgresStore) UpsertGossipEntry(entry *models.GossipEntry) error {
 			developer_id=EXCLUDED.developer_id, developer_public_key=EXCLUDED.developer_public_key,
 			developer_proof=EXCLUDED.developer_proof,
 			origin_public_key=COALESCE(gossip_entries.origin_public_key, EXCLUDED.origin_public_key),
-			status=EXCLUDED.status`,
+			status=EXCLUDED.status,
+			type=EXCLUDED.type, service_endpoint=EXCLUDED.service_endpoint, openapi_url=EXCLUDED.openapi_url`,
 		entry.AgentID, entry.Name, entry.Category, string(tagsJSON),
 		entry.Summary, entry.HomeRegistry, entry.AgentURL,
 		entry.ReceivedAt, entry.Tombstoned,
@@ -607,6 +614,7 @@ func (s *PostgresStore) UpsertGossipEntry(entry *models.GossipEntry) error {
 		nilIfEmptyBytes(developerProofJSON),
 		nilIfEmpty(entry.OriginPublicKey),
 		status,
+		entityType, nilIfEmpty(entry.ServiceEndpoint), nilIfEmpty(entry.OpenAPIURL),
 	)
 	return err
 }
@@ -950,7 +958,8 @@ func (s *PostgresStore) MarkInactiveAgents(threshold time.Duration) ([]string, e
 	cutoff := time.Now().UTC().Add(-threshold)
 	rows, err := s.pool.Query(context.Background(), `
 		UPDATE agents SET status = 'inactive'
-		WHERE status = 'active' AND (last_heartbeat IS NULL OR last_heartbeat < $1)
+		WHERE status = 'active' AND type != 'service'
+		AND (last_heartbeat IS NULL OR last_heartbeat < $1)
 		RETURNING agent_id`, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("failed to mark inactive agents: %w", err)

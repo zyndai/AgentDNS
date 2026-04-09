@@ -293,6 +293,9 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 				HomeRegistry:       ann.HomeRegistry,
 				AgentURL:           ann.AgentURL,
 				ReceivedAt:         time.Now().UTC().Format(time.RFC3339),
+				Type:               ann.EntityType,
+				ServiceEndpoint:    ann.ServiceEndpoint,
+				OpenAPIURL:         ann.OpenAPIURL,
 				DeveloperID:        ann.DeveloperID,
 				DeveloperPublicKey: ann.DeveloperPublicKey,
 				DeveloperProof:     ann.DeveloperProof,
@@ -366,6 +369,9 @@ func (gh *GossipHandler) CreateAnnouncement(
 		OriginPublicKey: pubKey,
 		HopCount:        0,
 		MaxHops:         gh.cfg.MaxHops,
+		EntityType:      agent.Type,
+		ServiceEndpoint: agent.ServiceEndpoint,
+		OpenAPIURL:      agent.OpenAPIURL,
 	}
 
 	// Include developer identity fields if present
