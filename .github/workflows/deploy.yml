@@ -39,7 +39,7 @@ jobs:
             sleep 3
 
             echo "==> Health check..."
-            curl -f http://localhost:8080 || exit 1
+            curl -f http://localhost:8080/health || exit 1
 
             echo "✅ Server 1 deployed successfully"
 
@@ -78,6 +78,6 @@ jobs:
             sleep 3
 
             echo "==> Health check..."
-            curl -f http://localhost:8080 || exit 1
+            curl -f http://localhost:8080/health || exit 1
 
             echo "✅ Server 2 deployed successfully"
