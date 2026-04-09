@@ -893,21 +893,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusNotFound, "agent not found")
 }
 
-// handleRegisterService registers a new service on the registry.
-// This is an alias for handleRegisterAgent with type=service.
-//
-//	@Summary		Register a new service (alias)
-//	@Description	Alias for POST /v1/entities with type=service. Does not require agent_url.
-//	@Tags			Entities
-//	@Accept			json
-//	@Produce		json
-//	@Param			body	body		models.RegistrationRequest	true	"Service registration payload (set type to service)"
-//	@Success		201		{object}	map[string]string			"agent_id and success message"
-//	@Failure		400		{object}	map[string]string			"Validation error"
-//	@Failure		401		{object}	map[string]string			"Invalid signature"
-//	@Failure		409		{object}	map[string]string			"Service already registered"
-//	@Failure		500		{object}	map[string]string			"Internal server error"
-//	@Router			/v1/services [post]
+// handleRegisterService is an alias for handleRegisterAgent (POST /v1/services).
 func (s *Server) handleRegisterService(w http.ResponseWriter, r *http.Request) {
 	s.handleRegisterAgent(w, r)
 }

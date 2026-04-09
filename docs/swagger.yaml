@@ -2021,55 +2021,6 @@ paths:
       summary: Search for agents
       tags:
       - Search
-  /v1/services:
-    post:
-      consumes:
-      - application/json
-      description: Alias for POST /v1/entities with type=service. Does not require
-        agent_url.
-      parameters:
-      - description: Service registration payload (set type to service)
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/models.RegistrationRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: agent_id and success message
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Validation error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Invalid signature
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "409":
-          description: Service already registered
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Register a new service (alias)
-      tags:
-      - Entities
   /v1/tags:
     get:
       description: Get all agent tags currently in use across registered agents.
