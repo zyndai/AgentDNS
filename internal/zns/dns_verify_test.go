@@ -59,8 +59,8 @@ func TestVerifyDeveloperDNS(t *testing.T) {
 func TestVerifyRegistryDNS(t *testing.T) {
 	resolver := &mockResolver{
 		records: map[string][]string{
-			"_zynd.dns01.zynd.ai": {"v=zynd1 id=agdns:registry:abc123 key=ed25519:gKH4VSJ838fG1jg6Y14EwwAkQ5PbXsCsu7ckS3SeGRw="},
-			"_zynd.bad.example":   {"v=zynd1 id=agdns:registry:xyz key=ed25519:wrong-key"},
+			"_zynd.dns01.zynd.ai": {"v=zynd1 id=zns:registry:abc123 key=ed25519:gKH4VSJ838fG1jg6Y14EwwAkQ5PbXsCsu7ckS3SeGRw="},
+			"_zynd.bad.example":   {"v=zynd1 id=zns:registry:xyz key=ed25519:wrong-key"},
 		},
 	}
 
@@ -97,7 +97,7 @@ func TestResolveDNSBridge(t *testing.T) {
 	resolver := &mockResolver{
 		records: map[string][]string{
 			"_zynd.translator.acme-corp.com": {"fqan=dns01.zynd.ai/acme-corp/doc-translator"},
-			"_zynd.no-fqan.example.com":     {"v=zynd1 id=agdns:registry:abc"},
+			"_zynd.no-fqan.example.com":     {"v=zynd1 id=zns:registry:abc"},
 		},
 	}
 

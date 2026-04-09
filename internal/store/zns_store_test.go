@@ -32,7 +32,7 @@ func createTestDeveloper(t *testing.T, s *PostgresStore, id, handle string) *mod
 		DeveloperID:   id,
 		Name:          "Test Dev",
 		PublicKey:     "ed25519:testpubkey-" + id,
-		HomeRegistry:  "agdns:registry:test",
+		HomeRegistry:  "zns:registry:test",
 		SchemaVersion: "1.0",
 		RegisteredAt:  now,
 		UpdatedAt:     now,
@@ -57,7 +57,7 @@ func createTestAgent(t *testing.T, s *PostgresStore, agentID string) {
 		Tags:         []string{"test"},
 		Summary:      "test",
 		PublicKey:     "ed25519:testpubkey-" + agentID,
-		HomeRegistry: "agdns:registry:test",
+		HomeRegistry: "zns:registry:test",
 		RegisteredAt: now,
 		UpdatedAt:    now,
 		TTL:          86400,
@@ -72,13 +72,13 @@ func createTestAgent(t *testing.T, s *PostgresStore, agentID string) {
 
 func TestStore_ClaimHandle(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:claim1", "")
+	createTestDeveloper(t, s, "zns:dev:claim1", "")
 
-	if err := s.ClaimHandle("agdns:dev:claim1", "acme-corp", "agdns:registry:test"); err != nil {
+	if err := s.ClaimHandle("zns:dev:claim1", "acme-corp", "zns:registry:test"); err != nil {
 		t.Fatalf("ClaimHandle() error: %v", err)
 	}
 
-	dev, err := s.GetDeveloper("agdns:dev:claim1")
+	dev, err := s.GetDeveloper("zns:dev:claim1")
 	if err != nil {
 		t.Fatalf("GetDeveloper() error: %v", err)
 	}
@@ -89,10 +89,10 @@ func TestStore_ClaimHandle(t *testing.T) {
 
 func TestStore_ClaimHandle_Duplicate(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:dup1", "taken-handle")
-	createTestDeveloper(t, s, "agdns:dev:dup2", "")
+	createTestDeveloper(t, s, "zns:dev:dup1", "taken-handle")
+	createTestDeveloper(t, s, "zns:dev:dup2", "")
 
-	err := s.ClaimHandle("agdns:dev:dup2", "taken-handle", "agdns:registry:test")
+	err := s.ClaimHandle("zns:dev:dup2", "taken-handle", "zns:registry:test")
 	if err == nil {
 		t.Fatal("expected error for duplicate handle, got nil")
 	}
@@ -103,9 +103,9 @@ func TestStore_ClaimHandle_Duplicate(t *testing.T) {
 
 func TestStore_ClaimHandle_AlreadyHasOne(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:has1", "existing-handle")
+	createTestDeveloper(t, s, "zns:dev:has1", "existing-handle")
 
-	err := s.ClaimHandle("agdns:dev:has1", "new-handle", "agdns:registry:test")
+	err := s.ClaimHandle("zns:dev:has1", "new-handle", "zns:registry:test")
 	if err == nil {
 		t.Fatal("expected error when developer already has a handle")
 	}
@@ -113,21 +113,21 @@ func TestStore_ClaimHandle_AlreadyHasOne(t *testing.T) {
 
 func TestStore_GetDeveloperByHandle(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:byhandle", "find-me")
+	createTestDeveloper(t, s, "zns:dev:byhandle", "find-me")
 
-	dev, err := s.GetDeveloperByHandle("find-me", "agdns:registry:test")
+	dev, err := s.GetDeveloperByHandle("find-me", "zns:registry:test")
 	if err != nil {
 		t.Fatalf("GetDeveloperByHandle() error: %v", err)
 	}
 	if dev == nil {
 		t.Fatal("expected developer, got nil")
 	}
-	if dev.DeveloperID != "agdns:dev:byhandle" {
-		t.Errorf("expected dev ID 'agdns:dev:byhandle', got %q", dev.DeveloperID)
+	if dev.DeveloperID != "zns:dev:byhandle" {
+		t.Errorf("expected dev ID 'zns:dev:byhandle', got %q", dev.DeveloperID)
 	}
 
 	// Nonexistent handle
-	dev2, _ := s.GetDeveloperByHandle("no-such-handle", "agdns:registry:test")
+	dev2, _ := s.GetDeveloperByHandle("no-such-handle", "zns:registry:test")
 	if dev2 != nil {
 		t.Error("expected nil for nonexistent handle")
 	}
@@ -135,19 +135,19 @@ func TestStore_GetDeveloperByHandle(t *testing.T) {
 
 func TestStore_ReleaseHandle(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:release1", "release-me")
+	createTestDeveloper(t, s, "zns:dev:release1", "release-me")
 
-	if err := s.ReleaseHandle("agdns:dev:release1", "release-me"); err != nil {
+	if err := s.ReleaseHandle("zns:dev:release1", "release-me"); err != nil {
 		t.Fatalf("ReleaseHandle() error: %v", err)
 	}
 
-	dev, _ := s.GetDeveloperByHandle("release-me", "agdns:registry:test")
+	dev, _ := s.GetDeveloperByHandle("release-me", "zns:registry:test")
 	if dev != nil {
 		t.Error("expected nil after release")
 	}
 
 	// Developer still exists
-	devByID, _ := s.GetDeveloper("agdns:dev:release1")
+	devByID, _ := s.GetDeveloper("zns:dev:release1")
 	if devByID == nil {
 		t.Error("developer should still exist after handle release")
 	}
@@ -155,13 +155,13 @@ func TestStore_ReleaseHandle(t *testing.T) {
 
 func TestStore_UpdateHandleVerification(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:verify1", "verify-me")
+	createTestDeveloper(t, s, "zns:dev:verify1", "verify-me")
 
-	if err := s.UpdateHandleVerification("agdns:dev:verify1", true, "dns", "example.com"); err != nil {
+	if err := s.UpdateHandleVerification("zns:dev:verify1", true, "dns", "example.com"); err != nil {
 		t.Fatalf("UpdateHandleVerification() error: %v", err)
 	}
 
-	dev, _ := s.GetDeveloper("agdns:dev:verify1")
+	dev, _ := s.GetDeveloper("zns:dev:verify1")
 	if !dev.DevHandleVerified {
 		t.Error("expected verified=true")
 	}
@@ -178,10 +178,10 @@ func TestStore_CreateDeveloper_WithHandle(t *testing.T) {
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	dev := &models.DeveloperRecord{
-		DeveloperID:   "agdns:dev:atomic1",
+		DeveloperID:   "zns:dev:atomic1",
 		Name:          "Atomic Dev",
 		PublicKey:     "ed25519:atomic-key",
-		HomeRegistry:  "agdns:registry:test",
+		HomeRegistry:  "zns:registry:test",
 		SchemaVersion: "1.0",
 		RegisteredAt:  now,
 		UpdatedAt:     now,
@@ -193,11 +193,11 @@ func TestStore_CreateDeveloper_WithHandle(t *testing.T) {
 		t.Fatalf("CreateDeveloper with handle error: %v", err)
 	}
 
-	got, _ := s.GetDeveloperByHandle("atomic-handle", "agdns:registry:test")
+	got, _ := s.GetDeveloperByHandle("atomic-handle", "zns:registry:test")
 	if got == nil {
 		t.Fatal("expected developer by handle after atomic creation")
 	}
-	if got.DeveloperID != "agdns:dev:atomic1" {
+	if got.DeveloperID != "zns:dev:atomic1" {
 		t.Errorf("wrong developer ID: %s", got.DeveloperID)
 	}
 }
@@ -206,8 +206,8 @@ func TestStore_CreateDeveloper_WithHandle(t *testing.T) {
 
 func TestStore_CreateAndGetZNSName(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:name1", "name-dev")
-	createTestAgent(t, s, "agdns:nameagent1")
+	createTestDeveloper(t, s, "zns:dev:name1", "name-dev")
+	createTestAgent(t, s, "zns:nameagent1")
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	name := &models.ZNSName{
@@ -215,8 +215,8 @@ func TestStore_CreateAndGetZNSName(t *testing.T) {
 		AgentName:       "my-agent",
 		DeveloperHandle: "name-dev",
 		RegistryHost:    "test.example.com",
-		AgentID:         "agdns:nameagent1",
-		DeveloperID:     "agdns:dev:name1",
+		AgentID:         "zns:nameagent1",
+		DeveloperID:     "zns:dev:name1",
 		CurrentVersion:  "1.0.0",
 		CapabilityTags:  []string{"nlp"},
 		RegisteredAt:    now,
@@ -244,7 +244,7 @@ func TestStore_CreateAndGetZNSName(t *testing.T) {
 	}
 
 	// Get by agent ID
-	got3, _ := s.GetZNSNameByAgentID("agdns:nameagent1")
+	got3, _ := s.GetZNSNameByAgentID("zns:nameagent1")
 	if got3 == nil {
 		t.Fatal("GetZNSNameByAgentID() returned nil")
 	}
@@ -252,8 +252,8 @@ func TestStore_CreateAndGetZNSName(t *testing.T) {
 
 func TestStore_CreateZNSName_Duplicate(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:dupname", "dup-dev")
-	createTestAgent(t, s, "agdns:dupnameagent")
+	createTestDeveloper(t, s, "zns:dev:dupname", "dup-dev")
+	createTestAgent(t, s, "zns:dupnameagent")
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	name := &models.ZNSName{
@@ -261,8 +261,8 @@ func TestStore_CreateZNSName_Duplicate(t *testing.T) {
 		AgentName:       "same-name",
 		DeveloperHandle: "dup-dev",
 		RegistryHost:    "test.example.com",
-		AgentID:         "agdns:dupnameagent",
-		DeveloperID:     "agdns:dev:dupname",
+		AgentID:         "zns:dupnameagent",
+		DeveloperID:     "zns:dev:dupname",
 		RegisteredAt:    now,
 		UpdatedAt:       now,
 		Signature:       "ed25519:sig",
@@ -277,8 +277,8 @@ func TestStore_CreateZNSName_Duplicate(t *testing.T) {
 
 func TestStore_UpdateZNSName(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:upd", "upd-dev")
-	createTestAgent(t, s, "agdns:updagent")
+	createTestDeveloper(t, s, "zns:dev:upd", "upd-dev")
+	createTestAgent(t, s, "zns:updagent")
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	name := &models.ZNSName{
@@ -286,8 +286,8 @@ func TestStore_UpdateZNSName(t *testing.T) {
 		AgentName:       "upd-agent",
 		DeveloperHandle: "upd-dev",
 		RegistryHost:    "test.example.com",
-		AgentID:         "agdns:updagent",
-		DeveloperID:     "agdns:dev:upd",
+		AgentID:         "zns:updagent",
+		DeveloperID:     "zns:dev:upd",
 		CurrentVersion:  "1.0.0",
 		RegisteredAt:    now,
 		UpdatedAt:       now,
@@ -310,8 +310,8 @@ func TestStore_UpdateZNSName(t *testing.T) {
 
 func TestStore_DeleteZNSName(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:del", "del-dev")
-	createTestAgent(t, s, "agdns:delagent")
+	createTestDeveloper(t, s, "zns:dev:del", "del-dev")
+	createTestAgent(t, s, "zns:delagent")
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	name := &models.ZNSName{
@@ -319,8 +319,8 @@ func TestStore_DeleteZNSName(t *testing.T) {
 		AgentName:       "del-agent",
 		DeveloperHandle: "del-dev",
 		RegistryHost:    "test.example.com",
-		AgentID:         "agdns:delagent",
-		DeveloperID:     "agdns:dev:del",
+		AgentID:         "zns:delagent",
+		DeveloperID:     "zns:dev:del",
 		RegisteredAt:    now,
 		UpdatedAt:       now,
 		Signature:       "ed25519:sig",
@@ -339,15 +339,15 @@ func TestStore_DeleteZNSName(t *testing.T) {
 
 func TestStore_ListZNSNamesByDeveloper(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:list", "list-dev")
-	createTestAgent(t, s, "agdns:listagent1")
-	createTestAgent(t, s, "agdns:listagent2")
+	createTestDeveloper(t, s, "zns:dev:list", "list-dev")
+	createTestAgent(t, s, "zns:listagent1")
+	createTestAgent(t, s, "zns:listagent2")
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	for _, an := range []string{"alpha-agent", "beta-agent"} {
-		aid := "agdns:listagent1"
+		aid := "zns:listagent1"
 		if an == "beta-agent" {
-			aid = "agdns:listagent2"
+			aid = "zns:listagent2"
 		}
 		s.CreateZNSName(&models.ZNSName{
 			FQAN:            "test.example.com/list-dev/" + an,
@@ -355,7 +355,7 @@ func TestStore_ListZNSNamesByDeveloper(t *testing.T) {
 			DeveloperHandle: "list-dev",
 			RegistryHost:    "test.example.com",
 			AgentID:         aid,
-			DeveloperID:     "agdns:dev:list",
+			DeveloperID:     "zns:dev:list",
 			RegisteredAt:    now,
 			UpdatedAt:       now,
 			Signature:       "ed25519:sig",
@@ -378,20 +378,20 @@ func TestStore_ListZNSNamesByDeveloper(t *testing.T) {
 
 func TestStore_CreateAndGetZNSVersion(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:ver", "ver-dev")
-	createTestAgent(t, s, "agdns:veragent")
+	createTestDeveloper(t, s, "zns:dev:ver", "ver-dev")
+	createTestAgent(t, s, "zns:veragent")
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	s.CreateZNSName(&models.ZNSName{
 		FQAN: "test.example.com/ver-dev/ver-agent", AgentName: "ver-agent",
 		DeveloperHandle: "ver-dev", RegistryHost: "test.example.com",
-		AgentID: "agdns:veragent", DeveloperID: "agdns:dev:ver",
+		AgentID: "zns:veragent", DeveloperID: "zns:dev:ver",
 		RegisteredAt: now, UpdatedAt: now, Signature: "ed25519:sig",
 	})
 
 	v := &models.ZNSVersion{
 		FQAN: "test.example.com/ver-dev/ver-agent", Version: "1.0.0",
-		AgentID: "agdns:veragent", RegisteredAt: now, Signature: "ed25519:sig",
+		AgentID: "zns:veragent", RegisteredAt: now, Signature: "ed25519:sig",
 	}
 	if err := s.CreateZNSVersion(v); err != nil {
 		t.Fatalf("CreateZNSVersion() error: %v", err)
@@ -408,20 +408,20 @@ func TestStore_CreateAndGetZNSVersion(t *testing.T) {
 
 func TestStore_GetZNSVersions_Ordering(t *testing.T) {
 	s := newZNSTestStore(t)
-	createTestDeveloper(t, s, "agdns:dev:vord", "vord-dev")
-	createTestAgent(t, s, "agdns:vordagent")
+	createTestDeveloper(t, s, "zns:dev:vord", "vord-dev")
+	createTestAgent(t, s, "zns:vordagent")
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	fqan := "test.example.com/vord-dev/vord-agent"
 	s.CreateZNSName(&models.ZNSName{
 		FQAN: fqan, AgentName: "vord-agent", DeveloperHandle: "vord-dev",
-		RegistryHost: "test.example.com", AgentID: "agdns:vordagent",
-		DeveloperID: "agdns:dev:vord", RegisteredAt: now, UpdatedAt: now, Signature: "ed25519:sig",
+		RegistryHost: "test.example.com", AgentID: "zns:vordagent",
+		DeveloperID: "zns:dev:vord", RegisteredAt: now, UpdatedAt: now, Signature: "ed25519:sig",
 	})
 
 	for _, ver := range []string{"1.0.0", "2.0.0"} {
 		s.CreateZNSVersion(&models.ZNSVersion{
-			FQAN: fqan, Version: ver, AgentID: "agdns:vordagent",
+			FQAN: fqan, Version: ver, AgentID: "zns:vordagent",
 			RegisteredAt: now, Signature: "ed25519:sig",
 		})
 	}
@@ -441,7 +441,7 @@ func TestStore_UpsertGossipZNSName(t *testing.T) {
 	entry := &models.GossipZNSName{
 		FQAN: "remote.example.com/remote-dev/remote-agent", AgentName: "remote-agent",
 		DeveloperHandle: "remote-dev", RegistryHost: "remote.example.com",
-		AgentID: "agdns:remoteagent", CurrentVersion: "1.0.0", ReceivedAt: now,
+		AgentID: "zns:remoteagent", CurrentVersion: "1.0.0", ReceivedAt: now,
 	}
 
 	if err := s.UpsertGossipZNSName(entry); err != nil {
@@ -472,7 +472,7 @@ func TestStore_GetGossipZNSNameByParts(t *testing.T) {
 	s.UpsertGossipZNSName(&models.GossipZNSName{
 		FQAN: "r.example.com/parts-dev/parts-agent", AgentName: "parts-agent",
 		DeveloperHandle: "parts-dev", RegistryHost: "r.example.com",
-		AgentID: "agdns:partsagent", ReceivedAt: now,
+		AgentID: "zns:partsagent", ReceivedAt: now,
 	})
 
 	got, _ := s.GetGossipZNSNameByParts("parts-dev", "parts-agent")
@@ -488,7 +488,7 @@ func TestStore_TombstoneGossipZNSName(t *testing.T) {
 	fqan := "r.example.com/tomb-dev/tomb-agent"
 	s.UpsertGossipZNSName(&models.GossipZNSName{
 		FQAN: fqan, AgentName: "tomb-agent", DeveloperHandle: "tomb-dev",
-		RegistryHost: "r.example.com", AgentID: "agdns:tombagent", ReceivedAt: now,
+		RegistryHost: "r.example.com", AgentID: "zns:tombagent", ReceivedAt: now,
 	})
 
 	s.TombstoneGossipZNSName(fqan)
@@ -507,7 +507,7 @@ func TestStore_UpsertRegistryProof(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	proof := &models.RegistryIdentityProof{
 		Type: "registry-identity-proof", Version: "1.0",
-		RegistryID: "agdns:registry:proof1", Domain: "proof.example.com",
+		RegistryID: "zns:registry:proof1", Domain: "proof.example.com",
 		Ed25519PublicKey: "testkey", TLSSPKIFingerprint: "sha256:abc",
 		Signature: "ed25519:sig", VerificationTier: "domain-verified",
 		IssuedAt: now, ExpiresAt: now, ReceivedAt: now,
@@ -517,7 +517,7 @@ func TestStore_UpsertRegistryProof(t *testing.T) {
 		t.Fatalf("UpsertRegistryProof() error: %v", err)
 	}
 
-	got, err := s.GetRegistryProof("agdns:registry:proof1")
+	got, err := s.GetRegistryProof("zns:registry:proof1")
 	if err != nil || got == nil {
 		t.Fatalf("GetRegistryProof() error: %v", err)
 	}
@@ -539,7 +539,7 @@ func TestStore_PeerAttestations(t *testing.T) {
 	// Create registry proof first (for foreign key if needed)
 	s.UpsertRegistryProof(&models.RegistryIdentityProof{
 		Type: "registry-identity-proof", Version: "1.0",
-		RegistryID: "agdns:registry:att-subject", Domain: "att.example.com",
+		RegistryID: "zns:registry:att-subject", Domain: "att.example.com",
 		Ed25519PublicKey: "key", TLSSPKIFingerprint: "sha256:xyz",
 		Signature: "sig", VerificationTier: "self-announced",
 		IssuedAt: now, ExpiresAt: now, ReceivedAt: now,
@@ -548,7 +548,7 @@ func TestStore_PeerAttestations(t *testing.T) {
 	for i, attID := range []string{"peer1", "peer2", "peer3"} {
 		att := &models.PeerAttestation{
 			AttesterID:     attID,
-			SubjectID:      "agdns:registry:att-subject",
+			SubjectID:      "zns:registry:att-subject",
 			VerifiedLayers: []string{"tls", "rip"},
 			AttestedAt:     now,
 			Signature:      "ed25519:sig" + string(rune('0'+i)),
@@ -558,7 +558,7 @@ func TestStore_PeerAttestations(t *testing.T) {
 		}
 	}
 
-	count, err := s.CountPeerAttestations("agdns:registry:att-subject")
+	count, err := s.CountPeerAttestations("zns:registry:att-subject")
 	if err != nil {
 		t.Fatalf("CountPeerAttestations() error: %v", err)
 	}
@@ -573,15 +573,15 @@ func TestStore_UpdateRegistryVerificationTier(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	s.UpsertRegistryProof(&models.RegistryIdentityProof{
 		Type: "registry-identity-proof", Version: "1.0",
-		RegistryID: "agdns:registry:tier1", Domain: "tier.example.com",
+		RegistryID: "zns:registry:tier1", Domain: "tier.example.com",
 		Ed25519PublicKey: "key", TLSSPKIFingerprint: "sha256:aaa",
 		Signature: "sig", VerificationTier: "self-announced",
 		IssuedAt: now, ExpiresAt: now, ReceivedAt: now,
 	})
 
-	s.UpdateRegistryVerificationTier("agdns:registry:tier1", "mesh-verified")
+	s.UpdateRegistryVerificationTier("zns:registry:tier1", "mesh-verified")
 
-	got, _ := s.GetRegistryProof("agdns:registry:tier1")
+	got, _ := s.GetRegistryProof("zns:registry:tier1")
 	if got.VerificationTier != "mesh-verified" {
 		t.Errorf("expected tier 'mesh-verified', got %q", got.VerificationTier)
 	}

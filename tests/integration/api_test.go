@@ -139,7 +139,7 @@ func TestSearchResponse_Serialization(t *testing.T) {
 	resp := models.SearchResponse{
 		Results: []models.SearchResult{
 			{
-				AgentID:  "agdns:test1",
+				AgentID:  "zns:test1",
 				Name:     "TestAgent",
 				Summary:  "A test agent",
 				Category: "tools",

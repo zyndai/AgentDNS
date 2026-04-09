@@ -273,6 +273,20 @@ func (s *PostgresStore) migrate() error {
 		PRIMARY KEY (attester_id, subject_id)
 	);
 	CREATE INDEX IF NOT EXISTS idx_attestations_subject ON peer_attestations(subject_id);
+
+	-- ============================================================
+	-- Service support: entity type discriminator
+	-- ============================================================
+	ALTER TABLE agents ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'agent';
+	ALTER TABLE agents ADD COLUMN IF NOT EXISTS service_endpoint TEXT;
+	ALTER TABLE agents ADD COLUMN IF NOT EXISTS openapi_url TEXT;
+	ALTER TABLE agents ADD COLUMN IF NOT EXISTS pricing_model JSONB;
+	CREATE INDEX IF NOT EXISTS idx_agents_type ON agents(type);
+
+	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'agent';
+	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS service_endpoint TEXT;
+	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS openapi_url TEXT;
+	CREATE INDEX IF NOT EXISTS idx_gossip_entries_type ON gossip_entries(type);
 	`
 
 	_, err := s.pool.Exec(context.Background(), schema)
@@ -306,15 +320,31 @@ func (s *PostgresStore) CreateAgent(agent *models.RegistryRecord) error {
 		}
 	}
 
+	var pricingModelJSON []byte
+	if agent.PricingModel != nil {
+		pricingModelJSON, err = json.Marshal(agent.PricingModel)
+		if err != nil {
+			return fmt.Errorf("failed to marshal pricing_model: %w", err)
+		}
+	}
+
+	entityType := agent.Type
+	if entityType == "" {
+		entityType = "agent"
+	}
+
 	_, err = s.pool.Exec(context.Background(), `
 		INSERT INTO agents (agent_id, name, owner, agent_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-			developer_id, agent_index, developer_proof, last_heartbeat)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())`,
+			developer_id, agent_index, developer_proof, last_heartbeat,
+			type, service_endpoint, openapi_url, pricing_model)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(),
+			$18, $19, $20, $21)`,
 		agent.AgentID, agent.Name, agent.Owner, agent.AgentURL, agent.Category,
 		string(tagsJSON), agent.Summary, agent.PublicKey, agent.HomeRegistry,
 		schemaVersion, agent.RegisteredAt, agent.UpdatedAt, agent.TTL, agent.Signature,
 		nilIfEmpty(agent.DeveloperID), agent.AgentIndex, nilIfEmptyBytes(developerProofJSON),
+		entityType, nilIfEmpty(agent.ServiceEndpoint), nilIfEmpty(agent.OpenAPIURL), nilIfEmptyBytes(pricingModelJSON),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert agent: %w", err)
@@ -327,7 +357,8 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 		SELECT agent_id, name, owner, agent_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
 			developer_id, agent_index, developer_proof,
-			status, last_heartbeat
+			status, last_heartbeat,
+			type, service_endpoint, openapi_url, pricing_model
 		FROM agents WHERE agent_id = $1`, agentID)
 
 	agent := &models.RegistryRecord{}
@@ -337,6 +368,8 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	var agentIndex *int
 	var developerProofJSON []byte
 	var lastHeartbeat *time.Time
+	var serviceEndpoint, openapiURL *string
+	var pricingModelJSON []byte
 	err := row.Scan(
 		&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
 		&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
@@ -344,6 +377,7 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 		&agent.TTL, &agent.Signature,
 		&developerID, &agentIndex, &developerProofJSON,
 		&agent.Status, &lastHeartbeat,
+		&agent.Type, &serviceEndpoint, &openapiURL, &pricingModelJSON,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -371,6 +405,16 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	if len(developerProofJSON) > 0 {
 		agent.DeveloperProof = &models.DeveloperProof{}
 		json.Unmarshal(developerProofJSON, agent.DeveloperProof)
+	}
+	if serviceEndpoint != nil {
+		agent.ServiceEndpoint = *serviceEndpoint
+	}
+	if openapiURL != nil {
+		agent.OpenAPIURL = *openapiURL
+	}
+	if len(pricingModelJSON) > 0 {
+		agent.PricingModel = &models.PricingModel{}
+		json.Unmarshal(pricingModelJSON, agent.PricingModel)
 	}
 
 	return agent, nil

@@ -131,6 +131,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/agents/{agentID}/card", s.handleGetAgentCard)
 	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
 
+	// Service registration alias
+	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterAgent))
+
 	// Search
 	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))
 	mux.HandleFunc("GET /v1/categories", s.handleGetCategories)
@@ -634,9 +637,16 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate required fields
-	if req.Name == "" || req.AgentURL == "" || req.Category == "" || req.PublicKey == "" {
-		writeError(w, http.StatusBadRequest, "name, agent_url, category, and public_key are required")
+	if req.Name == "" || req.Category == "" || req.PublicKey == "" {
+		writeError(w, http.StatusBadRequest, "name, category, and public_key are required")
 		return
+	}
+	// AgentURL is required for agents but not for services
+	if req.Type == "" || req.Type == "agent" {
+		if req.AgentURL == "" {
+			writeError(w, http.StatusBadRequest, "agent_url is required for agent type")
+			return
+		}
 	}
 
 	// Strip ed25519: prefix for cryptographic operations
@@ -650,14 +660,18 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "signature is required")
 		return
 	}
-	signable, _ := json.Marshal(map[string]interface{}{
+	signableMap := map[string]interface{}{
 		"name":       req.Name,
 		"agent_url":  req.AgentURL,
 		"category":   req.Category,
 		"tags":       req.Tags,
 		"summary":    req.Summary,
 		"public_key": req.PublicKey,
-	})
+	}
+	if req.Type != "" {
+		signableMap["type"] = req.Type
+	}
+	signable, _ := json.Marshal(signableMap)
 	valid, err := identity.Verify(pubKeyStr, signable, req.Signature)
 	if err != nil || !valid {
 		writeError(w, http.StatusUnauthorized, "invalid agent signature")
@@ -670,7 +684,12 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid public key encoding")
 		return
 	}
-	agentID := models.GenerateAgentID(ed25519.PublicKey(pubKeyBytes))
+	var agentID string
+	if req.Type == "service" {
+		agentID = models.GenerateServiceID(ed25519.PublicKey(pubKeyBytes))
+	} else {
+		agentID = models.GenerateAgentID(ed25519.PublicKey(pubKeyBytes))
+	}
 
 	// Determine owner and verify developer proof if provided
 	var developerID string
@@ -730,24 +749,32 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := models.NowRFC3339()
+	recordType := req.Type
+	if recordType == "" {
+		recordType = "agent"
+	}
 	record := &models.RegistryRecord{
-		AgentID:        agentID,
-		Name:           req.Name,
-		Owner:          owner,
-		AgentURL:       req.AgentURL,
-		Category:       req.Category,
-		Tags:           req.Tags,
-		Summary:        req.Summary,
-		PublicKey:      req.PublicKey,
-		HomeRegistry:   s.nodeIdentity.RegistryID(),
-		SchemaVersion:  models.CurrentSchemaVersion,
-		RegisteredAt:   now,
-		UpdatedAt:      now,
-		TTL:            86400,
-		Signature:      req.Signature,
-		DeveloperID:    developerID,
-		AgentIndex:     agentIndex,
-		DeveloperProof: developerProof,
+		AgentID:         agentID,
+		Name:            req.Name,
+		Owner:           owner,
+		AgentURL:        req.AgentURL,
+		Category:        req.Category,
+		Tags:            req.Tags,
+		Summary:         req.Summary,
+		PublicKey:       req.PublicKey,
+		HomeRegistry:    s.nodeIdentity.RegistryID(),
+		SchemaVersion:   models.CurrentSchemaVersion,
+		RegisteredAt:    now,
+		UpdatedAt:       now,
+		TTL:             86400,
+		Signature:       req.Signature,
+		DeveloperID:     developerID,
+		AgentIndex:      agentIndex,
+		DeveloperProof:  developerProof,
+		Type:            recordType,
+		ServiceEndpoint: req.ServiceEndpoint,
+		OpenAPIURL:      req.OpenAPIURL,
+		PricingModel:    req.PricingModel,
 	}
 
 	if record.Tags == nil {

@@ -21,7 +21,7 @@ func newTestRedisCache(t *testing.T) *RedisCache {
 
 	rc, err := NewRedisCache(RedisConfig{
 		URL:    url,
-		Prefix: "agdns:test:",
+		Prefix: "zns:test:",
 	})
 	if err != nil {
 		t.Fatalf("failed to create redis cache: %v", err)
@@ -35,7 +35,7 @@ func TestRedisCache_AgentCard(t *testing.T) {
 	ctx := context.Background()
 
 	card := &models.AgentCard{
-		AgentID: "agdns:redis-test-1",
+		AgentID: "zns:redis-test-1",
 		Version: "1.0.0",
 		Status:  "online",
 		Capabilities: []models.Capability{
@@ -47,13 +47,13 @@ func TestRedisCache_AgentCard(t *testing.T) {
 	}
 
 	// Set
-	err := rc.SetAgentCard(ctx, "agdns:redis-test-1", card, 10*time.Second)
+	err := rc.SetAgentCard(ctx, "zns:redis-test-1", card, 10*time.Second)
 	if err != nil {
 		t.Fatalf("failed to set agent card: %v", err)
 	}
 
 	// Get
-	got, err := rc.GetAgentCard(ctx, "agdns:redis-test-1")
+	got, err := rc.GetAgentCard(ctx, "zns:redis-test-1")
 	if err != nil {
 		t.Fatalf("failed to get agent card: %v", err)
 	}
@@ -68,13 +68,13 @@ func TestRedisCache_AgentCard(t *testing.T) {
 	}
 
 	// Delete
-	err = rc.DeleteAgentCard(ctx, "agdns:redis-test-1")
+	err = rc.DeleteAgentCard(ctx, "zns:redis-test-1")
 	if err != nil {
 		t.Fatalf("failed to delete agent card: %v", err)
 	}
 
 	// Verify deleted
-	got, err = rc.GetAgentCard(ctx, "agdns:redis-test-1")
+	got, err = rc.GetAgentCard(ctx, "zns:redis-test-1")
 	if err != nil {
 		t.Fatalf("get after delete failed: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestRedisCache_SearchResult(t *testing.T) {
 	resp := &models.SearchResponse{
 		Results: []models.SearchResult{
 			{
-				AgentID:  "agdns:test1",
+				AgentID:  "zns:test1",
 				Name:     "TestAgent",
 				Score:    0.95,
 				Category: "tools",

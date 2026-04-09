@@ -133,7 +133,7 @@ func (kp *Keypair) PublicKeyString() string {
 }
 
 // DeveloperID returns the developer_id derived from this keypair's public key.
-// Format: agdns:dev:<first 16 bytes of SHA-256 of public key as hex>
+// Format: zns:dev:<first 16 bytes of SHA-256 of public key as hex>
 func (kp *Keypair) DeveloperID() string {
 	return models.GenerateDeveloperID(kp.PublicKey)
 }
@@ -141,7 +141,7 @@ func (kp *Keypair) DeveloperID() string {
 // DeriveAgentKeypair deterministically derives an agent Ed25519 keypair
 // from a developer's private key and an index. This uses HD-style derivation:
 //
-//	agent_seed = SHA-512(developer_private_key_seed || "agdns:agent:" || uint32_be(index))[:32]
+//	agent_seed = SHA-512(developer_private_key_seed || "zns:agent:" || uint32_be(index))[:32]
 //	agent_keypair = Ed25519_from_seed(agent_seed)
 //
 // The derivation is deterministic: same developer key + same index always
@@ -157,9 +157,9 @@ func DeriveAgentKeypair(developerPrivateKey ed25519.PrivateKey, index uint32) (*
 	indexBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(indexBytes, index)
 
-	input := make([]byte, 0, len(seed)+len("agdns:agent:")+4)
+	input := make([]byte, 0, len(seed)+len("zns:agent:")+4)
 	input = append(input, seed...)
-	input = append(input, []byte("agdns:agent:")...)
+	input = append(input, []byte("zns:agent:")...)
 	input = append(input, indexBytes...)
 
 	// SHA-512 for full entropy, take first 32 bytes as Ed25519 seed

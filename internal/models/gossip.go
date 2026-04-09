@@ -21,6 +21,11 @@ type GossipAnnouncement struct {
 	HopCount          int                `json:"hop_count"`
 	MaxHops           int                `json:"max_hops"`
 
+	// Entity type (for agent_announce — distinguishes agents from services)
+	EntityType      string `json:"entity_type,omitempty"` // "agent" or "service"
+	ServiceEndpoint string `json:"service_endpoint,omitempty"`
+	OpenAPIURL      string `json:"openapi_url,omitempty"`
+
 	// Developer identity fields (for agent_announce with developer chain)
 	DeveloperID        string          `json:"developer_id,omitempty"`
 	DeveloperPublicKey string          `json:"developer_public_key,omitempty"`
@@ -67,6 +72,11 @@ type GossipEntry struct {
 	ReceivedAt        string             `json:"received_at" db:"received_at"`
 	Tombstoned        bool               `json:"tombstoned" db:"tombstoned"`
 	TombstoneAt       string             `json:"tombstone_at,omitempty" db:"tombstone_at"`
+
+	// Entity type
+	Type            string `json:"type,omitempty" db:"type"`
+	ServiceEndpoint string `json:"service_endpoint,omitempty" db:"service_endpoint"`
+	OpenAPIURL      string `json:"openapi_url,omitempty" db:"openapi_url"`
 
 	// Developer identity fields
 	DeveloperID        string          `json:"developer_id,omitempty" db:"developer_id"`

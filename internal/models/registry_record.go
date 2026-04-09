@@ -15,8 +15,7 @@ const CurrentSchemaVersion = "1.0"
 
 // RegistryRecord is the stable, lightweight record stored on the registry network.
 // It acts as a static pointer to the dynamic Agent Card hosted by the agent itself.
-// Size: ~500-800 bytes (without capabilities) or ~800-1200 bytes (with capability summary).
-// Cheap to replicate, store, and index.
+// Supports both agents (autonomous LLM entities) and services (stateless API tools).
 type RegistryRecord struct {
 	AgentID           string             `json:"agent_id" db:"agent_id"`
 	Name              string             `json:"name" db:"name"`
@@ -34,17 +33,32 @@ type RegistryRecord struct {
 	TTL               int                `json:"ttl" db:"ttl"`
 	Signature         string             `json:"signature" db:"signature"`
 
-	// Developer identity fields (optional for backward compatibility)
+	// Entity type: "agent" (default) or "service"
+	Type            string        `json:"type" db:"type"`
+	ServiceEndpoint string        `json:"service_endpoint,omitempty" db:"service_endpoint"`
+	OpenAPIURL      string        `json:"openapi_url,omitempty" db:"openapi_url"`
+	PricingModel    *PricingModel `json:"pricing_model,omitempty" db:"-"` // stored as JSONB
+
+	// Developer identity fields
 	DeveloperID    string          `json:"developer_id,omitempty" db:"developer_id"`
 	AgentIndex     *int            `json:"agent_index,omitempty" db:"agent_index"`
 	DeveloperProof *DeveloperProof `json:"developer_proof,omitempty" db:"-"` // stored as JSONB
 
 	// Codebase integrity
-	CodebaseHash string `json:"codebase_hash,omitempty" db:"codebase_hash"` // SHA-256 of agent's source tree
+	CodebaseHash string `json:"codebase_hash,omitempty" db:"codebase_hash"`
 
 	// Heartbeat liveness fields (server-managed, excluded from signing)
 	Status        string `json:"status,omitempty" db:"status"`
 	LastHeartbeat string `json:"last_heartbeat,omitempty" db:"last_heartbeat"`
+}
+
+// PricingModel describes how a service is priced.
+type PricingModel struct {
+	Type      string  `json:"type"`                  // free, per-call, subscription, usage-based
+	Currency  string  `json:"currency,omitempty"`     // USD, USDC
+	BasePrice float64 `json:"base_price,omitempty"`
+	Unit      string  `json:"unit,omitempty"`         // request, token, month
+	Details   string  `json:"details,omitempty"`
 }
 
 // CapabilitySummary provides searchable metadata about agent capabilities.
@@ -59,10 +73,10 @@ type CapabilitySummary struct {
 	OutputTypes []string `json:"output_types,omitempty"` // e.g., ["text", "json", "markdown"]
 }
 
-// RegistrationRequest is submitted by agent owners to register a new agent.
+// RegistrationRequest is submitted to register a new agent or service.
 type RegistrationRequest struct {
 	Name              string             `json:"name" validate:"required,min=1,max=100"`
-	AgentURL          string             `json:"agent_url" validate:"required,url"`
+	AgentURL          string             `json:"agent_url" validate:"omitempty,url"`
 	Category          string             `json:"category" validate:"required,min=1,max=50"`
 	Tags              []string           `json:"tags" validate:"max=20"`
 	Summary           string             `json:"summary" validate:"required,max=200"`
@@ -70,12 +84,18 @@ type RegistrationRequest struct {
 	PublicKey         string             `json:"public_key" validate:"required"`
 	Signature         string             `json:"signature" validate:"required"`
 
-	// Developer identity fields (optional -- agents can register without a developer)
+	// Entity type: "agent" (default) or "service"
+	Type            string        `json:"type,omitempty"`
+	ServiceEndpoint string        `json:"service_endpoint,omitempty"`
+	OpenAPIURL      string        `json:"openapi_url,omitempty"`
+	PricingModel    *PricingModel `json:"pricing_model,omitempty"`
+
+	// Developer identity fields
 	DeveloperID    string          `json:"developer_id,omitempty"`
 	DeveloperProof *DeveloperProof `json:"developer_proof,omitempty"`
 
 	// ZNS naming fields (optional — requires developer with claimed handle)
-	AgentName string `json:"agent_name,omitempty"` // e.g., "doc-translator" — triggers FQAN creation
+	AgentName string `json:"agent_name,omitempty"` // e.g., "doc-translator" or "svc:openai-proxy"
 	Version   string `json:"version,omitempty"`    // semver, e.g., "2.1.0"
 }
 
@@ -93,17 +113,24 @@ type UpdateRequest struct {
 }
 
 // GenerateAgentID derives an agent_id from an Ed25519 public key.
-// Format: agdns:<first 16 bytes of SHA-256 of public key as hex>
+// Format: zns:<first 16 bytes of SHA-256 of public key as hex>
 func GenerateAgentID(publicKey ed25519.PublicKey) string {
 	hash := sha256.Sum256(publicKey)
-	return "agdns:" + hex.EncodeToString(hash[:16])
+	return "zns:" + hex.EncodeToString(hash[:16])
+}
+
+// GenerateServiceID derives a service_id from an Ed25519 public key.
+// Format: zns:svc:<first 16 bytes of SHA-256 of public key as hex>
+func GenerateServiceID(publicKey ed25519.PublicKey) string {
+	hash := sha256.Sum256(publicKey)
+	return "zns:svc:" + hex.EncodeToString(hash[:16])
 }
 
 // GenerateRegistryID derives a registry_id from an Ed25519 public key.
-// Format: agdns:registry:<first 16 bytes of SHA-256 of public key as hex>
+// Format: zns:registry:<first 16 bytes of SHA-256 of public key as hex>
 func GenerateRegistryID(publicKey ed25519.PublicKey) string {
 	hash := sha256.Sum256(publicKey)
-	return "agdns:registry:" + hex.EncodeToString(hash[:16])
+	return "zns:registry:" + hex.EncodeToString(hash[:16])
 }
 
 // SignableBytes returns the canonical JSON bytes of the record for signing,

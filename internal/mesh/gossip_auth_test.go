@@ -51,7 +51,7 @@ func TestOriginAuth_RegisterStoresKey(t *testing.T) {
 	gh, s := newTestGossipHandler(t)
 
 	kpA, _ := identity.GenerateKeypair()
-	agentID := "agdns:auth-test-register-" + time.Now().Format("150405.000")
+	agentID := "zns:auth-test-register-" + time.Now().Format("150405.000")
 
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
@@ -86,7 +86,7 @@ func TestOriginAuth_StatusFromSameOriginSucceeds(t *testing.T) {
 	gh, _ := newTestGossipHandler(t)
 
 	kpA, _ := identity.GenerateKeypair()
-	agentID := "agdns:auth-test-status-ok-" + time.Now().Format("150405.000")
+	agentID := "zns:auth-test-status-ok-" + time.Now().Format("150405.000")
 
 	// Register
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
@@ -126,7 +126,7 @@ func TestOriginAuth_StatusFromDifferentOriginRejected(t *testing.T) {
 
 	kpA, _ := identity.GenerateKeypair()
 	kpB, _ := identity.GenerateKeypair()
-	agentID := "agdns:auth-test-status-reject-" + time.Now().Format("150405.000")
+	agentID := "zns:auth-test-status-reject-" + time.Now().Format("150405.000")
 
 	// Register with key A
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
@@ -166,7 +166,7 @@ func TestOriginAuth_UpdateFromDifferentOriginRejected(t *testing.T) {
 
 	kpA, _ := identity.GenerateKeypair()
 	kpB, _ := identity.GenerateKeypair()
-	agentID := "agdns:auth-test-update-reject-" + time.Now().Format("150405.000")
+	agentID := "zns:auth-test-update-reject-" + time.Now().Format("150405.000")
 
 	// Register with key A
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
@@ -207,7 +207,7 @@ func TestOriginAuth_DeregisterFromDifferentOriginRejected(t *testing.T) {
 
 	kpA, _ := identity.GenerateKeypair()
 	kpB, _ := identity.GenerateKeypair()
-	agentID := "agdns:auth-test-dereg-reject-" + time.Now().Format("150405.000")
+	agentID := "zns:auth-test-dereg-reject-" + time.Now().Format("150405.000")
 
 	// Register with key A
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
@@ -256,7 +256,7 @@ func TestOriginAuth_StatusForUnknownAgentRejected(t *testing.T) {
 	gh, _ := newTestGossipHandler(t)
 
 	kpA, _ := identity.GenerateKeypair()
-	agentID := "agdns:auth-test-unknown-status-" + time.Now().Format("150405.000")
+	agentID := "zns:auth-test-unknown-status-" + time.Now().Format("150405.000")
 
 	// Send agent_status for an agent that has never been registered via gossip
 	statusAnn := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
@@ -280,7 +280,7 @@ func TestOriginAuth_DeregisterForUnknownAgentRejected(t *testing.T) {
 	gh, _ := newTestGossipHandler(t)
 
 	kpA, _ := identity.GenerateKeypair()
-	agentID := "agdns:auth-test-unknown-dereg-" + time.Now().Format("150405.000")
+	agentID := "zns:auth-test-unknown-dereg-" + time.Now().Format("150405.000")
 
 	// Send deregister for an agent that has never been registered via gossip
 	deregAnn := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
@@ -302,7 +302,7 @@ func TestOriginAuth_BackwardCompat_NullKey(t *testing.T) {
 	gh, s := newTestGossipHandler(t)
 
 	kpB, _ := identity.GenerateKeypair()
-	agentID := "agdns:auth-test-compat-" + time.Now().Format("150405.000")
+	agentID := "zns:auth-test-compat-" + time.Now().Format("150405.000")
 
 	// Manually insert entry with no origin_public_key (simulates pre-fix data)
 	entry := &models.GossipEntry{
@@ -343,7 +343,7 @@ func TestOriginAuth_ReRegisterDoesNotOverwriteKey(t *testing.T) {
 
 	kpA, _ := identity.GenerateKeypair()
 	kpB, _ := identity.GenerateKeypair()
-	agentID := "agdns:auth-test-reregister-" + time.Now().Format("150405.000")
+	agentID := "zns:auth-test-reregister-" + time.Now().Format("150405.000")
 
 	// Register with key A
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
@@ -406,7 +406,7 @@ func TestOriginAuth_RegisterSetsStatusActive(t *testing.T) {
 	gh, s := newTestGossipHandler(t)
 
 	kpA, _ := identity.GenerateKeypair()
-	agentID := "agdns:auth-test-reg-status-" + time.Now().Format("150405.000")
+	agentID := "zns:auth-test-reg-status-" + time.Now().Format("150405.000")
 
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
@@ -441,7 +441,7 @@ func TestOriginAuth_DeregisterFromCorrectOriginSucceeds(t *testing.T) {
 	gh, s := newTestGossipHandler(t)
 
 	kpA, _ := identity.GenerateKeypair()
-	agentID := "agdns:auth-test-dereg-ok-" + time.Now().Format("150405.000")
+	agentID := "zns:auth-test-dereg-ok-" + time.Now().Format("150405.000")
 
 	// Register with key A
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{

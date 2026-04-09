@@ -71,7 +71,7 @@ func TestAgentID(t *testing.T) {
 	if agentID == "" {
 		t.Fatal("agent ID is empty")
 	}
-	if len(agentID) < 7 || agentID[:6] != "agdns:" {
+	if len(agentID) < 5 || agentID[:4] != "zns:" {
 		t.Fatalf("unexpected agent ID format: %s", agentID)
 	}
 
@@ -91,7 +91,7 @@ func TestRegistryID(t *testing.T) {
 	if regID == "" {
 		t.Fatal("registry ID is empty")
 	}
-	if len(regID) < 16 || regID[:15] != "agdns:registry:" {
+	if len(regID) < 14 || regID[:13] != "zns:registry:" {
 		t.Fatalf("unexpected registry ID format: %s", regID)
 	}
 }
@@ -166,7 +166,7 @@ func TestDeveloperID(t *testing.T) {
 	if devID == "" {
 		t.Fatal("developer ID is empty")
 	}
-	if len(devID) < 11 || devID[:10] != "agdns:dev:" {
+	if len(devID) < 9 || devID[:8] != "zns:dev:" {
 		t.Fatalf("unexpected developer ID format: %s", devID)
 	}
 
@@ -368,7 +368,7 @@ func TestFullDerivationFlow(t *testing.T) {
 	}
 
 	devID := devKP.DeveloperID()
-	if devID[:10] != "agdns:dev:" {
+	if devID[:8] != "zns:dev:" {
 		t.Fatalf("unexpected developer ID format: %s", devID)
 	}
 

@@ -105,7 +105,8 @@ func ParseQualifiedFQAN(fqan string) (base, version, capability string, err erro
 		return "", "", "", fmt.Errorf("FQAN is empty")
 	}
 
-	// Strip agdns:// scheme if present
+	// Strip zns:// or legacy agdns:// scheme if present
+	fqan = strings.TrimPrefix(fqan, "zns://")
 	fqan = strings.TrimPrefix(fqan, "agdns://")
 
 	s := fqan
@@ -136,9 +137,14 @@ func ParseQualifiedFQAN(fqan string) (base, version, capability string, err erro
 	return base, version, capability, nil
 }
 
-// BuildAgdnsURI constructs the agdns:// URI form of a FQAN.
+// BuildZNSURI constructs the zns:// URI form of a FQAN.
+func BuildZNSURI(fqan string) string {
+	return "zns://" + fqan
+}
+
+// BuildAgdnsURI is a legacy alias for BuildZNSURI.
 func BuildAgdnsURI(fqan string) string {
-	return "agdns://" + fqan
+	return BuildZNSURI(fqan)
 }
 
 // IsReservedHandle returns true if the handle is in the reserved list.

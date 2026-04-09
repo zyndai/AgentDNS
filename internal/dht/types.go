@@ -40,14 +40,14 @@ func NodeIDFromPublicKey(pubKey []byte) NodeID {
 	return sha256.Sum256(pubKey)
 }
 
-// NodeIDFromAgentID converts an "agdns:..." agent ID to a NodeID.
-// The agent_id format is "agdns:" + hex(SHA256(pubkey)[:16]), so we parse
+// NodeIDFromAgentID converts a "zns:..." entity ID to a NodeID.
+// The ID format is "zns:" + hex(SHA256(pubkey)[:16]), so we parse
 // the hex suffix and zero-extend to 32 bytes.
 func NodeIDFromAgentID(agentID string) (NodeID, error) {
 	var id NodeID
-	// Strip prefix: "agdns:" or "agdns:dev:" or "agdns:registry:"
+	// Strip prefix: "zns:registry:", "zns:svc:", "zns:dev:", or "zns:"
 	hexPart := agentID
-	for _, prefix := range []string{"agdns:registry:", "agdns:dev:", "agdns:"} {
+	for _, prefix := range []string{"zns:registry:", "zns:svc:", "zns:dev:", "zns:"} {
 		if len(agentID) > len(prefix) && agentID[:len(prefix)] == prefix {
 			hexPart = agentID[len(prefix):]
 			break

@@ -296,7 +296,7 @@ func cmdStart() {
 		// Auto-derive prefix from node name if not explicitly set
 		redisPrefix := cfg.Redis.Prefix
 		if redisPrefix == "" {
-			redisPrefix = "agdns:" + cfg.Node.Name + ":"
+			redisPrefix = "zns:" + cfg.Node.Name + ":"
 		}
 		redisCache, err = agcache.NewRedisCache(agcache.RedisConfig{
 			URL:      cfg.Redis.URL,

@@ -291,6 +291,9 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 		if req.DeveloperID != "" && agent.DeveloperID != req.DeveloperID {
 			continue
 		}
+		if req.Type != "" && agent.Type != req.Type {
+			continue
+		}
 
 		// Skip inactive agents from search results
 		if agent.Status == "inactive" {
@@ -298,19 +301,22 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 		}
 
 		candidateMap[kr.DocID] = &ranking.CandidateResult{
-			AgentID:       agent.AgentID,
-			Name:          agent.Name,
-			Summary:       agent.Summary,
-			Category:      agent.Category,
-			Tags:          agent.Tags,
-			AgentURL:      agent.AgentURL,
-			HomeRegistry:  agent.HomeRegistry,
-			Status:        agent.Status,
-			UpdatedAt:     agent.UpdatedAt,
-			DeveloperID:   agent.DeveloperID,
-			TextRelevance: normalizedScore,
-			TrustScore:    0.5,
-			Availability:  1.0,
+			AgentID:         agent.AgentID,
+			Name:            agent.Name,
+			Summary:         agent.Summary,
+			Category:        agent.Category,
+			Tags:            agent.Tags,
+			AgentURL:        agent.AgentURL,
+			HomeRegistry:    agent.HomeRegistry,
+			Status:          agent.Status,
+			UpdatedAt:       agent.UpdatedAt,
+			DeveloperID:     agent.DeveloperID,
+			Type:            agent.Type,
+			ServiceEndpoint: agent.ServiceEndpoint,
+			OpenAPIURL:      agent.OpenAPIURL,
+			TextRelevance:   normalizedScore,
+			TrustScore:      0.5,
+			Availability:    1.0,
 		}
 	}
 
@@ -335,6 +341,9 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			if req.DeveloperID != "" && agent.DeveloperID != req.DeveloperID {
 				continue
 			}
+			if req.Type != "" && agent.Type != req.Type {
+				continue
+			}
 
 			candidateMap[sr.DocID] = &ranking.CandidateResult{
 				AgentID:            agent.AgentID,
@@ -347,6 +356,9 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 				Status:             agent.Status,
 				UpdatedAt:          agent.UpdatedAt,
 				DeveloperID:        agent.DeveloperID,
+				Type:               agent.Type,
+				ServiceEndpoint:    agent.ServiceEndpoint,
+				OpenAPIURL:         agent.OpenAPIURL,
 				SemanticSimilarity: sr.Score,
 				TrustScore:         0.5,
 				Availability:       1.0,
@@ -376,6 +388,9 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 			continue
 		}
 		if req.DeveloperID != "" && entry.DeveloperID != req.DeveloperID {
+			continue
+		}
+		if req.Type != "" && entry.Type != req.Type {
 			continue
 		}
 
@@ -411,6 +426,9 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 			Status:             entry.Status,
 			UpdatedAt:          entry.ReceivedAt,
 			DeveloperID:        entry.DeveloperID,
+			Type:               entry.Type,
+			ServiceEndpoint:    entry.ServiceEndpoint,
+			OpenAPIURL:         entry.OpenAPIURL,
 			TextRelevance:      textScore,
 			SemanticSimilarity: semanticScore,
 			TrustScore:         0.3, // lower default for remote agents

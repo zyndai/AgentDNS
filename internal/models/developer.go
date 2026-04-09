@@ -80,10 +80,10 @@ type GossipDeveloperEntry struct {
 }
 
 // GenerateDeveloperID derives a developer_id from an Ed25519 public key.
-// Format: agdns:dev:<first 16 bytes of SHA-256 of public key as hex>
+// Format: zns:dev:<first 16 bytes of SHA-256 of public key as hex>
 func GenerateDeveloperID(publicKey ed25519.PublicKey) string {
 	hash := sha256.Sum256(publicKey)
-	return "agdns:dev:" + hex.EncodeToString(hash[:16])
+	return "zns:dev:" + hex.EncodeToString(hash[:16])
 }
 
 // SignableBytes returns the canonical JSON bytes of the developer record for signing,

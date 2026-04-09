@@ -15,6 +15,7 @@ type SearchRequest struct {
 	DeveloperID     string   `json:"developer_id,omitempty"`      // filter by developer
 	DeveloperHandle string   `json:"developer_handle,omitempty"` // filter by developer handle
 	FQAN            string   `json:"fqan,omitempty"`             // filter by exact FQAN
+	Type            string   `json:"type,omitempty"`             // "agent", "service", or "" (any)
 	MaxResults      int      `json:"max_results,omitempty"`
 	Offset        int      `json:"offset,omitempty"`
 	Federated     bool     `json:"federated"`
@@ -46,7 +47,12 @@ type SearchResult struct {
 	ScoreBreakdown    *ScoreBreakdown    `json:"score_breakdown,omitempty"`
 	Card              *AgentCard         `json:"card,omitempty"` // included if enrich=true
 
-	// ZNS fields (populated when agent has a name binding)
+	// Entity type
+	Type            string `json:"type"`
+	ServiceEndpoint string `json:"service_endpoint,omitempty"`
+	OpenAPIURL      string `json:"openapi_url,omitempty"`
+
+	// ZNS fields (populated when entity has a name binding)
 	FQAN            string `json:"fqan,omitempty"`
 	DeveloperHandle string `json:"developer_handle,omitempty"`
 }

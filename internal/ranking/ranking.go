@@ -56,7 +56,12 @@ type CandidateResult struct {
 	// Optional enriched Agent Card
 	Card *models.AgentCard
 
-	// ZNS fields (populated when agent has a name binding)
+	// Entity type
+	Type            string
+	ServiceEndpoint string
+	OpenAPIURL      string
+
+	// ZNS fields (populated when entity has a name binding)
 	FQAN            string
 	DeveloperHandle string
 	DeveloperID     string
@@ -170,6 +175,9 @@ func ToSearchResults(candidates []*CandidateResult) []models.SearchResult {
 				Freshness:          c.Freshness,
 				Availability:       c.Availability,
 			},
+			Type:            c.Type,
+			ServiceEndpoint: c.ServiceEndpoint,
+			OpenAPIURL:      c.OpenAPIURL,
 			Card:            c.Card,
 			FQAN:            c.FQAN,
 			DeveloperHandle: c.DeveloperHandle,
