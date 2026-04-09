@@ -121,20 +121,27 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/developers/{developerID}", s.handleGetDeveloper)
 	mux.HandleFunc("PUT /v1/developers/{developerID}", s.handleUpdateDeveloper)
 	mux.HandleFunc("DELETE /v1/developers/{developerID}", s.handleDeleteDeveloper)
-	mux.HandleFunc("GET /v1/developers/{developerID}/agents", s.handleListDeveloperAgents)
+	mux.HandleFunc("GET /v1/developers/{developerID}/entities", s.handleListDeveloperAgents)
+	mux.HandleFunc("GET /v1/developers/{developerID}/agents", s.handleListDeveloperAgents) // alias
 
-	// Agent management
+	// Entity management (unified API for agents + services)
+	mux.HandleFunc("POST /v1/entities", rateLimited(registerRL, s.handleRegisterAgent))
+	mux.HandleFunc("GET /v1/entities", s.handleListEntities)
+	mux.HandleFunc("GET /v1/entities/{agentID}", s.handleGetAgent)
+	mux.HandleFunc("PUT /v1/entities/{agentID}", s.handleUpdateAgent)
+	mux.HandleFunc("DELETE /v1/entities/{agentID}", s.handleDeleteAgent)
+	mux.HandleFunc("GET /v1/entities/{agentID}/card", s.handleGetAgentCard)
+	mux.HandleFunc("GET /v1/entities/{agentID}/ws", s.handleAgentHeartbeat)
+
+	// Aliases: /v1/agents and /v1/services point to the same entity handlers
 	mux.HandleFunc("POST /v1/agents", rateLimited(registerRL, s.handleRegisterAgent))
 	mux.HandleFunc("GET /v1/agents/{agentID}", s.handleGetAgent)
 	mux.HandleFunc("PUT /v1/agents/{agentID}", s.handleUpdateAgent)
 	mux.HandleFunc("DELETE /v1/agents/{agentID}", s.handleDeleteAgent)
 	mux.HandleFunc("GET /v1/agents/{agentID}/card", s.handleGetAgentCard)
 	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
-
-	// Service management
-	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterService))
-	mux.HandleFunc("GET /v1/services", s.handleListServices)
-	mux.HandleFunc("GET /v1/services/{agentID}", s.handleGetAgent) // reuse agent handler
+	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterAgent))
+	mux.HandleFunc("GET /v1/services/{agentID}", s.handleGetAgent)
 
 	// Search
 	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))
@@ -560,17 +567,17 @@ func (s *Server) handleDeleteDeveloper(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "developer deregistered"})
 }
 
-// handleListDeveloperAgents lists all agents registered by a developer.
+// handleListDeveloperAgents lists all entities registered by a developer.
 //
-//	@Summary		List agents by developer
-//	@Description	Retrieve all agents registered by a given developer_id, including developer_id, agents array, and count.
+//	@Summary		List entities by developer
+//	@Description	Retrieve all agents and services registered by a developer. Alias: GET /v1/developers/{id}/agents.
 //	@Tags			Developers
 //	@Produce		json
 //	@Param			developerID	path		string				true	"Developer ID"
-//	@Success		200			{object}	map[string]interface{}	"developer_id, agents, and count"
+//	@Success		200			{object}	map[string]interface{}	"developer_id, entities, and count"
 //	@Failure		400			{object}	map[string]string		"Missing developer_id"
 //	@Failure		500			{object}	map[string]string		"Internal server error"
-//	@Router			/v1/developers/{developerID}/agents [get]
+//	@Router			/v1/developers/{developerID}/entities [get]
 func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Request) {
 	developerID := r.PathValue("developerID")
 	if developerID == "" {
@@ -617,11 +624,11 @@ func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Reques
 
 // --- Agent Handlers ---
 
-// handleRegisterAgent registers a new agent on the registry.
+// handleRegisterAgent registers a new agent or service on the registry.
 //
-//	@Summary		Register a new agent
-//	@Description	Register a new AI agent on the registry network. Requires name, agent_url, category, and public_key. Optionally includes developer_id and developer_proof for developer chain of trust.
-//	@Tags			Agents
+//	@Summary		Register a new entity
+//	@Description	Register an agent or service. Set type to "service" for services (agent_url not required). Alias: POST /v1/agents, POST /v1/services.
+//	@Tags			Entities
 //	@Accept			json
 //	@Produce		json
 //	@Param			body	body		models.RegistrationRequest	true	"Agent registration payload"
@@ -630,7 +637,7 @@ func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Reques
 //	@Failure		401		{object}	map[string]string			"Invalid signature"
 //	@Failure		409		{object}	map[string]string			"Agent already registered"
 //	@Failure		500		{object}	map[string]string			"Internal server error"
-//	@Router			/v1/agents [post]
+//	@Router			/v1/entities [post]
 func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	var req models.RegistrationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -833,18 +840,18 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, resp)
 }
 
-// handleGetAgent retrieves a single agent by ID.
+// handleGetAgent retrieves a single entity (agent or service) by ID.
 //
-//	@Summary		Get agent by ID
-//	@Description	Retrieve a registry record for a specific agent by its agent_id.
-//	@Tags			Agents
+//	@Summary		Get entity by ID
+//	@Description	Retrieve a registry record for a specific agent or service. Alias: GET /v1/agents/{id}, GET /v1/services/{id}.
+//	@Tags			Entities
 //	@Produce		json
-//	@Param			agentID	path		string					true	"Agent ID (e.g. agdns:7f3a9c2e...)"
-//	@Success		200		{object}	models.RegistryRecord	"Agent registry record"
-//	@Failure		400		{object}	map[string]string		"Missing agent_id"
-//	@Failure		404		{object}	map[string]string		"Agent not found"
+//	@Param			agentID	path		string					true	"Entity ID (e.g. zns:7f3a9c2e... or zns:svc:7f3a9c2e...)"
+//	@Success		200		{object}	models.RegistryRecord	"Entity registry record"
+//	@Failure		400		{object}	map[string]string		"Missing ID"
+//	@Failure		404		{object}	map[string]string		"Entity not found"
 //	@Failure		500		{object}	map[string]string		"Internal server error"
-//	@Router			/v1/agents/{agentID} [get]
+//	@Router			/v1/entities/{agentID} [get]
 func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("agentID")
 	if agentID == "" {
@@ -889,9 +896,9 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 // handleRegisterService registers a new service on the registry.
 // This is an alias for handleRegisterAgent with type=service.
 //
-//	@Summary		Register a new service
-//	@Description	Register a stateless API service on the registry. Same as POST /v1/agents with type=service. Does not require agent_url.
-//	@Tags			Services
+//	@Summary		Register a new service (alias)
+//	@Description	Alias for POST /v1/entities with type=service. Does not require agent_url.
+//	@Tags			Entities
 //	@Accept			json
 //	@Produce		json
 //	@Param			body	body		models.RegistrationRequest	true	"Service registration payload (set type to service)"
@@ -905,19 +912,21 @@ func (s *Server) handleRegisterService(w http.ResponseWriter, r *http.Request) {
 	s.handleRegisterAgent(w, r)
 }
 
-// handleListServices returns all registered services.
+// handleListEntities returns all registered entities (agents and/or services).
 //
-//	@Summary		List services
-//	@Description	List all registered services. Supports pagination with limit and offset query params.
-//	@Tags			Services
+//	@Summary		List entities
+//	@Description	List all registered entities. Filter by type (agent, service) and category. Supports pagination.
+//	@Tags			Entities
 //	@Produce		json
+//	@Param			type		query		string	false	"Filter by type: agent, service (default: all)"
 //	@Param			category	query		string	false	"Filter by category"
 //	@Param			limit		query		int		false	"Max results (default 50)"
 //	@Param			offset		query		int		false	"Pagination offset"
-//	@Success		200			{object}	map[string]interface{}	"List of services"
+//	@Success		200			{object}	map[string]interface{}	"List of entities"
 //	@Failure		500			{object}	map[string]string		"Internal server error"
-//	@Router			/v1/services [get]
-func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
+//	@Router			/v1/entities [get]
+func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
+	typeFilter := r.URL.Query().Get("type")
 	category := r.URL.Query().Get("category")
 	limit := 50
 	offset := 0
@@ -930,41 +939,45 @@ func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
 
 	agents, err := s.store.ListAgents(category, limit, offset)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list services: "+err.Error())
+		writeError(w, http.StatusInternalServerError, "failed to list entities: "+err.Error())
 		return
 	}
 
-	// Filter to services only
-	var services []*models.RegistryRecord
-	for _, a := range agents {
-		if a.Type == "service" {
-			services = append(services, a)
+	// Apply type filter if provided
+	var results []*models.RegistryRecord
+	if typeFilter != "" {
+		for _, a := range agents {
+			if a.Type == typeFilter {
+				results = append(results, a)
+			}
 		}
+	} else {
+		results = agents
 	}
-	if services == nil {
-		services = []*models.RegistryRecord{}
+	if results == nil {
+		results = []*models.RegistryRecord{}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"services": services,
-		"count":    len(services),
+		"entities": results,
+		"count":    len(results),
 	})
 }
 
-// handleUpdateAgent updates an existing agent's registry record.
+// handleUpdateAgent updates an existing entity's registry record.
 //
-//	@Summary		Update an agent
-//	@Description	Update fields on an existing agent registry record. Only provided fields are changed.
-//	@Tags			Agents
+//	@Summary		Update an entity
+//	@Description	Update fields on an existing agent or service. Only provided fields are changed. Alias: PUT /v1/agents/{id}.
+//	@Tags			Entities
 //	@Accept			json
 //	@Produce		json
-//	@Param			agentID	path		string					true	"Agent ID"
+//	@Param			agentID	path		string					true	"Entity ID"
 //	@Param			body	body		models.UpdateRequest	true	"Fields to update"
-//	@Success		200		{object}	models.RegistryRecord	"Updated agent record"
+//	@Success		200		{object}	models.RegistryRecord	"Updated entity record"
 //	@Failure		400		{object}	map[string]string		"Invalid request body"
-//	@Failure		404		{object}	map[string]string		"Agent not found"
+//	@Failure		404		{object}	map[string]string		"Entity not found"
 //	@Failure		500		{object}	map[string]string		"Internal server error"
-//	@Router			/v1/agents/{agentID} [put]
+//	@Router			/v1/entities/{agentID} [put]
 func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("agentID")
 	if agentID == "" {
@@ -1043,18 +1056,18 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, existing)
 }
 
-// handleDeleteAgent deregisters an agent from the registry.
+// handleDeleteAgent deregisters an entity from the registry.
 //
-//	@Summary		Delete an agent
-//	@Description	Deregister an agent from the registry. Creates a tombstone that propagates via gossip.
-//	@Tags			Agents
+//	@Summary		Delete an entity
+//	@Description	Deregister an agent or service. Creates a tombstone that propagates via gossip. Alias: DELETE /v1/agents/{id}.
+//	@Tags			Entities
 //	@Produce		json
-//	@Param			agentID	path		string			true	"Agent ID"
+//	@Param			agentID	path		string			true	"Entity ID"
 //	@Success		200		{object}	map[string]string	"Deregistration confirmation"
-//	@Failure		400		{object}	map[string]string	"Missing agent_id"
-//	@Failure		404		{object}	map[string]string	"Agent not found"
+//	@Failure		400		{object}	map[string]string	"Missing ID"
+//	@Failure		404		{object}	map[string]string	"Entity not found"
 //	@Failure		500		{object}	map[string]string	"Internal server error"
-//	@Router			/v1/agents/{agentID} [delete]
+//	@Router			/v1/entities/{agentID} [delete]
 func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("agentID")
 	if agentID == "" {
@@ -1108,18 +1121,18 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "agent deregistered"})
 }
 
-// handleGetAgentCard fetches an agent's dynamic Agent Card.
+// handleGetAgentCard fetches an entity's dynamic card.
 //
-//	@Summary		Get agent card
-//	@Description	Fetch the live Agent Card from the agent's endpoint. The card contains capabilities, pricing, status, and more.
-//	@Tags			Agents
+//	@Summary		Get entity card
+//	@Description	Fetch the live card from the entity's endpoint. Contains capabilities, pricing, status, and more. Alias: GET /v1/agents/{id}/card.
+//	@Tags			Entities
 //	@Produce		json
-//	@Param			agentID	path		string				true	"Agent ID"
-//	@Success		200		{object}	models.AgentCard	"Agent card"
-//	@Failure		400		{object}	map[string]string	"Missing agent_id"
-//	@Failure		404		{object}	map[string]string	"Agent not found"
-//	@Failure		502		{object}	map[string]string	"Failed to fetch agent card from remote"
-//	@Router			/v1/agents/{agentID}/card [get]
+//	@Param			agentID	path		string				true	"Entity ID"
+//	@Success		200		{object}	models.AgentCard	"Entity card"
+//	@Failure		400		{object}	map[string]string	"Missing ID"
+//	@Failure		404		{object}	map[string]string	"Entity not found"
+//	@Failure		502		{object}	map[string]string	"Failed to fetch card from remote"
+//	@Router			/v1/entities/{agentID}/card [get]
 func (s *Server) handleGetAgentCard(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("agentID")
 	if agentID == "" {
