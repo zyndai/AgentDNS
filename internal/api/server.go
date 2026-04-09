@@ -1446,8 +1446,9 @@ func (s *Server) handleApproveDeveloper(w http.ResponseWriter, r *http.Request) 
 func (s *Server) agentResponseWithFQAN(agent *models.RegistryRecord) interface{} {
 	type agentResp struct {
 		*models.RegistryRecord
-		FQAN            string `json:"fqan,omitempty"`
-		DeveloperHandle string `json:"developer_handle,omitempty"`
+		AgentURL        *struct{} `json:"agent_url,omitempty"` // hide agent_url from response
+		FQAN            string    `json:"fqan,omitempty"`
+		DeveloperHandle string    `json:"developer_handle,omitempty"`
 	}
 	resp := agentResp{RegistryRecord: agent}
 	if name, _ := s.store.GetZNSNameByAgentID(agent.AgentID); name != nil {
