@@ -104,6 +104,9 @@ func Verify(publicKeyB64 string, message []byte, signature string) (bool, error)
 	if err != nil {
 		return false, fmt.Errorf("failed to decode public key: %w", err)
 	}
+	if len(pubBytes) != ed25519.PublicKeySize {
+		return false, fmt.Errorf("invalid public key length: %d (expected %d)", len(pubBytes), ed25519.PublicKeySize)
+	}
 
 	if len(signature) < 9 || signature[:8] != "ed25519:" {
 		return false, fmt.Errorf("invalid signature format, expected ed25519:<base64>")
@@ -111,6 +114,9 @@ func Verify(publicKeyB64 string, message []byte, signature string) (bool, error)
 	sigBytes, err := base64.StdEncoding.DecodeString(signature[8:])
 	if err != nil {
 		return false, fmt.Errorf("failed to decode signature: %w", err)
+	}
+	if len(sigBytes) != ed25519.SignatureSize {
+		return false, fmt.Errorf("invalid signature length: %d (expected %d)", len(sigBytes), ed25519.SignatureSize)
 	}
 
 	pubKey := ed25519.PublicKey(pubBytes)
