@@ -151,7 +151,7 @@ Commands:
   Agent Management:
   register      Register an agent on this node (supports --developer-key for HD derivation, --agent-name for ZNS naming)
   deregister    Remove an agent from the registry
-  resolve       Get a specific agent's registry record (supports agdns: IDs and developer/agent names)
+  resolve       Get a specific entity's registry record (supports agdns: IDs and developer/entity names)
   card          Fetch an agent's dynamic Agent Card
 
   Discovery:
@@ -792,17 +792,17 @@ func cmdSearch() {
 
 func cmdResolve() {
 	if len(os.Args) < 3 {
-		fmt.Fprintln(os.Stderr, "Usage: agentdns resolve <agdns:ID | developer/agent>")
+		fmt.Fprintln(os.Stderr, "Usage: agentdns resolve <agdns:ID | developer/entity>")
 		os.Exit(1)
 	}
 
 	target := os.Args[2]
 
-	// If target contains "/", treat as ZNS name (developer/agent)
+	// If target contains "/", treat as ZNS name (developer/entity)
 	if strings.Contains(target, "/") {
 		parts := strings.SplitN(target, "/", 2)
 		if len(parts) != 2 {
-			fmt.Fprintln(os.Stderr, "Invalid name format. Expected: developer/agent")
+			fmt.Fprintln(os.Stderr, "Invalid name format. Expected: developer/entity")
 			os.Exit(1)
 		}
 		resp, err := http.Get("http://localhost:8080/v1/resolve/" + parts[0] + "/" + parts[1])

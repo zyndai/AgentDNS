@@ -1047,14 +1047,14 @@ const docTemplate = `{
         },
         "/v1/handles/{handle}/agents": {
             "get": {
-                "description": "List all ZNS name bindings (agent names) registered under a given developer handle.",
+                "description": "List all ZNS name bindings (entity names) registered under a given developer handle.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Handles"
                 ],
-                "summary": "List agents for a handle",
+                "summary": "List entities for a handle",
                 "parameters": [
                     {
                         "type": "string",
@@ -1216,7 +1216,7 @@ const docTemplate = `{
         },
         "/v1/names": {
             "post": {
-                "description": "Register a ZNS agent name binding, creating a Fully Qualified Agent Name (FQAN) under a developer handle.",
+                "description": "Register a ZNS entity name binding, creating a Fully Qualified Agent Name (FQAN) under a developer handle.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1226,7 +1226,7 @@ const docTemplate = `{
                 "tags": [
                     "Names"
                 ],
-                "summary": "Register an agent name",
+                "summary": "Register an entity name",
                 "parameters": [
                     {
                         "description": "Name binding payload",
@@ -1267,7 +1267,7 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "Developer handle or agent not found",
+                        "description": "Developer handle or entity not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1296,9 +1296,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/names/{developer}/{agent}": {
+        "/v1/names/{developer}/{entity}": {
             "get": {
-                "description": "Retrieve a ZNS name binding record by developer handle and agent name path parameters.",
+                "description": "Retrieve a ZNS name binding record by developer handle and entity name path parameters.",
                 "produces": [
                     "application/json"
                 ],
@@ -1316,8 +1316,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     }
@@ -1359,7 +1359,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Update the version and/or capability_tags of an existing ZNS agent name binding.",
+                "description": "Update the version and/or capability_tags of an existing ZNS entity name binding.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1380,8 +1380,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     },
@@ -1432,7 +1432,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Release a ZNS agent name binding. Requires Authorization header with Bearer ed25519 signature.",
+                "description": "Release a ZNS entity name binding. Requires Authorization header with Bearer ed25519 signature.",
                 "produces": [
                     "application/json"
                 ],
@@ -1450,8 +1450,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     },
@@ -1503,9 +1503,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/names/{developer}/{agent}/available": {
+        "/v1/names/{developer}/{entity}/available": {
             "get": {
-                "description": "Check whether a ZNS agent name is available under a given developer handle.",
+                "description": "Check whether a ZNS entity name is available under a given developer handle.",
                 "produces": [
                     "application/json"
                 ],
@@ -1523,8 +1523,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     }
@@ -1558,7 +1558,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/names/{developer}/{agent}/versions": {
+        "/v1/names/{developer}/{entity}/versions": {
             "get": {
                 "description": "Retrieve the full version history for a ZNS agent name binding.",
                 "produces": [
@@ -1578,8 +1578,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     }
@@ -1725,9 +1725,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/resolve/{developer}/{agent}": {
+        "/v1/resolve/{developer}/{entity}": {
             "get": {
-                "description": "Resolve a Fully Qualified Agent Name (FQAN) to its agent details, including agent_url, public_key, and trust information.",
+                "description": "Resolve a Fully Qualified Agent Name (FQAN) to its entity details, including agent_url, public_key, and trust information.",
                 "produces": [
                     "application/json"
                 ],
@@ -1745,15 +1745,15 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Resolved agent details",
+                        "description": "Resolved entity details",
                         "schema": {
                             "$ref": "#/definitions/models.ZNSResolveResponse"
                         }

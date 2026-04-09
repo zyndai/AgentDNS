@@ -158,14 +158,14 @@ func (s *Server) Start() error {
 
 	// ZNS: Name bindings
 	mux.HandleFunc("POST /v1/names", rateLimited(registerRL, s.handleRegisterName))
-	mux.HandleFunc("GET /v1/names/{developer}/{agent}", s.handleGetName)
-	mux.HandleFunc("GET /v1/names/{developer}/{agent}/available", s.handleCheckNameAvailable)
-	mux.HandleFunc("PUT /v1/names/{developer}/{agent}", s.handleUpdateName)
-	mux.HandleFunc("DELETE /v1/names/{developer}/{agent}", s.handleReleaseName)
-	mux.HandleFunc("GET /v1/names/{developer}/{agent}/versions", s.handleListVersions)
+	mux.HandleFunc("GET /v1/names/{developer}/{entity}", s.handleGetName)
+	mux.HandleFunc("GET /v1/names/{developer}/{entity}/available", s.handleCheckNameAvailable)
+	mux.HandleFunc("PUT /v1/names/{developer}/{entity}", s.handleUpdateName)
+	mux.HandleFunc("DELETE /v1/names/{developer}/{entity}", s.handleReleaseName)
+	mux.HandleFunc("GET /v1/names/{developer}/{entity}/versions", s.handleListVersions)
 
 	// ZNS: Resolution
-	mux.HandleFunc("GET /v1/resolve/{developer}/{agent}", s.handleResolveName)
+	mux.HandleFunc("GET /v1/resolve/{developer}/{entity}", s.handleResolveName)
 
 	// ZNS: Registry identity proof
 	mux.HandleFunc("GET /.well-known/zynd-registry.json", s.handleRegistryIdentityProof)
@@ -1953,10 +1953,10 @@ func (s *Server) handleVerifyHandle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleListHandleAgents lists all ZNS name bindings (agent bindings) for a handle.
+// handleListHandleAgents lists all ZNS name bindings (entity bindings) for a handle.
 //
-//	@Summary		List agents for a handle
-//	@Description	List all ZNS name bindings (agent names) registered under a given developer handle.
+//	@Summary		List entities for a handle
+//	@Description	List all ZNS name bindings (entity names) registered under a given developer handle.
 //	@Tags			Handles
 //	@Produce		json
 //	@Param			handle	path		string				true	"ZNS developer handle"
@@ -1974,7 +1974,7 @@ func (s *Server) handleListHandleAgents(w http.ResponseWriter, r *http.Request) 
 	registryHost := s.cfg.RegistryHost()
 	names, err := s.store.ListZNSNamesByDeveloper(handle, registryHost)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list agents")
+		writeError(w, http.StatusInternalServerError, "failed to list entities")
 		return
 	}
 	if names == nil {
@@ -1985,10 +1985,10 @@ func (s *Server) handleListHandleAgents(w http.ResponseWriter, r *http.Request) 
 
 // --- Name Binding Endpoints ---
 
-// handleRegisterName registers an agent name binding (ZNS FQAN).
+// handleRegisterName registers an entity name binding (ZNS FQAN).
 //
-//	@Summary		Register an agent name
-//	@Description	Register a ZNS agent name binding, creating a Fully Qualified Agent Name (FQAN) under a developer handle.
+//	@Summary		Register an entity name
+//	@Description	Register a ZNS entity name binding, creating a Fully Qualified Agent Name (FQAN) under a developer handle.
 //	@Tags			Names
 //	@Accept			json
 //	@Produce		json
@@ -1996,7 +1996,7 @@ func (s *Server) handleListHandleAgents(w http.ResponseWriter, r *http.Request) 
 //	@Success		201		{object}	map[string]string			"fqan, agent_id, and success message"
 //	@Failure		400		{object}	map[string]string			"Validation error"
 //	@Failure		401		{object}	map[string]string			"Invalid signature"
-//	@Failure		404		{object}	map[string]string			"Developer handle or agent not found"
+//	@Failure		404		{object}	map[string]string			"Developer handle or entity not found"
 //	@Failure		409		{object}	map[string]string			"Name already registered"
 //	@Failure		500		{object}	map[string]string			"Internal server error"
 //	@Router			/v1/names [post]
@@ -2030,20 +2030,20 @@ func (s *Server) handleRegisterName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify agent exists
+	// Verify entity exists
 	agent, err := s.store.GetAgent(req.AgentID)
 	if err != nil || agent == nil {
-		writeError(w, http.StatusNotFound, "agent not found")
+		writeError(w, http.StatusNotFound, "entity not found")
 		return
 	}
 
-	// Check if this agent name already exists under the same developer with a different key
+	// Check if this entity name already exists under the same developer with a different key
 	existingName, _ := s.store.GetZNSNameByParts(req.DeveloperHandle, req.AgentName, registryHost)
 	if existingName != nil {
 		existingAgent, _ := s.store.GetAgent(existingName.AgentID)
 		if existingAgent != nil && existingAgent.PublicKey != agent.PublicKey {
 			writeError(w, http.StatusConflict,
-				fmt.Sprintf("agent name %q is already registered under %s with a different key; choose a different name",
+				fmt.Sprintf("entity name %q is already registered under %s with a different key; choose a different name",
 					req.AgentName, req.DeveloperHandle))
 			return
 		}
@@ -2121,29 +2121,29 @@ func (s *Server) handleRegisterName(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleGetName gets a ZNS name binding by developer handle and agent name.
+// handleGetName gets a ZNS name binding by developer handle and entity name.
 //
 //	@Summary		Get name binding
-//	@Description	Retrieve a ZNS name binding record by developer handle and agent name path parameters.
+//	@Description	Retrieve a ZNS name binding record by developer handle and entity name path parameters.
 //	@Tags			Names
 //	@Produce		json
 //	@Param			developer	path		string			true	"Developer handle"
-//	@Param			agent		path		string			true	"Agent name"
+//	@Param			entity		path		string			true	"Entity name"
 //	@Success		200			{object}	models.ZNSName	"ZNS name binding"
 //	@Failure		400			{object}	map[string]string	"Missing path parameters"
 //	@Failure		404			{object}	map[string]string	"Name not found"
 //	@Failure		500			{object}	map[string]string	"Internal server error"
-//	@Router			/v1/names/{developer}/{agent} [get]
+//	@Router			/v1/names/{developer}/{entity} [get]
 func (s *Server) handleGetName(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
-	agentName := r.PathValue("agent")
-	if devHandle == "" || agentName == "" {
-		writeError(w, http.StatusBadRequest, "developer and agent are required")
+	entityName := r.PathValue("entity")
+	if devHandle == "" || entityName == "" {
+		writeError(w, http.StatusBadRequest, "developer and entity are required")
 		return
 	}
 
 	registryHost := s.cfg.RegistryHost()
-	name, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	name, err := s.store.GetZNSNameByParts(devHandle, entityName, registryHost)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to look up name")
 		return
@@ -2156,31 +2156,31 @@ func (s *Server) handleGetName(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, name)
 }
 
-// handleCheckNameAvailable checks whether a ZNS agent name is available.
+// handleCheckNameAvailable checks whether a ZNS entity name is available.
 //
 //	@Summary		Check name availability
-//	@Description	Check whether a ZNS agent name is available under a given developer handle.
+//	@Description	Check whether a ZNS entity name is available under a given developer handle.
 //	@Tags			Names
 //	@Produce		json
 //	@Param			developer	path		string				true	"Developer handle"
-//	@Param			agent		path		string				true	"Agent name"
+//	@Param			entity		path		string				true	"Entity name"
 //	@Success		200			{object}	map[string]interface{}	"developer, agent_name, available, and optional reason"
 //	@Failure		400			{object}	map[string]string		"Missing path parameters"
 //	@Failure		500			{object}	map[string]string		"Internal server error"
-//	@Router			/v1/names/{developer}/{agent}/available [get]
+//	@Router			/v1/names/{developer}/{entity}/available [get]
 func (s *Server) handleCheckNameAvailable(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
-	agentName := r.PathValue("agent")
-	if devHandle == "" || agentName == "" {
-		writeError(w, http.StatusBadRequest, "developer and agent are required")
+	entityName := r.PathValue("entity")
+	if devHandle == "" || entityName == "" {
+		writeError(w, http.StatusBadRequest, "developer and entity are required")
 		return
 	}
 
 	// Validate format
-	if err := zns.ValidateAgentName(agentName); err != nil {
+	if err := zns.ValidateAgentName(entityName); err != nil {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"developer":  devHandle,
-			"agent_name": agentName,
+			"agent_name": entityName,
 			"available":  false,
 			"reason":     err.Error(),
 		})
@@ -2188,7 +2188,7 @@ func (s *Server) handleCheckNameAvailable(w http.ResponseWriter, r *http.Request
 	}
 
 	registryHost := s.cfg.RegistryHost()
-	existing, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	existing, err := s.store.GetZNSNameByParts(devHandle, entityName, registryHost)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to check name availability")
 		return
@@ -2197,11 +2197,11 @@ func (s *Server) handleCheckNameAvailable(w http.ResponseWriter, r *http.Request
 	available := existing == nil
 	resp := map[string]interface{}{
 		"developer":  devHandle,
-		"agent_name": agentName,
+		"agent_name": entityName,
 		"available":  available,
 	}
 	if !available {
-		resp["reason"] = "agent name is already registered under this developer"
+		resp["reason"] = "entity name is already registered under this developer"
 		resp["existing_agent_id"] = existing.AgentID
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -2210,24 +2210,24 @@ func (s *Server) handleCheckNameAvailable(w http.ResponseWriter, r *http.Request
 // handleUpdateName updates a ZNS name binding's version or capability tags.
 //
 //	@Summary		Update name binding
-//	@Description	Update the version and/or capability_tags of an existing ZNS agent name binding.
+//	@Description	Update the version and/or capability_tags of an existing ZNS entity name binding.
 //	@Tags			Names
 //	@Accept			json
 //	@Produce		json
 //	@Param			developer	path		string			true	"Developer handle"
-//	@Param			agent		path		string			true	"Agent name"
+//	@Param			entity		path		string			true	"Entity name"
 //	@Param			body		body		object			true	"Fields to update (version, capability_tags, signature)"
 //	@Success		200			{object}	models.ZNSName	"Updated ZNS name binding"
 //	@Failure		400			{object}	map[string]string	"Invalid request body"
 //	@Failure		404			{object}	map[string]string	"Name not found"
 //	@Failure		500			{object}	map[string]string	"Internal server error"
-//	@Router			/v1/names/{developer}/{agent} [put]
+//	@Router			/v1/names/{developer}/{entity} [put]
 func (s *Server) handleUpdateName(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
-	agentName := r.PathValue("agent")
+	entityName := r.PathValue("entity")
 
 	registryHost := s.cfg.RegistryHost()
-	name, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	name, err := s.store.GetZNSNameByParts(devHandle, entityName, registryHost)
 	if err != nil || name == nil {
 		writeError(w, http.StatusNotFound, "name not found")
 		return
@@ -2278,26 +2278,26 @@ func (s *Server) handleUpdateName(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, name)
 }
 
-// handleReleaseName releases a ZNS agent name binding.
+// handleReleaseName releases a ZNS entity name binding.
 //
 //	@Summary		Release a name binding
-//	@Description	Release a ZNS agent name binding. Requires Authorization header with Bearer ed25519 signature.
+//	@Description	Release a ZNS entity name binding. Requires Authorization header with Bearer ed25519 signature.
 //	@Tags			Names
 //	@Produce		json
 //	@Param			developer		path		string				true	"Developer handle"
-//	@Param			agent			path		string				true	"Agent name"
+//	@Param			entity			path		string				true	"Entity name"
 //	@Param			Authorization	header		string				true	"Bearer ed25519:<base64sig>"
 //	@Success		200				{object}	map[string]string	"Release confirmation"
 //	@Failure		401				{object}	map[string]string	"Ownership verification failed"
 //	@Failure		404				{object}	map[string]string	"Name or developer not found"
 //	@Failure		500				{object}	map[string]string	"Internal server error"
-//	@Router			/v1/names/{developer}/{agent} [delete]
+//	@Router			/v1/names/{developer}/{entity} [delete]
 func (s *Server) handleReleaseName(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
-	agentName := r.PathValue("agent")
+	entityName := r.PathValue("entity")
 
 	registryHost := s.cfg.RegistryHost()
-	name, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	name, err := s.store.GetZNSNameByParts(devHandle, entityName, registryHost)
 	if err != nil || name == nil {
 		writeError(w, http.StatusNotFound, "name not found")
 		return
@@ -2336,17 +2336,17 @@ func (s *Server) handleReleaseName(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Names
 //	@Produce		json
 //	@Param			developer	path		string				true	"Developer handle"
-//	@Param			agent		path		string				true	"Agent name"
+//	@Param			entity		path		string				true	"Entity name"
 //	@Success		200			{array}		models.ZNSVersion	"List of version records"
 //	@Failure		404			{object}	map[string]string	"Name not found"
 //	@Failure		500			{object}	map[string]string	"Internal server error"
-//	@Router			/v1/names/{developer}/{agent}/versions [get]
+//	@Router			/v1/names/{developer}/{entity}/versions [get]
 func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
-	agentName := r.PathValue("agent")
+	entityName := r.PathValue("entity")
 
 	registryHost := s.cfg.RegistryHost()
-	name, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	name, err := s.store.GetZNSNameByParts(devHandle, entityName, registryHost)
 	if err != nil || name == nil {
 		writeError(w, http.StatusNotFound, "name not found")
 		return
@@ -2368,28 +2368,28 @@ func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request) {
 // handleResolveName resolves a FQAN to agent details.
 //
 //	@Summary		Resolve a FQAN
-//	@Description	Resolve a Fully Qualified Agent Name (FQAN) to its agent details, including agent_url, public_key, and trust information.
+//	@Description	Resolve a Fully Qualified Agent Name (FQAN) to its entity details, including agent_url, public_key, and trust information.
 //	@Tags			Resolution
 //	@Produce		json
 //	@Param			developer	path		string						true	"Developer handle"
-//	@Param			agent		path		string						true	"Agent name"
-//	@Success		200			{object}	models.ZNSResolveResponse	"Resolved agent details"
+//	@Param			entity		path		string						true	"Entity name"
+//	@Success		200			{object}	models.ZNSResolveResponse	"Resolved entity details"
 //	@Failure		400			{object}	map[string]string			"Missing path parameters"
 //	@Failure		404			{object}	map[string]string			"Name not found"
 //	@Failure		500			{object}	map[string]string			"Internal server error"
-//	@Router			/v1/resolve/{developer}/{agent} [get]
+//	@Router			/v1/resolve/{developer}/{entity} [get]
 func (s *Server) handleResolveName(w http.ResponseWriter, r *http.Request) {
 	devHandle := r.PathValue("developer")
-	agentName := r.PathValue("agent")
-	if devHandle == "" || agentName == "" {
-		writeError(w, http.StatusBadRequest, "developer and agent path parameters are required")
+	entityName := r.PathValue("entity")
+	if devHandle == "" || entityName == "" {
+		writeError(w, http.StatusBadRequest, "developer and entity path parameters are required")
 		return
 	}
 
 	registryHost := s.cfg.RegistryHost()
 
 	// 1. Try local ZNS names
-	name, err := s.store.GetZNSNameByParts(devHandle, agentName, registryHost)
+	name, err := s.store.GetZNSNameByParts(devHandle, entityName, registryHost)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "resolution failed")
 		return
@@ -2411,7 +2411,7 @@ func (s *Server) handleResolveName(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Try gossip ZNS names
-	gossipName, err := s.store.GetGossipZNSNameByParts(devHandle, agentName)
+	gossipName, err := s.store.GetGossipZNSNameByParts(devHandle, entityName)
 	if err == nil && gossipName != nil {
 		resp := &models.ZNSResolveResponse{
 			FQAN:            gossipName.FQAN,
@@ -2459,7 +2459,7 @@ func (s *Server) buildResolveResponse(name *models.ZNSName, agent *models.Regist
 	return resp
 }
 
-// createZNSNameBinding is a helper used by handleRegisterAgent for atomic naming.
+// createZNSNameBinding is a helper used by handleRegisterAgent for atomic entity naming.
 func (s *Server) createZNSNameBinding(record *models.RegistryRecord, agentName, version, registryHost string) (string, error) {
 	if err := zns.ValidateAgentName(agentName); err != nil {
 		return "", err
@@ -2477,7 +2477,7 @@ func (s *Server) createZNSNameBinding(record *models.RegistryRecord, agentName, 
 		// Same name exists — only allow if it's the same agent (same public key)
 		existingAgent, _ := s.store.GetAgent(existing.AgentID)
 		if existingAgent != nil && existingAgent.PublicKey != record.PublicKey {
-			return "", fmt.Errorf("agent name %q is already registered under %s with a different key; choose a different name", agentName, dev.DevHandle)
+			return "", fmt.Errorf("entity name %q is already registered under %s with a different key; choose a different name", agentName, dev.DevHandle)
 		}
 		// Same agent re-registering with same name — return existing FQAN
 		if existing.AgentID == record.AgentID {

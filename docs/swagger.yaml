@@ -1482,7 +1482,7 @@ paths:
       - Handles
   /v1/handles/{handle}/agents:
     get:
-      description: List all ZNS name bindings (agent names) registered under a given
+      description: List all ZNS name bindings (entity names) registered under a given
         developer handle.
       parameters:
       - description: ZNS developer handle
@@ -1511,7 +1511,7 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: List agents for a handle
+      summary: List entities for a handle
       tags:
       - Handles
   /v1/handles/{handle}/available:
@@ -1599,8 +1599,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Register a ZNS agent name binding, creating a Fully Qualified Agent
-        Name (FQAN) under a developer handle.
+      description: Register a ZNS entity name binding, creating a Fully Qualified
+        Agent Name (FQAN) under a developer handle.
       parameters:
       - description: Name binding payload
         in: body
@@ -1630,7 +1630,7 @@ paths:
               type: string
             type: object
         "404":
-          description: Developer handle or agent not found
+          description: Developer handle or entity not found
           schema:
             additionalProperties:
               type: string
@@ -1647,12 +1647,12 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: Register an agent name
+      summary: Register an entity name
       tags:
       - Names
-  /v1/names/{developer}/{agent}:
+  /v1/names/{developer}/{entity}:
     delete:
-      description: Release a ZNS agent name binding. Requires Authorization header
+      description: Release a ZNS entity name binding. Requires Authorization header
         with Bearer ed25519 signature.
       parameters:
       - description: Developer handle
@@ -1660,9 +1660,9 @@ paths:
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       - description: Bearer ed25519:<base64sig>
@@ -1701,7 +1701,7 @@ paths:
       tags:
       - Names
     get:
-      description: Retrieve a ZNS name binding record by developer handle and agent
+      description: Retrieve a ZNS name binding record by developer handle and entity
         name path parameters.
       parameters:
       - description: Developer handle
@@ -1709,9 +1709,9 @@ paths:
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       produces:
@@ -1745,7 +1745,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: Update the version and/or capability_tags of an existing ZNS agent
+      description: Update the version and/or capability_tags of an existing ZNS entity
         name binding.
       parameters:
       - description: Developer handle
@@ -1753,9 +1753,9 @@ paths:
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       - description: Fields to update (version, capability_tags, signature)
@@ -1792,9 +1792,9 @@ paths:
       summary: Update name binding
       tags:
       - Names
-  /v1/names/{developer}/{agent}/available:
+  /v1/names/{developer}/{entity}/available:
     get:
-      description: Check whether a ZNS agent name is available under a given developer
+      description: Check whether a ZNS entity name is available under a given developer
         handle.
       parameters:
       - description: Developer handle
@@ -1802,9 +1802,9 @@ paths:
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       produces:
@@ -1830,7 +1830,7 @@ paths:
       summary: Check name availability
       tags:
       - Names
-  /v1/names/{developer}/{agent}/versions:
+  /v1/names/{developer}/{entity}/versions:
     get:
       description: Retrieve the full version history for a ZNS agent name binding.
       parameters:
@@ -1839,9 +1839,9 @@ paths:
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       produces:
@@ -1943,9 +1943,9 @@ paths:
       summary: Get node status
       tags:
       - Network
-  /v1/resolve/{developer}/{agent}:
+  /v1/resolve/{developer}/{entity}:
     get:
-      description: Resolve a Fully Qualified Agent Name (FQAN) to its agent details,
+      description: Resolve a Fully Qualified Agent Name (FQAN) to its entity details,
         including agent_url, public_key, and trust information.
       parameters:
       - description: Developer handle
@@ -1953,16 +1953,16 @@ paths:
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       produces:
       - application/json
       responses:
         "200":
-          description: Resolved agent details
+          description: Resolved entity details
           schema:
             $ref: '#/definitions/models.ZNSResolveResponse'
         "400":
