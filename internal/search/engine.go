@@ -306,7 +306,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			Summary:         agent.Summary,
 			Category:        agent.Category,
 			Tags:            agent.Tags,
-			AgentURL:        agent.AgentURL,
+			EntityURL:        agent.EntityURL,
 			HomeRegistry:    agent.HomeRegistry,
 			Status:          agent.Status,
 			UpdatedAt:       agent.UpdatedAt,
@@ -351,7 +351,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 				Summary:            agent.Summary,
 				Category:           agent.Category,
 				Tags:               agent.Tags,
-				AgentURL:           agent.AgentURL,
+				EntityURL:           agent.EntityURL,
 				HomeRegistry:       agent.HomeRegistry,
 				Status:             agent.Status,
 				UpdatedAt:          agent.UpdatedAt,
@@ -421,7 +421,7 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 			Summary:            entry.Summary,
 			Category:           entry.Category,
 			Tags:               entry.Tags,
-			AgentURL:           entry.AgentURL,
+			EntityURL:           entry.EntityURL,
 			HomeRegistry:       entry.HomeRegistry,
 			Status:             entry.Status,
 			UpdatedAt:          entry.ReceivedAt,
@@ -454,7 +454,7 @@ func (e *Engine) enrichCandidates(candidates []*ranking.CandidateResult) {
 				pubKey = agent.PublicKey
 			}
 
-			card, err := e.fetcher.FetchCard(candidate.AgentID, candidate.AgentURL, pubKey)
+			card, err := e.fetcher.FetchCard(candidate.AgentID, candidate.EntityURL, pubKey)
 			if err == nil && card != nil {
 				candidate.Card = card
 				// Update availability based on card status

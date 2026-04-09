@@ -128,7 +128,7 @@ type AgentDHTRecord struct {
 	Category      string   `json:"category"`
 	Tags          []string `json:"tags,omitempty"`
 	Summary       string   `json:"summary,omitempty"`
-	AgentURL      string   `json:"agent_url"`
+	EntityURL     string   `json:"entity_url"`
 	PublicKey     string   `json:"public_key"`
 	HomeRegistry  string   `json:"home_registry"`
 	DeveloperID   string   `json:"developer_id,omitempty"`

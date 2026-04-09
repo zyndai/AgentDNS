@@ -114,7 +114,7 @@ type ZNSResolveResponse struct {
 	DeveloperHandle  string   `json:"developer_handle"`
 	RegistryHost     string   `json:"registry_host"`
 	Version          string   `json:"version,omitempty"`
-	AgentURL         string   `json:"agent_url"`
+	EntityURL        string   `json:"entity_url"`
 	PublicKey        string   `json:"public_key"`
 	Protocols        []string `json:"protocols,omitempty"`
 	TrustScore       float64  `json:"trust_score"`

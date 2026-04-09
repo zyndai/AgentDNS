@@ -343,7 +343,7 @@ func cmdStart() {
 			Tags:         ann.Tags,
 			Summary:      ann.Summary,
 			HomeRegistry: ann.HomeRegistry,
-			AgentURL:     ann.AgentURL,
+			EntityURL:     ann.EntityURL,
 			ReceivedAt:   time.Now().UTC().Format(time.RFC3339),
 		}
 		engine.IndexGossipEntry(entry)
@@ -436,7 +436,7 @@ func cmdStart() {
 				Category:     rec.Category,
 				Tags:         rec.Tags,
 				Summary:      rec.Summary,
-				AgentURL:     rec.AgentURL,
+				EntityURL:     rec.EntityURL,
 				PublicKey:     rec.PublicKey,
 				HomeRegistry: rec.HomeRegistry,
 				DeveloperID:  rec.DeveloperID,

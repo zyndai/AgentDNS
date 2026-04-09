@@ -20,7 +20,7 @@ type RegistryRecord struct {
 	AgentID           string             `json:"agent_id" db:"agent_id"`
 	Name              string             `json:"name" db:"name"`
 	Owner             string             `json:"owner" db:"owner"`
-	AgentURL          string             `json:"agent_url" db:"agent_url"`
+	EntityURL         string             `json:"entity_url" db:"agent_url"`
 	Category          string             `json:"category" db:"category"`
 	Tags              []string           `json:"tags" db:"-"`
 	Summary           string             `json:"summary" db:"summary"`
@@ -73,10 +73,10 @@ type CapabilitySummary struct {
 	OutputTypes []string `json:"output_types,omitempty"` // e.g., ["text", "json", "markdown"]
 }
 
-// RegistrationRequest is submitted to register a new agent or service.
+// RegistrationRequest is submitted to register a new entity (agent or service).
 type RegistrationRequest struct {
 	Name              string             `json:"name" validate:"required,min=1,max=100"`
-	AgentURL          string             `json:"agent_url" validate:"omitempty,url"`
+	EntityURL         string             `json:"entity_url" validate:"omitempty,url"`
 	Category          string             `json:"category" validate:"required,min=1,max=50"`
 	Tags              []string           `json:"tags" validate:"max=20"`
 	Summary           string             `json:"summary" validate:"required,max=200"`
@@ -102,7 +102,7 @@ type RegistrationRequest struct {
 // UpdateRequest is submitted by agent owners to update their registry record.
 type UpdateRequest struct {
 	Name              *string            `json:"name,omitempty"`
-	AgentURL          *string            `json:"agent_url,omitempty"`
+	EntityURL         *string            `json:"entity_url,omitempty"`
 	Category          *string            `json:"category,omitempty"`
 	Tags              []string           `json:"tags,omitempty"`
 	Summary           *string            `json:"summary,omitempty"`
@@ -158,8 +158,10 @@ func (r *RegistryRecord) Validate() error {
 	if r.Owner == "" {
 		return fmt.Errorf("owner is required")
 	}
-	if r.AgentURL == "" {
-		return fmt.Errorf("agent_url is required")
+	if r.Type == "" || r.Type == "agent" {
+		if r.EntityURL == "" {
+			return fmt.Errorf("entity_url is required for agent type")
+		}
 	}
 	if r.Category == "" {
 		return fmt.Errorf("category is required")

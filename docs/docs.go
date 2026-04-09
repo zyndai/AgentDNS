@@ -527,7 +527,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Register an entity. Set type to \"service\" for services (agent_url not required). Alias: POST /v1/agents, POST /v1/services.",
+                "description": "Register an entity. Set type to \"service\" for services (entity_url not required). Alias: POST /v1/agents, POST /v1/services.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1727,7 +1727,7 @@ const docTemplate = `{
         },
         "/v1/resolve/{developer}/{entity}": {
             "get": {
-                "description": "Resolve a Fully Qualified Agent Name (FQAN) to its entity details, including agent_url, public_key, and trust information.",
+                "description": "Resolve a Fully Qualified Agent Name (FQAN) to its entity details, including entity_url, public_key, and trust information.",
                 "produces": [
                     "application/json"
                 ],
@@ -2452,9 +2452,6 @@ const docTemplate = `{
                     "description": "ZNS naming fields (optional — requires developer with claimed handle)",
                     "type": "string"
                 },
-                "agent_url": {
-                    "type": "string"
-                },
                 "capability_summary": {
                     "$ref": "#/definitions/models.CapabilitySummary"
                 },
@@ -2469,6 +2466,9 @@ const docTemplate = `{
                 },
                 "developer_proof": {
                     "$ref": "#/definitions/models.DeveloperProof"
+                },
+                "entity_url": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string",
@@ -2520,9 +2520,6 @@ const docTemplate = `{
                 "agent_index": {
                     "type": "integer"
                 },
-                "agent_url": {
-                    "type": "string"
-                },
                 "capability_summary": {
                     "$ref": "#/definitions/models.CapabilitySummary"
                 },
@@ -2544,6 +2541,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/models.DeveloperProof"
                         }
                     ]
+                },
+                "entity_url": {
+                    "type": "string"
                 },
                 "home_registry": {
                     "type": "string"
@@ -2849,9 +2849,6 @@ const docTemplate = `{
                 "signature"
             ],
             "properties": {
-                "agent_url": {
-                    "type": "string"
-                },
                 "capability_summary": {
                     "$ref": "#/definitions/models.CapabilitySummary"
                 },
@@ -2859,6 +2856,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "codebase_hash": {
+                    "type": "string"
+                },
+                "entity_url": {
                     "type": "string"
                 },
                 "name": {
@@ -2949,13 +2949,13 @@ const docTemplate = `{
                 "agent_id": {
                     "type": "string"
                 },
-                "agent_url": {
-                    "type": "string"
-                },
                 "developer_handle": {
                     "type": "string"
                 },
                 "developer_id": {
+                    "type": "string"
+                },
+                "entity_url": {
                     "type": "string"
                 },
                 "fqan": {

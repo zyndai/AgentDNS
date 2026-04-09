@@ -68,7 +68,7 @@ type dhtRecord struct {
 	Category     string   `json:"category"`
 	Tags         []string `json:"tags,omitempty"`
 	Summary      string   `json:"summary,omitempty"`
-	AgentURL     string   `json:"agent_url"`
+	EntityURL    string   `json:"entity_url"`
 	PublicKey    string   `json:"public_key"`
 	HomeRegistry string   `json:"home_registry"`
 	DeveloperID  string   `json:"developer_id,omitempty"`
@@ -627,7 +627,7 @@ func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Reques
 // handleRegisterAgent registers a new entity on the registry.
 //
 //	@Summary		Register a new entity
-//	@Description	Register an entity. Set type to "service" for services (agent_url not required). Alias: POST /v1/agents, POST /v1/services.
+//	@Description	Register an entity. Set type to "service" for services (entity_url not required). Alias: POST /v1/agents, POST /v1/services.
 //	@Tags			Entities
 //	@Accept			json
 //	@Produce		json
@@ -652,8 +652,8 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	// AgentURL is required for agents but not for services
 	if req.Type == "" || req.Type == "agent" {
-		if req.AgentURL == "" {
-			writeError(w, http.StatusBadRequest, "agent_url is required for agent type")
+		if req.EntityURL == "" {
+			writeError(w, http.StatusBadRequest, "entity_url is required for agent type")
 			return
 		}
 	}
@@ -671,7 +671,7 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	signableMap := map[string]interface{}{
 		"name":       req.Name,
-		"agent_url":  req.AgentURL,
+		"entity_url": req.EntityURL,
 		"category":   req.Category,
 		"tags":       req.Tags,
 		"summary":    req.Summary,
@@ -766,7 +766,7 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		AgentID:         agentID,
 		Name:            req.Name,
 		Owner:           owner,
-		AgentURL:        req.AgentURL,
+		EntityURL:       req.EntityURL,
 		Category:        req.Category,
 		Tags:            req.Tags,
 		Summary:         req.Summary,
@@ -866,7 +866,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if agent != nil {
-		agent.AgentURL = "" // agent_url is private — only accessible via /card
+		agent.EntityURL = "" // entity_url is private — only accessible via /card
 		resp := s.agentResponseWithFQAN(agent)
 		writeJSON(w, http.StatusOK, resp)
 		return
@@ -875,7 +875,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	// 2. Check gossip entries (remote agents replicated via gossip)
 	gossipEntry, err := s.store.GetGossipEntry(agentID)
 	if err == nil && gossipEntry != nil {
-		gossipEntry.AgentURL = ""
+		gossipEntry.EntityURL = ""
 		writeJSON(w, http.StatusOK, gossipEntry)
 		return
 	}
@@ -884,7 +884,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	if s.dht != nil && s.dht.FindValueFn != nil {
 		rec := s.dht.FindValueFn(agentID)
 		if rec != nil {
-			rec.AgentURL = ""
+			rec.EntityURL = ""
 			writeJSON(w, http.StatusOK, rec)
 			return
 		}
@@ -1006,8 +1006,8 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	if req.Name != nil {
 		existing.Name = *req.Name
 	}
-	if req.AgentURL != nil {
-		existing.AgentURL = *req.AgentURL
+	if req.EntityURL != nil {
+		existing.EntityURL = *req.EntityURL
 	}
 	if req.Category != nil {
 		existing.Category = *req.Category
@@ -1133,7 +1133,7 @@ func (s *Server) handleGetAgentCard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch raw JSON from the agent — preserves all SDK fields
-	rawCard, err := s.cardFetcher.FetchCardRaw(agentID, agent.AgentURL)
+	rawCard, err := s.cardFetcher.FetchCardRaw(agentID, agent.EntityURL)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "failed to fetch agent card: "+err.Error())
 		return
@@ -1539,7 +1539,7 @@ func (s *Server) handleApproveDeveloper(w http.ResponseWriter, r *http.Request) 
 func (s *Server) agentResponseWithFQAN(agent *models.RegistryRecord) interface{} {
 	type agentResp struct {
 		*models.RegistryRecord
-		AgentURL        *struct{} `json:"agent_url,omitempty"` // hide agent_url from response
+		EntityURL       *struct{} `json:"entity_url,omitempty"` // hide entity_url from response
 		FQAN            string    `json:"fqan,omitempty"`
 		DeveloperHandle string    `json:"developer_handle,omitempty"`
 	}
@@ -2368,7 +2368,7 @@ func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request) {
 // handleResolveName resolves a FQAN to agent details.
 //
 //	@Summary		Resolve a FQAN
-//	@Description	Resolve a Fully Qualified Agent Name (FQAN) to its entity details, including agent_url, public_key, and trust information.
+//	@Description	Resolve a Fully Qualified Agent Name (FQAN) to its entity details, including entity_url, public_key, and trust information.
 //	@Tags			Resolution
 //	@Produce		json
 //	@Param			developer	path		string						true	"Developer handle"
@@ -2439,7 +2439,7 @@ func (s *Server) buildResolveResponse(name *models.ZNSName, agent *models.Regist
 	}
 
 	if agent != nil {
-		resp.AgentURL = agent.AgentURL
+		resp.EntityURL = agent.EntityURL
 		resp.PublicKey = agent.PublicKey
 		resp.Status = agent.Status
 		if agent.CapabilitySummary != nil {

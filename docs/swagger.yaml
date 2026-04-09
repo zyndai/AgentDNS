@@ -392,8 +392,6 @@ definitions:
         description: ZNS naming fields (optional — requires developer with claimed
           handle)
         type: string
-      agent_url:
-        type: string
       capability_summary:
         $ref: '#/definitions/models.CapabilitySummary'
       category:
@@ -405,6 +403,8 @@ definitions:
         type: string
       developer_proof:
         $ref: '#/definitions/models.DeveloperProof'
+      entity_url:
+        type: string
       name:
         maxLength: 100
         minLength: 1
@@ -446,8 +446,6 @@ definitions:
         type: string
       agent_index:
         type: integer
-      agent_url:
-        type: string
       capability_summary:
         $ref: '#/definitions/models.CapabilitySummary'
       category:
@@ -462,6 +460,8 @@ definitions:
         allOf:
         - $ref: '#/definitions/models.DeveloperProof'
         description: stored as JSONB
+      entity_url:
+        type: string
       home_registry:
         type: string
       last_heartbeat:
@@ -662,13 +662,13 @@ definitions:
     type: object
   models.UpdateRequest:
     properties:
-      agent_url:
-        type: string
       capability_summary:
         $ref: '#/definitions/models.CapabilitySummary'
       category:
         type: string
       codebase_hash:
+        type: string
+      entity_url:
         type: string
       name:
         type: string
@@ -732,11 +732,11 @@ definitions:
     properties:
       agent_id:
         type: string
-      agent_url:
-        type: string
       developer_handle:
         type: string
       developer_id:
+        type: string
+      entity_url:
         type: string
       fqan:
         type: string
@@ -1130,7 +1130,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: 'Register an entity. Set type to "service" for services (agent_url
+      description: 'Register an entity. Set type to "service" for services (entity_url
         not required). Alias: POST /v1/agents, POST /v1/services.'
       parameters:
       - description: Entity registration payload
@@ -1945,7 +1945,7 @@ paths:
   /v1/resolve/{developer}/{entity}:
     get:
       description: Resolve a Fully Qualified Agent Name (FQAN) to its entity details,
-        including agent_url, public_key, and trust information.
+        including entity_url, public_key, and trust information.
       parameters:
       - description: Developer handle
         in: path

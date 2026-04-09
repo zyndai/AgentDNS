@@ -38,7 +38,7 @@ type CandidateResult struct {
 	Summary      string
 	Category     string
 	Tags         []string
-	AgentURL     string
+	EntityURL     string
 	HomeRegistry string
 	Status       string
 	UpdatedAt    string

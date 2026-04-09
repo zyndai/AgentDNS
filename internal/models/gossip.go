@@ -12,7 +12,7 @@ type GossipAnnouncement struct {
 	Summary           string             `json:"summary,omitempty"`
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty"`
 	HomeRegistry      string             `json:"home_registry"`
-	AgentURL          string             `json:"agent_url,omitempty"`
+	EntityURL         string             `json:"entity_url,omitempty"`
 	Action            string             `json:"action"` // register, update, deregister, agent_status
 	Status            string             `json:"status,omitempty"`
 	Timestamp         string             `json:"timestamp"`
@@ -68,7 +68,7 @@ type GossipEntry struct {
 	Summary           string             `json:"summary" db:"summary"`
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty" db:"-"`
 	HomeRegistry      string             `json:"home_registry" db:"home_registry"`
-	AgentURL          string             `json:"agent_url" db:"agent_url"`
+	EntityURL         string             `json:"entity_url" db:"agent_url"`
 	ReceivedAt        string             `json:"received_at" db:"received_at"`
 	Tombstoned        bool               `json:"tombstoned" db:"tombstoned"`
 	TombstoneAt       string             `json:"tombstone_at,omitempty" db:"tombstone_at"`

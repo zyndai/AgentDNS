@@ -340,7 +340,7 @@ func (s *PostgresStore) CreateAgent(agent *models.RegistryRecord) error {
 			type, service_endpoint, openapi_url, pricing_model)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(),
 			$18, $19, $20, $21)`,
-		agent.AgentID, agent.Name, agent.Owner, agent.AgentURL, agent.Category,
+		agent.AgentID, agent.Name, agent.Owner, agent.EntityURL, agent.Category,
 		string(tagsJSON), agent.Summary, agent.PublicKey, agent.HomeRegistry,
 		schemaVersion, agent.RegisteredAt, agent.UpdatedAt, agent.TTL, agent.Signature,
 		nilIfEmpty(agent.DeveloperID), agent.AgentIndex, nilIfEmptyBytes(developerProofJSON),
@@ -371,7 +371,7 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	var serviceEndpoint, openapiURL *string
 	var pricingModelJSON []byte
 	err := row.Scan(
-		&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
+		&agent.AgentID, &agent.Name, &agent.Owner, &agent.EntityURL,
 		&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
 		&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
 		&agent.TTL, &agent.Signature,
@@ -430,7 +430,7 @@ func (s *PostgresStore) UpdateAgent(agent *models.RegistryRecord) error {
 		UPDATE agents SET name=$1, agent_url=$2, category=$3, tags=$4, summary=$5,
 			updated_at=$6, ttl=$7, signature=$8, schema_version=$9, codebase_hash=$10
 		WHERE agent_id = $11 AND owner = $12`,
-		agent.Name, agent.AgentURL, agent.Category, string(tagsJSON),
+		agent.Name, agent.EntityURL, agent.Category, string(tagsJSON),
 		agent.Summary, agent.UpdatedAt, agent.TTL, agent.Signature,
 		agent.SchemaVersion, agent.CodebaseHash, agent.AgentID, agent.Owner,
 	)
@@ -548,7 +548,7 @@ func (s *PostgresStore) GetGossipEntry(agentID string) (*models.GossipEntry, err
 	var originPubKey *string
 	err := row.Scan(
 		&entry.AgentID, &entry.Name, &entry.Category, &tagsJSON,
-		&entry.Summary, &entry.HomeRegistry, &entry.AgentURL,
+		&entry.Summary, &entry.HomeRegistry, &entry.EntityURL,
 		&receivedAt, &entry.Tombstoned, &entry.Status, &originPubKey,
 	)
 	if err == pgx.ErrNoRows {
@@ -608,7 +608,7 @@ func (s *PostgresStore) UpsertGossipEntry(entry *models.GossipEntry) error {
 			status=EXCLUDED.status,
 			type=EXCLUDED.type, service_endpoint=EXCLUDED.service_endpoint, openapi_url=EXCLUDED.openapi_url`,
 		entry.AgentID, entry.Name, entry.Category, string(tagsJSON),
-		entry.Summary, entry.HomeRegistry, entry.AgentURL,
+		entry.Summary, entry.HomeRegistry, entry.EntityURL,
 		entry.ReceivedAt, entry.Tombstoned,
 		nilIfEmpty(entry.DeveloperID), nilIfEmpty(entry.DeveloperPublicKey),
 		nilIfEmptyBytes(developerProofJSON),
@@ -660,7 +660,7 @@ func (s *PostgresStore) SearchGossipByKeyword(query string, category string, tag
 		var receivedAt time.Time
 		if err := rows.Scan(
 			&entry.AgentID, &entry.Name, &entry.Category, &tagsJSON,
-			&entry.Summary, &entry.HomeRegistry, &entry.AgentURL,
+			&entry.Summary, &entry.HomeRegistry, &entry.EntityURL,
 			&receivedAt, &entry.Tombstoned, &entry.Status,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan gossip entry: %w", err)
@@ -1018,7 +1018,7 @@ func scanAgentRows(rows pgx.Rows) ([]*models.RegistryRecord, error) {
 		var developerProofJSON []byte
 		var lastHeartbeat *time.Time
 		if err := rows.Scan(
-			&agent.AgentID, &agent.Name, &agent.Owner, &agent.AgentURL,
+			&agent.AgentID, &agent.Name, &agent.Owner, &agent.EntityURL,
 			&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
 			&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
 			&agent.TTL, &agent.Signature,
