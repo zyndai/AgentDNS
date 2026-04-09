@@ -57,4 +57,4 @@ jobs:
 
             echo "==> [Server 2] Restarting..."
             pkill -f agentdns || true
-            nohup ./agentdns > agentdns.log 2>&1 &
+            nohup ./agentdns > agentdns.log 2>&1 & 
