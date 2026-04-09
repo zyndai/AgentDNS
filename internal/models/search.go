@@ -12,8 +12,10 @@ type SearchRequest struct {
 	Models        []string `json:"models,omitempty"`    // e.g., ["gpt-4"]
 	MinTrustScore float64  `json:"min_trust_score,omitempty"`
 	Status        string   `json:"status,omitempty"`       // online, offline, any
-	DeveloperID   string   `json:"developer_id,omitempty"` // filter by developer
-	MaxResults    int      `json:"max_results,omitempty"`
+	DeveloperID     string   `json:"developer_id,omitempty"`      // filter by developer
+	DeveloperHandle string   `json:"developer_handle,omitempty"` // filter by developer handle
+	FQAN            string   `json:"fqan,omitempty"`             // filter by exact FQAN
+	MaxResults      int      `json:"max_results,omitempty"`
 	Offset        int      `json:"offset,omitempty"`
 	Federated     bool     `json:"federated"`
 	Enrich        bool     `json:"enrich"`

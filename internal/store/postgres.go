@@ -1193,6 +1193,36 @@ func scanZNSName(row pgx.Row) (*models.ZNSName, error) {
 	return n, nil
 }
 
+func (s *PostgresStore) GetZNSNamesByAgentIDs(agentIDs []string) (map[string]*models.ZNSName, error) {
+	if len(agentIDs) == 0 {
+		return map[string]*models.ZNSName{}, nil
+	}
+	rows, err := s.pool.Query(context.Background(), `
+		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+			developer_id, current_version, capability_tags, registered_at, updated_at, signature
+		FROM zns_names WHERE agent_id = ANY($1)`, agentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query ZNS names by agent IDs: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]*models.ZNSName)
+	for rows.Next() {
+		n := &models.ZNSName{}
+		var regAt, updAt time.Time
+		if err := rows.Scan(
+			&n.FQAN, &n.AgentName, &n.DeveloperHandle, &n.RegistryHost, &n.AgentID,
+			&n.DeveloperID, &n.CurrentVersion, &n.CapabilityTags, &regAt, &updAt, &n.Signature,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan ZNS name row: %w", err)
+		}
+		n.RegisteredAt = regAt.UTC().Format(time.RFC3339)
+		n.UpdatedAt = updAt.UTC().Format(time.RFC3339)
+		result[n.AgentID] = n
+	}
+	return result, nil
+}
+
 func (s *PostgresStore) UpdateZNSName(name *models.ZNSName) error {
 	capTags := name.CapabilityTags
 	if capTags == nil {

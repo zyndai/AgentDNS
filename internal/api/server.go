@@ -582,10 +582,31 @@ func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Reques
 		agents = []*models.RegistryRecord{}
 	}
 
+	// Enrich agents with FQAN data
+	agentIDs := make([]string, len(agents))
+	for i, a := range agents {
+		agentIDs[i] = a.AgentID
+	}
+	znsMap, _ := s.store.GetZNSNamesByAgentIDs(agentIDs)
+
+	type agentWithFQAN struct {
+		*models.RegistryRecord
+		FQAN            string `json:"fqan,omitempty"`
+		DeveloperHandle string `json:"developer_handle,omitempty"`
+	}
+	enriched := make([]agentWithFQAN, len(agents))
+	for i, a := range agents {
+		enriched[i] = agentWithFQAN{RegistryRecord: a}
+		if name, ok := znsMap[a.AgentID]; ok {
+			enriched[i].FQAN = name.FQAN
+			enriched[i].DeveloperHandle = name.DeveloperHandle
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"developer_id": developerID,
-		"agents":       agents,
-		"count":        len(agents),
+		"agents":       enriched,
+		"count":        len(enriched),
 	})
 }
 
@@ -810,7 +831,8 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if agent != nil {
 		agent.AgentURL = "" // agent_url is private — only accessible via /card
-		writeJSON(w, http.StatusOK, agent)
+		resp := s.agentResponseWithFQAN(agent)
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 
@@ -1050,8 +1072,72 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Query == "" {
-		writeError(w, http.StatusBadRequest, "query is required")
+	// Short-circuit: exact FQAN lookup
+	if req.FQAN != "" {
+		name, _ := s.store.GetZNSName(req.FQAN)
+		if name == nil {
+			// Try gossip
+			gossipName, _ := s.store.GetGossipZNSName(req.FQAN)
+			if gossipName != nil {
+				name = &models.ZNSName{
+					FQAN:            gossipName.FQAN,
+					AgentName:       gossipName.AgentName,
+					DeveloperHandle: gossipName.DeveloperHandle,
+					RegistryHost:    gossipName.RegistryHost,
+					AgentID:         gossipName.AgentID,
+				}
+			}
+		}
+		if name == nil {
+			writeJSON(w, http.StatusOK, &models.SearchResponse{
+				Results:    []models.SearchResult{},
+				TotalFound: 0,
+			})
+			return
+		}
+		// Build single result from the resolved agent
+		result := models.SearchResult{
+			AgentID:         name.AgentID,
+			DeveloperID:     name.DeveloperID,
+			FQAN:            name.FQAN,
+			DeveloperHandle: name.DeveloperHandle,
+			Score:           1.0,
+		}
+		// Enrich with agent details
+		agent, err := s.store.GetAgent(name.AgentID)
+		if err == nil && agent != nil {
+			result.Name = agent.Name
+			result.Summary = agent.Summary
+			result.Category = agent.Category
+			result.Tags = agent.Tags
+			result.HomeRegistry = agent.HomeRegistry
+			result.Status = agent.Status
+		}
+		writeJSON(w, http.StatusOK, &models.SearchResponse{
+			Results:    []models.SearchResult{result},
+			TotalFound: 1,
+		})
+		return
+	}
+
+	// Resolve developer_handle to developer_id for filtering
+	if req.DeveloperHandle != "" && req.DeveloperID == "" {
+		registryHost := s.cfg.RegistryHost()
+		dev, _ := s.store.GetDeveloperByHandle(req.DeveloperHandle, registryHost)
+		if dev != nil {
+			req.DeveloperID = dev.DeveloperID
+		} else {
+			// No developer with this handle — return empty results
+			writeJSON(w, http.StatusOK, &models.SearchResponse{
+				Results:    []models.SearchResult{},
+				TotalFound: 0,
+			})
+			return
+		}
+	}
+
+	if req.Query == "" && req.DeveloperID == "" {
+		writeError(w, http.StatusBadRequest, "query or a filter (developer_handle, developer_id, fqan) is required")
 		return
 	}
 
@@ -1355,6 +1441,21 @@ func (s *Server) handleApproveDeveloper(w http.ResponseWriter, r *http.Request) 
 }
 
 // --- Helpers ---
+
+// agentResponseWithFQAN enriches a RegistryRecord with ZNS FQAN data for API responses.
+func (s *Server) agentResponseWithFQAN(agent *models.RegistryRecord) interface{} {
+	type agentResp struct {
+		*models.RegistryRecord
+		FQAN            string `json:"fqan,omitempty"`
+		DeveloperHandle string `json:"developer_handle,omitempty"`
+	}
+	resp := agentResp{RegistryRecord: agent}
+	if name, _ := s.store.GetZNSNameByAgentID(agent.AgentID); name != nil {
+		resp.FQAN = name.FQAN
+		resp.DeveloperHandle = name.DeveloperHandle
+	}
+	return resp
+}
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")

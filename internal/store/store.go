@@ -164,6 +164,9 @@ type Store interface {
 	// GetZNSNameByAgentID retrieves a ZNS name by agent ID.
 	GetZNSNameByAgentID(agentID string) (*models.ZNSName, error)
 
+	// GetZNSNamesByAgentIDs retrieves ZNS name bindings for multiple agent IDs in a single query.
+	GetZNSNamesByAgentIDs(agentIDs []string) (map[string]*models.ZNSName, error)
+
 	// UpdateZNSName updates an existing ZNS name binding.
 	UpdateZNSName(name *models.ZNSName) error
 

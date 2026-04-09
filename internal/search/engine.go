@@ -214,6 +214,9 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 		e.enrichCandidates(allCandidates[:enrichLimit])
 	}
 
+	// Enrich results with ZNS FQAN data
+	e.enrichWithZNS(allCandidates)
+
 	// Build response
 	latencyMs := int(time.Since(startTime).Milliseconds())
 	return &models.SearchResponse{
@@ -285,6 +288,9 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 		if len(req.Tags) > 0 && !hasAnyTag(agent.Tags, req.Tags) {
 			continue
 		}
+		if req.DeveloperID != "" && agent.DeveloperID != req.DeveloperID {
+			continue
+		}
 
 		// Skip inactive agents from search results
 		if agent.Status == "inactive" {
@@ -301,6 +307,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			HomeRegistry:  agent.HomeRegistry,
 			Status:        agent.Status,
 			UpdatedAt:     agent.UpdatedAt,
+			DeveloperID:   agent.DeveloperID,
 			TextRelevance: normalizedScore,
 			TrustScore:    0.5,
 			Availability:  1.0,
@@ -325,6 +332,9 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			if len(req.Tags) > 0 && !hasAnyTag(agent.Tags, req.Tags) {
 				continue
 			}
+			if req.DeveloperID != "" && agent.DeveloperID != req.DeveloperID {
+				continue
+			}
 
 			candidateMap[sr.DocID] = &ranking.CandidateResult{
 				AgentID:            agent.AgentID,
@@ -336,6 +346,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 				HomeRegistry:       agent.HomeRegistry,
 				Status:             agent.Status,
 				UpdatedAt:          agent.UpdatedAt,
+				DeveloperID:        agent.DeveloperID,
 				SemanticSimilarity: sr.Score,
 				TrustScore:         0.5,
 				Availability:       1.0,
@@ -362,6 +373,9 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 	for _, entry := range entries {
 		// Filter inactive gossip entries
 		if entry.Status == "inactive" {
+			continue
+		}
+		if req.DeveloperID != "" && entry.DeveloperID != req.DeveloperID {
 			continue
 		}
 
@@ -396,6 +410,7 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 			HomeRegistry:       entry.HomeRegistry,
 			Status:             entry.Status,
 			UpdatedAt:          entry.ReceivedAt,
+			DeveloperID:        entry.DeveloperID,
 			TextRelevance:      textScore,
 			SemanticSimilarity: semanticScore,
 			TrustScore:         0.3, // lower default for remote agents
@@ -436,6 +451,31 @@ func (e *Engine) enrichCandidates(candidates []*ranking.CandidateResult) {
 		}(c)
 	}
 	wg.Wait()
+}
+
+// enrichWithZNS populates FQAN and DeveloperHandle on search candidates via batch lookup.
+func (e *Engine) enrichWithZNS(candidates []*ranking.CandidateResult) {
+	if len(candidates) == 0 {
+		return
+	}
+
+	// Collect agent IDs for batch lookup
+	agentIDs := make([]string, len(candidates))
+	for i, c := range candidates {
+		agentIDs[i] = c.AgentID
+	}
+
+	znsMap, err := e.store.GetZNSNamesByAgentIDs(agentIDs)
+	if err != nil {
+		return
+	}
+
+	for _, c := range candidates {
+		if name, ok := znsMap[c.AgentID]; ok {
+			c.FQAN = name.FQAN
+			c.DeveloperHandle = name.DeveloperHandle
+		}
+	}
 }
 
 // RebuildIndexes rebuilds keyword and semantic indexes from the store.
