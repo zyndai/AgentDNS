@@ -108,6 +108,13 @@ func main() {
 			fmt.Fprintf(os.Stderr, "unknown onboarding subcommand: %s\nUsage: agentdns onboarding setup\n", subcommand)
 			os.Exit(1)
 		}
+	case "db":
+		if subcommand == "reset" {
+			cmdDBReset()
+		} else {
+			fmt.Fprintf(os.Stderr, "unknown db subcommand: %s\nUsage: agentdns db reset --confirm\n", subcommand)
+			os.Exit(1)
+		}
 	case "models":
 		cmdModels()
 	case "test":
@@ -155,6 +162,7 @@ Commands:
   peers         Show connected peers
 
   Maintenance:
+  db reset      Clear all data from the database (requires --confirm)
   models        Manage embedding models (list, download, info)
   test          Load testing (register/deregister N agents)
   version       Print version
