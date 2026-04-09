@@ -19,26 +19,30 @@ jobs:
           script: |
             set -e
 
-            # Ensure Go is available
+            echo "==> Setting Go path..."
             export PATH=$PATH:/usr/local/go/bin
 
+            echo "==> Navigating to project..."
             cd /home/azureuser/AgentDNS
 
-            echo "==> [Server 1] Pulling latest code..."
+            echo "==> Pulling latest code..."
             git pull origin main
 
-            echo "==> [Server 1] Building..."
+            echo "==> Building binary..."
             go mod download
-            go build -v -o agentdns ./cmd/agentdns
+            go build -o agentdns ./cmd/agentdns
 
-            echo "==> [Server 1] Restarting..."
+            echo "==> Restarting service via systemd..."
+            sudo systemctl restart agentdns
 
-            # Kill old process safely (detached so CI doesn't fail)
-            (setsid pkill -f agentdns >/dev/null 2>&1 &) || true
-            sleep 1
+            echo "==> Waiting for service..."
+            sleep 3
 
-            # Start new process (no sudo!)
-            nohup ./agentdns > agentdns.log 2>&1 < /dev/null &
+            echo "==> Health check..."
+            curl -f http://localhost:8080 || exit 1
+
+            echo "✅ Server 1 deployed successfully"
+
 
   deploy-server-2:
     runs-on: ubuntu-latest
@@ -54,23 +58,26 @@ jobs:
           script: |
             set -e
 
-            # Ensure Go is available
+            echo "==> Setting Go path..."
             export PATH=$PATH:/usr/local/go/bin
 
+            echo "==> Navigating to project..."
             cd /home/azureuser/AgentDNS
 
-            echo "==> [Server 2] Pulling latest code..."
+            echo "==> Pulling latest code..."
             git pull origin main
 
-            echo "==> [Server 2] Building..."
+            echo "==> Building binary..."
             go mod download
-            go build -v -o agentdns ./cmd/agentdns
+            go build -o agentdns ./cmd/agentdns
 
-            echo "==> [Server 2] Restarting..."
+            echo "==> Restarting service via systemd..."
+            sudo systemctl restart agentdns
 
-            # Kill old process safely
-            (setsid pkill -f agentdns >/dev/null 2>&1 &) || true
-            sleep 1
+            echo "==> Waiting for service..."
+            sleep 3
 
-            # Start new process
-            nohup ./agentdns > agentdns.log 2>&1 < /dev/null &
+            echo "==> Health check..."
+            curl -f http://localhost:8080 || exit 1
+
+            echo "✅ Server 2 deployed successfully"
