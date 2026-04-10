@@ -127,11 +127,11 @@ func (s *Server) Start() error {
 	// Entity management (unified API for agents + services)
 	mux.HandleFunc("POST /v1/entities", rateLimited(registerRL, s.handleRegisterAgent))
 	mux.HandleFunc("GET /v1/entities", s.handleListEntities)
-	mux.HandleFunc("GET /v1/entities/{agentID}", s.handleGetAgent)
-	mux.HandleFunc("PUT /v1/entities/{agentID}", s.handleUpdateAgent)
-	mux.HandleFunc("DELETE /v1/entities/{agentID}", s.handleDeleteAgent)
-	mux.HandleFunc("GET /v1/entities/{agentID}/card", s.handleGetAgentCard)
-	mux.HandleFunc("GET /v1/entities/{agentID}/ws", s.handleAgentHeartbeat)
+	mux.HandleFunc("GET /v1/entities/{entityID}", s.handleGetAgent)
+	mux.HandleFunc("PUT /v1/entities/{entityID}", s.handleUpdateAgent)
+	mux.HandleFunc("DELETE /v1/entities/{entityID}", s.handleDeleteAgent)
+	mux.HandleFunc("GET /v1/entities/{entityID}/card", s.handleGetAgentCard)
+	mux.HandleFunc("GET /v1/entities/{entityID}/ws", s.handleAgentHeartbeat)
 
 	// Aliases: /v1/agents and /v1/services point to the same entity handlers
 	mux.HandleFunc("POST /v1/agents", rateLimited(registerRL, s.handleRegisterAgent))
@@ -846,14 +846,14 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 //	@Description	Retrieve a registry record for a specific entity. Alias: GET /v1/agents/{id}, GET /v1/services/{id}.
 //	@Tags			Entities
 //	@Produce		json
-//	@Param			agentID	path		string					true	"Entity ID (e.g. zns:7f3a9c2e... or zns:svc:7f3a9c2e...)"
+//	@Param			entityID	path		string					true	"Entity ID (e.g. zns:7f3a9c2e... or zns:svc:7f3a9c2e...)"
 //	@Success		200		{object}	models.RegistryRecord	"Entity registry record"
 //	@Failure		400		{object}	map[string]string		"Missing ID"
 //	@Failure		404		{object}	map[string]string		"Entity not found"
 //	@Failure		500		{object}	map[string]string		"Internal server error"
-//	@Router			/v1/entities/{agentID} [get]
+//	@Router			/v1/entities/{entityID} [get]
 func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
-	agentID := r.PathValue("agentID")
+	agentID := r.PathValue("entityID")
 	if agentID == "" {
 		writeError(w, http.StatusBadRequest, "agent_id is required")
 		return
@@ -957,15 +957,15 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Entities
 //	@Accept			json
 //	@Produce		json
-//	@Param			agentID	path		string					true	"Entity ID"
+//	@Param			entityID	path		string					true	"Entity ID"
 //	@Param			body	body		models.UpdateRequest	true	"Fields to update"
 //	@Success		200		{object}	models.RegistryRecord	"Updated entity record"
 //	@Failure		400		{object}	map[string]string		"Invalid request body"
 //	@Failure		404		{object}	map[string]string		"Entity not found"
 //	@Failure		500		{object}	map[string]string		"Internal server error"
-//	@Router			/v1/entities/{agentID} [put]
+//	@Router			/v1/entities/{entityID} [put]
 func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
-	agentID := r.PathValue("agentID")
+	agentID := r.PathValue("entityID")
 	if agentID == "" {
 		writeError(w, http.StatusBadRequest, "agent_id is required")
 		return
@@ -1113,14 +1113,14 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 //	@Description	Fetch the live card from the entity's endpoint. Contains capabilities, pricing, status, and more. Alias: GET /v1/agents/{id}/card.
 //	@Tags			Entities
 //	@Produce		json
-//	@Param			agentID	path		string				true	"Entity ID"
+//	@Param			entityID	path		string				true	"Entity ID"
 //	@Success		200		{object}	models.AgentCard	"Entity card"
 //	@Failure		400		{object}	map[string]string	"Missing ID"
 //	@Failure		404		{object}	map[string]string	"Entity not found"
 //	@Failure		502		{object}	map[string]string	"Failed to fetch card from remote"
-//	@Router			/v1/entities/{agentID}/card [get]
+//	@Router			/v1/entities/{entityID}/card [get]
 func (s *Server) handleGetAgentCard(w http.ResponseWriter, r *http.Request) {
-	agentID := r.PathValue("agentID")
+	agentID := r.PathValue("entityID")
 	if agentID == "" {
 		writeError(w, http.StatusBadRequest, "agent_id is required")
 		return

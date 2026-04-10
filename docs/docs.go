@@ -598,7 +598,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/entities/{agentID}": {
+        "/v1/entities/{entityID}": {
             "get": {
                 "description": "Retrieve a registry record for a specific entity. Alias: GET /v1/agents/{id}, GET /v1/services/{id}.",
                 "produces": [
@@ -612,7 +612,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Entity ID (e.g. zns:7f3a9c2e... or zns:svc:7f3a9c2e...)",
-                        "name": "agentID",
+                        "name": "entityID",
                         "in": "path",
                         "required": true
                     }
@@ -669,7 +669,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Entity ID",
-                        "name": "agentID",
+                        "name": "entityID",
                         "in": "path",
                         "required": true
                     },
@@ -732,7 +732,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Entity ID",
-                        "name": "agentID",
+                        "name": "entityID",
                         "in": "path",
                         "required": true
                     }
@@ -777,7 +777,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/entities/{agentID}/card": {
+        "/v1/entities/{entityID}/card": {
             "get": {
                 "description": "Fetch the live card from the entity's endpoint. Contains capabilities, pricing, status, and more. Alias: GET /v1/agents/{id}/card.",
                 "produces": [
@@ -791,7 +791,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Entity ID",
-                        "name": "agentID",
+                        "name": "entityID",
                         "in": "path",
                         "required": true
                     }

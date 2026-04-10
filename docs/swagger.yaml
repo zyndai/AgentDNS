@@ -1175,14 +1175,14 @@ paths:
       summary: Register a new entity
       tags:
       - Entities
-  /v1/entities/{agentID}:
+  /v1/entities/{entityID}:
     delete:
       description: 'Deregister an entity. Creates a tombstone that propagates via
         gossip. Alias: DELETE /v1/agents/{id}.'
       parameters:
       - description: Entity ID
         in: path
-        name: agentID
+        name: entityID
         required: true
         type: string
       produces:
@@ -1221,7 +1221,7 @@ paths:
       parameters:
       - description: Entity ID (e.g. zns:7f3a9c2e... or zns:svc:7f3a9c2e...)
         in: path
-        name: agentID
+        name: entityID
         required: true
         type: string
       produces:
@@ -1260,7 +1260,7 @@ paths:
       parameters:
       - description: Entity ID
         in: path
-        name: agentID
+        name: entityID
         required: true
         type: string
       - description: Fields to update
@@ -1297,14 +1297,14 @@ paths:
       summary: Update an entity
       tags:
       - Entities
-  /v1/entities/{agentID}/card:
+  /v1/entities/{entityID}/card:
     get:
       description: 'Fetch the live card from the entity''s endpoint. Contains capabilities,
         pricing, status, and more. Alias: GET /v1/agents/{id}/card.'
       parameters:
       - description: Entity ID
         in: path
-        name: agentID
+        name: entityID
         required: true
         type: string
       produces:
