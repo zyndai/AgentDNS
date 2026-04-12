@@ -103,7 +103,7 @@ func registerTestAgent(t *testing.T, st store.Store, kp *identity.Keypair, suffi
 		AgentID:      agentID,
 		Name:         "HeartbeatTestAgent-" + suffix,
 		Owner:        "did:key:test",
-		AgentURL:     "https://example.com/agent.json",
+		EntityURL:     "https://example.com/agent.json",
 		Category:     "tools",
 		Tags:         []string{},
 		Summary:      "Test agent for heartbeat",

@@ -15,16 +15,15 @@ type GossipAnnouncement struct {
 	EntityURL         string             `json:"entity_url,omitempty"`
 	Action            string             `json:"action"` // register, update, deregister, agent_status
 	Status            string             `json:"status,omitempty"`
+	EntityType        string             `json:"entity_type,omitempty"` // "agent" or "service"
+	ServiceEndpoint   string             `json:"service_endpoint,omitempty"`
+	OpenAPIURL        string             `json:"openapi_url,omitempty"`
+	EntityPricing    *EntityPricing    `json:"entity_pricing,omitempty"`
 	Timestamp         string             `json:"timestamp"`
 	OriginPublicKey   string             `json:"origin_public_key"` // public key of originating registry
 	Signature         string             `json:"signature"`         // signed by originating registry
 	HopCount          int                `json:"hop_count"`
 	MaxHops           int                `json:"max_hops"`
-
-	// Entity type (for agent_announce — distinguishes agents from services)
-	EntityType      string `json:"entity_type,omitempty"` // "agent" or "service"
-	ServiceEndpoint string `json:"service_endpoint,omitempty"`
-	OpenAPIURL      string `json:"openapi_url,omitempty"`
 
 	// Developer identity fields (for agent_announce with developer chain)
 	DeveloperID        string          `json:"developer_id,omitempty"`
@@ -73,11 +72,6 @@ type GossipEntry struct {
 	Tombstoned        bool               `json:"tombstoned" db:"tombstoned"`
 	TombstoneAt       string             `json:"tombstone_at,omitempty" db:"tombstone_at"`
 
-	// Entity type
-	Type            string `json:"type,omitempty" db:"type"`
-	ServiceEndpoint string `json:"service_endpoint,omitempty" db:"service_endpoint"`
-	OpenAPIURL      string `json:"openapi_url,omitempty" db:"openapi_url"`
-
 	// Developer identity fields
 	DeveloperID        string          `json:"developer_id,omitempty" db:"developer_id"`
 	DeveloperPublicKey string          `json:"developer_public_key,omitempty" db:"developer_public_key"`
@@ -88,6 +82,12 @@ type GossipEntry struct {
 
 	// Origin registry public key — pinned on first register to prevent spoofed updates
 	OriginPublicKey string `json:"origin_public_key,omitempty" db:"origin_public_key"`
+
+	// Service directory fields
+	EntityType      string          `json:"entity_type,omitempty" db:"entity_type"`
+	ServiceEndpoint string          `json:"service_endpoint,omitempty" db:"service_endpoint"`
+	OpenAPIURL      string          `json:"openapi_url,omitempty" db:"openapi_url"`
+	EntityPricing  *EntityPricing `json:"entity_pricing,omitempty" db:"-"`
 }
 
 // PeerInfo describes a connected peer registry in the mesh.

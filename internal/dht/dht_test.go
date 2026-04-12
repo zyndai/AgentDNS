@@ -233,7 +233,7 @@ func TestDHTStoreAndFindValue(t *testing.T) {
 	record := AgentDHTRecord{
 		AgentID:  "zns:test1234",
 		Name:     "TestAgent",
-		AgentURL: "http://localhost:5000",
+		EntityURL: "http://localhost:5000",
 		StoredAt: time.Now().Format(time.RFC3339),
 	}
 

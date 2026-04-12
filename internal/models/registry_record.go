@@ -33,12 +33,6 @@ type RegistryRecord struct {
 	TTL               int                `json:"ttl" db:"ttl"`
 	Signature         string             `json:"signature" db:"signature"`
 
-	// Entity type: "agent" (default) or "service"
-	Type            string        `json:"type" db:"type"`
-	ServiceEndpoint string        `json:"service_endpoint,omitempty" db:"service_endpoint"`
-	OpenAPIURL      string        `json:"openapi_url,omitempty" db:"openapi_url"`
-	PricingModel    *PricingModel `json:"pricing_model,omitempty" db:"-"` // stored as JSONB
-
 	// Developer identity fields
 	DeveloperID    string          `json:"developer_id,omitempty" db:"developer_id"`
 	AgentIndex     *int            `json:"agent_index,omitempty" db:"agent_index"`
@@ -50,15 +44,12 @@ type RegistryRecord struct {
 	// Heartbeat liveness fields (server-managed, excluded from signing)
 	Status        string `json:"status,omitempty" db:"status"`
 	LastHeartbeat string `json:"last_heartbeat,omitempty" db:"last_heartbeat"`
-}
 
-// PricingModel describes how a service is priced.
-type PricingModel struct {
-	Type      string  `json:"type"`                  // free, per-call, subscription, usage-based
-	Currency  string  `json:"currency,omitempty"`     // USD, USDC
-	BasePrice float64 `json:"base_price,omitempty"`
-	Unit      string  `json:"unit,omitempty"`         // request, token, month
-	Details   string  `json:"details,omitempty"`
+	// Service directory fields (entity_type discriminates agent vs service)
+	EntityType      string          `json:"entity_type,omitempty" db:"entity_type"`
+	ServiceEndpoint string          `json:"service_endpoint,omitempty" db:"service_endpoint"`
+	OpenAPIURL      string          `json:"openapi_url,omitempty" db:"openapi_url"`
+	EntityPricing  *EntityPricing `json:"entity_pricing,omitempty" db:"-"`
 }
 
 // CapabilitySummary provides searchable metadata about agent capabilities.
@@ -84,12 +75,6 @@ type RegistrationRequest struct {
 	PublicKey         string             `json:"public_key" validate:"required"`
 	Signature         string             `json:"signature" validate:"required"`
 
-	// Entity type: "agent" (default) or "service"
-	Type            string        `json:"type,omitempty"`
-	ServiceEndpoint string        `json:"service_endpoint,omitempty"`
-	OpenAPIURL      string        `json:"openapi_url,omitempty"`
-	PricingModel    *PricingModel `json:"pricing_model,omitempty"`
-
 	// Developer identity fields
 	DeveloperID    string          `json:"developer_id,omitempty"`
 	DeveloperProof *DeveloperProof `json:"developer_proof,omitempty"`
@@ -97,6 +82,12 @@ type RegistrationRequest struct {
 	// ZNS naming fields (optional — requires developer with claimed handle)
 	AgentName string `json:"agent_name,omitempty"` // e.g., "doc-translator" or "svc:openai-proxy"
 	Version   string `json:"version,omitempty"`    // semver, e.g., "2.1.0"
+
+	// Service directory fields (entity_type discriminates agent vs service)
+	EntityType      string          `json:"entity_type,omitempty"`
+	ServiceEndpoint string          `json:"service_endpoint,omitempty"`
+	OpenAPIURL      string          `json:"openapi_url,omitempty"`
+	EntityPricing  *EntityPricing `json:"entity_pricing,omitempty"`
 }
 
 // UpdateRequest is submitted by agent owners to update their registry record.
@@ -158,7 +149,7 @@ func (r *RegistryRecord) Validate() error {
 	if r.Owner == "" {
 		return fmt.Errorf("owner is required")
 	}
-	if r.Type == "" || r.Type == "agent" {
+	if r.EntityType == "" || r.EntityType == "agent" {
 		if r.EntityURL == "" {
 			return fmt.Errorf("entity_url is required for agent type")
 		}
@@ -174,6 +165,14 @@ func (r *RegistryRecord) Validate() error {
 	}
 	if len(r.Tags) > 20 {
 		return fmt.Errorf("maximum 20 tags allowed")
+	}
+	if r.EntityType != "" && !ValidEntityTypes[r.EntityType] {
+		return fmt.Errorf("invalid entity_type: %s (must be 'agent' or 'service')", r.EntityType)
+	}
+	if r.EntityType == "service" {
+		if err := ValidateServiceFields(r); err != nil {
+			return err
+		}
 	}
 	return nil
 }

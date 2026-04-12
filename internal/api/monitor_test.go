@@ -57,7 +57,7 @@ func createMonitorTestAgent(t *testing.T, st store.Store, agentID string) {
 		AgentID:      agentID,
 		Name:         "MonitorAgent-" + agentID,
 		Owner:        "did:key:test",
-		AgentURL:     "https://example.com/agent.json",
+		EntityURL:     "https://example.com/agent.json",
 		Category:     "tools",
 		Tags:         []string{},
 		Summary:      "Monitor test agent",

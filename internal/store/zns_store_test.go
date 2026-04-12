@@ -52,7 +52,7 @@ func createTestAgent(t *testing.T, s *PostgresStore, agentID string) {
 		AgentID:      agentID,
 		Name:         "TestAgent",
 		Owner:        "did:key:testowner",
-		AgentURL:     "https://example.com/.well-known/agent.json",
+		EntityURL:     "https://example.com/.well-known/agent.json",
 		Category:     "tools",
 		Tags:         []string{"test"},
 		Summary:      "test",

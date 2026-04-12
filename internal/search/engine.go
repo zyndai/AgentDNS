@@ -182,6 +182,17 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 		}
 	}
 
+	// Filter by EntityType if requested
+	if req.EntityType != "" {
+		filtered := make([]*ranking.CandidateResult, 0, len(allCandidates))
+		for _, c := range allCandidates {
+			if c.EntityType == req.EntityType {
+				filtered = append(filtered, c)
+			}
+		}
+		allCandidates = filtered
+	}
+
 	// Step 4: Deduplicate and rank
 	allCandidates = ranking.Deduplicate(allCandidates)
 	allCandidates = e.ranker.Rank(allCandidates)
@@ -291,7 +302,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 		if req.DeveloperID != "" && agent.DeveloperID != req.DeveloperID {
 			continue
 		}
-		if req.Type != "" && agent.Type != req.Type {
+		if req.EntityType != "" && agent.EntityType != req.EntityType {
 			continue
 		}
 
@@ -306,17 +317,18 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			Summary:         agent.Summary,
 			Category:        agent.Category,
 			Tags:            agent.Tags,
-			EntityURL:        agent.EntityURL,
+			EntityURL:       agent.EntityURL,
 			HomeRegistry:    agent.HomeRegistry,
 			Status:          agent.Status,
 			UpdatedAt:       agent.UpdatedAt,
 			DeveloperID:     agent.DeveloperID,
-			Type:            agent.Type,
-			ServiceEndpoint: agent.ServiceEndpoint,
-			OpenAPIURL:      agent.OpenAPIURL,
 			TextRelevance:   normalizedScore,
 			TrustScore:      0.5,
 			Availability:    1.0,
+			EntityType:      agent.EntityType,
+			ServiceEndpoint: agent.ServiceEndpoint,
+			OpenAPIURL:      agent.OpenAPIURL,
+			EntityPricing:  agent.EntityPricing,
 		}
 	}
 
@@ -341,7 +353,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			if req.DeveloperID != "" && agent.DeveloperID != req.DeveloperID {
 				continue
 			}
-			if req.Type != "" && agent.Type != req.Type {
+			if req.EntityType != "" && agent.EntityType != req.EntityType {
 				continue
 			}
 
@@ -356,12 +368,13 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 				Status:             agent.Status,
 				UpdatedAt:          agent.UpdatedAt,
 				DeveloperID:        agent.DeveloperID,
-				Type:               agent.Type,
-				ServiceEndpoint:    agent.ServiceEndpoint,
-				OpenAPIURL:         agent.OpenAPIURL,
 				SemanticSimilarity: sr.Score,
 				TrustScore:         0.5,
 				Availability:       1.0,
+				EntityType:         agent.EntityType,
+				ServiceEndpoint:    agent.ServiceEndpoint,
+				OpenAPIURL:         agent.OpenAPIURL,
+				EntityPricing:     agent.EntityPricing,
 			}
 		}
 	}
@@ -390,7 +403,7 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 		if req.DeveloperID != "" && entry.DeveloperID != req.DeveloperID {
 			continue
 		}
-		if req.Type != "" && entry.Type != req.Type {
+		if req.EntityType != "" && entry.EntityType != req.EntityType {
 			continue
 		}
 
@@ -426,13 +439,14 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 			Status:             entry.Status,
 			UpdatedAt:          entry.ReceivedAt,
 			DeveloperID:        entry.DeveloperID,
-			Type:               entry.Type,
-			ServiceEndpoint:    entry.ServiceEndpoint,
-			OpenAPIURL:         entry.OpenAPIURL,
 			TextRelevance:      textScore,
 			SemanticSimilarity: semanticScore,
-			TrustScore:         0.3, // lower default for remote agents
-			Availability:       0.9, // active gossip agent
+			TrustScore:         0.3,
+			Availability:       0.9,
+			EntityType:         entry.EntityType,
+			ServiceEndpoint:    entry.ServiceEndpoint,
+			OpenAPIURL:         entry.OpenAPIURL,
+			EntityPricing:     entry.EntityPricing,
 		})
 	}
 

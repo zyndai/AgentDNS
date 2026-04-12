@@ -41,7 +41,7 @@ func TestStore_CreateAndGetAgent(t *testing.T) {
 		AgentID:      "zns:test123",
 		Name:         "TestAgent",
 		Owner:        "did:key:testowner",
-		AgentURL:     "https://example.com/.well-known/agent.json",
+		EntityURL:     "https://example.com/.well-known/agent.json",
 		Category:     "developer-tools",
 		Tags:         []string{"python", "security"},
 		Summary:      "A test agent",
@@ -81,7 +81,7 @@ func TestStore_UpdateAgent(t *testing.T) {
 		AgentID:      "zns:update123",
 		Name:         "Original",
 		Owner:        "did:key:owner1",
-		AgentURL:     "https://example.com/agent.json",
+		EntityURL:     "https://example.com/agent.json",
 		Category:     "tools",
 		Tags:         []string{"test"},
 		Summary:      "Original summary",
@@ -116,7 +116,7 @@ func TestStore_DeleteAgent(t *testing.T) {
 		AgentID:      "zns:delete123",
 		Name:         "ToDelete",
 		Owner:        "did:key:owner1",
-		AgentURL:     "https://example.com/agent.json",
+		EntityURL:     "https://example.com/agent.json",
 		Category:     "tools",
 		Tags:         []string{},
 		Summary:      "Will be deleted",
@@ -147,7 +147,7 @@ func TestStore_SearchByKeyword(t *testing.T) {
 	agents := []*models.RegistryRecord{
 		{
 			AgentID: "zns:search1", Name: "PythonReviewer", Owner: "did:key:o1",
-			AgentURL: "https://example.com/a1.json", Category: "developer-tools",
+			EntityURL: "https://example.com/a1.json", Category: "developer-tools",
 			Tags: []string{"python", "code-review"}, Summary: "Reviews Python code",
 			PublicKey: "ed25519:pk1", HomeRegistry: "zns:registry:test",
 			RegisteredAt: time.Now().UTC().Format(time.RFC3339),
@@ -156,7 +156,7 @@ func TestStore_SearchByKeyword(t *testing.T) {
 		},
 		{
 			AgentID: "zns:search2", Name: "JapaneseTranslator", Owner: "did:key:o2",
-			AgentURL: "https://example.com/a2.json", Category: "translation",
+			EntityURL: "https://example.com/a2.json", Category: "translation",
 			Tags: []string{"japanese", "english", "legal"}, Summary: "Translates legal documents",
 			PublicKey: "ed25519:pk2", HomeRegistry: "zns:registry:test",
 			RegisteredAt: time.Now().UTC().Format(time.RFC3339),
@@ -198,7 +198,7 @@ func TestStore_CountAgents(t *testing.T) {
 
 	agent := &models.RegistryRecord{
 		AgentID: "zns:count1", Name: "Test", Owner: "did:key:o",
-		AgentURL: "https://example.com/a.json", Category: "test",
+		EntityURL: "https://example.com/a.json", Category: "test",
 		Tags: []string{}, Summary: "Test", PublicKey: "ed25519:pk",
 		HomeRegistry: "zns:registry:test",
 		RegisteredAt: time.Now().UTC().Format(time.RFC3339),
@@ -223,7 +223,7 @@ func TestStore_GossipEntries(t *testing.T) {
 		Tags:         []string{"japanese"},
 		Summary:      "Remote translation agent",
 		HomeRegistry: "zns:registry:remote",
-		AgentURL:     "https://remote.example.com/agent.json",
+		EntityURL:     "https://remote.example.com/agent.json",
 		ReceivedAt:   time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -260,7 +260,7 @@ func TestStore_CreateAgentSetsLastHeartbeat(t *testing.T) {
 		AgentID:      "zns:create-hb-test",
 		Name:         "CreateHBAgent",
 		Owner:        "did:key:owner",
-		AgentURL:     "https://example.com/agent.json",
+		EntityURL:     "https://example.com/agent.json",
 		Category:     "tools",
 		Tags:         []string{},
 		Summary:      "Test that CreateAgent sets last_heartbeat",
@@ -304,7 +304,7 @@ func TestStore_UpsertGossipEntryWithStatus(t *testing.T) {
 		Tags:         []string{},
 		Summary:      "Test upsert preserves status",
 		HomeRegistry: "zns:registry:remote",
-		AgentURL:     "https://remote.example.com/agent.json",
+		EntityURL:     "https://remote.example.com/agent.json",
 		ReceivedAt:   time.Now().UTC().Format(time.RFC3339),
 		Status:       "active",
 	}
@@ -332,7 +332,7 @@ func TestStore_UpdateAgentHeartbeat(t *testing.T) {
 		AgentID:      "zns:hb1",
 		Name:         "HeartbeatAgent",
 		Owner:        "did:key:owner",
-		AgentURL:     "https://example.com/agent.json",
+		EntityURL:     "https://example.com/agent.json",
 		Category:     "tools",
 		Tags:         []string{},
 		Summary:      "Heartbeat test agent",
@@ -374,7 +374,7 @@ func TestStore_MarkInactiveAgents(t *testing.T) {
 			AgentID:      id,
 			Name:         "Agent-" + id,
 			Owner:        "did:key:owner",
-			AgentURL:     "https://example.com/agent.json",
+			EntityURL:     "https://example.com/agent.json",
 			Category:     "tools",
 			Tags:         []string{},
 			Summary:      "Test agent",
@@ -439,7 +439,7 @@ func TestStore_UpdateGossipEntryStatus(t *testing.T) {
 		Tags:         []string{},
 		Summary:      "Gossip status test",
 		HomeRegistry: "zns:registry:remote",
-		AgentURL:     "https://remote.example.com/agent.json",
+		EntityURL:     "https://remote.example.com/agent.json",
 		ReceivedAt:   time.Now().UTC().Format(time.RFC3339),
 	}
 

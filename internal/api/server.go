@@ -108,8 +108,9 @@ func (s *Server) EventBus() *events.Bus {
 	return s.eventBus
 }
 
-// Start begins serving the HTTP API.
-func (s *Server) Start() error {
+// Handler builds the full HTTP handler (mux + middleware) without starting a
+// listener. Useful for httptest-based integration tests.
+func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	// Rate limiters for endpoint groups
@@ -142,6 +143,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
 	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterAgent))
 	mux.HandleFunc("GET /v1/services/{agentID}", s.handleGetAgent)
+
+	// Service registration alias (same handler, entity_type defaults to "agent" if not set)
+	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterAgent))
 
 	// Search
 	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))
@@ -180,9 +184,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/info", s.handleRegistryInfo)
 
 	// Admin endpoints (webhook-authenticated)
-	// Always register the endpoint, but check config inside handler for better error messages
 	mux.HandleFunc("POST /v1/admin/developers/approve", func(w http.ResponseWriter, r *http.Request) {
-		// Check if properly configured
 		if s.cfg.Onboarding.Mode != "restricted" {
 			writeError(w, http.StatusServiceUnavailable,
 				fmt.Sprintf("onboarding mode is '%s', expected 'restricted'", s.cfg.Onboarding.Mode))
@@ -192,7 +194,6 @@ func (s *Server) Start() error {
 			writeError(w, http.StatusServiceUnavailable, "webhook_secret not configured")
 			return
 		}
-		// Apply webhook auth middleware inline
 		webhookAuth := WebhookAuthMiddleware(s.cfg.Onboarding.WebhookSecret)
 		webhookAuth(s.handleApproveDeveloper)(w, r)
 	})
@@ -204,7 +205,6 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/ws/activity", s.handleActivityStream)
 
 	// Swagger UI — dynamically set host and scheme based on request
-	// This uses a plugin to detect the current domain from browser location
 	mux.Handle("GET /swagger/", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
 		httpSwagger.BeforeScript(`const DynamicUrlPlugin = (system) => ({
@@ -243,6 +243,13 @@ func (s *Server) Start() error {
 	var handler http.Handler = mux
 	handler = CORSMiddleware(s.cfg.API.CORSOrigins)(handler)
 	handler = LoggingMiddleware(handler)
+
+	return handler
+}
+
+// Start begins serving the HTTP API.
+func (s *Server) Start() error {
+	handler := s.Handler()
 
 	s.httpServer = &http.Server{
 		Addr:         s.cfg.API.Listen,
@@ -645,13 +652,28 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Default and validate EntityType
+	entityType := req.EntityType
+	if entityType == "" {
+		entityType = "agent"
+	}
+	if !models.ValidEntityTypes[entityType] {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid entity_type: %s", entityType))
+		return
+	}
+
+	// For services, default EntityURL to ServiceEndpoint if not provided
+	if entityType == "service" && req.EntityURL == "" {
+		req.EntityURL = req.ServiceEndpoint
+	}
+
 	// Validate required fields
 	if req.Name == "" || req.Category == "" || req.PublicKey == "" {
 		writeError(w, http.StatusBadRequest, "name, category, and public_key are required")
 		return
 	}
-	// AgentURL is required for agents but not for services
-	if req.Type == "" || req.Type == "agent" {
+	// EntityURL is required for agents but not for services
+	if req.EntityType == "" || req.EntityType == "agent" {
 		if req.EntityURL == "" {
 			writeError(w, http.StatusBadRequest, "entity_url is required for agent type")
 			return
@@ -677,8 +699,8 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		"summary":    req.Summary,
 		"public_key": req.PublicKey,
 	}
-	if req.Type != "" {
-		signableMap["type"] = req.Type
+	if req.EntityType != "" {
+		signableMap["entity_type"] = req.EntityType
 	}
 	signable, _ := json.Marshal(signableMap)
 	valid, err := identity.Verify(pubKeyStr, signable, req.Signature)
@@ -694,7 +716,7 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var agentID string
-	if req.Type == "service" {
+	if req.EntityType == "service" {
 		agentID = models.GenerateServiceID(ed25519.PublicKey(pubKeyBytes))
 	} else {
 		agentID = models.GenerateAgentID(ed25519.PublicKey(pubKeyBytes))
@@ -758,10 +780,6 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := models.NowRFC3339()
-	recordType := req.Type
-	if recordType == "" {
-		recordType = "agent"
-	}
 	record := &models.RegistryRecord{
 		AgentID:         agentID,
 		Name:            req.Name,
@@ -780,10 +798,10 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		DeveloperID:     developerID,
 		AgentIndex:      agentIndex,
 		DeveloperProof:  developerProof,
-		Type:            recordType,
+		EntityType:      entityType,
 		ServiceEndpoint: req.ServiceEndpoint,
 		OpenAPIURL:      req.OpenAPIURL,
-		PricingModel:    req.PricingModel,
+		EntityPricing:  req.EntityPricing,
 	}
 
 	if record.Tags == nil {
@@ -933,7 +951,7 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 	var results []*models.RegistryRecord
 	if typeFilter != "" {
 		for _, a := range agents {
-			if a.Type == typeFilter {
+			if a.EntityType == typeFilter {
 				results = append(results, a)
 			}
 		}
