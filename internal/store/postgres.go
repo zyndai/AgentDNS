@@ -365,6 +365,7 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	var developerProofJSON []byte
 	var lastHeartbeat *time.Time
 	var pricingBytes []byte
+	var entityType, serviceEndpoint, openapiURL *string
 	err := row.Scan(
 		&agent.AgentID, &agent.Name, &agent.Owner, &agent.EntityURL,
 		&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
@@ -372,7 +373,7 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 		&agent.TTL, &agent.Signature,
 		&developerID, &agentIndex, &developerProofJSON,
 		&agent.Status, &lastHeartbeat,
-		&agent.EntityType, &agent.ServiceEndpoint, &agent.OpenAPIURL, &pricingBytes,
+		&entityType, &serviceEndpoint, &openapiURL, &pricingBytes,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -400,6 +401,15 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	if len(developerProofJSON) > 0 {
 		agent.DeveloperProof = &models.DeveloperProof{}
 		json.Unmarshal(developerProofJSON, agent.DeveloperProof)
+	}
+	if entityType != nil {
+		agent.EntityType = *entityType
+	}
+	if serviceEndpoint != nil {
+		agent.ServiceEndpoint = *serviceEndpoint
+	}
+	if openapiURL != nil {
+		agent.OpenAPIURL = *openapiURL
 	}
 	if len(pricingBytes) > 0 {
 		agent.EntityPricing = &models.EntityPricing{}
@@ -553,11 +563,12 @@ func (s *PostgresStore) GetGossipEntry(agentID string) (*models.GossipEntry, err
 	var receivedAt time.Time
 	var originPubKey *string
 	var pricingBytes []byte
+	var entityType, serviceEndpoint, openapiURL *string
 	err := row.Scan(
 		&entry.AgentID, &entry.Name, &entry.Category, &tagsJSON,
 		&entry.Summary, &entry.HomeRegistry, &entry.EntityURL,
 		&receivedAt, &entry.Tombstoned, &entry.Status, &originPubKey,
-		&entry.EntityType, &entry.ServiceEndpoint, &entry.OpenAPIURL, &pricingBytes,
+		&entityType, &serviceEndpoint, &openapiURL, &pricingBytes,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -571,6 +582,15 @@ func (s *PostgresStore) GetGossipEntry(agentID string) (*models.GossipEntry, err
 	}
 	if originPubKey != nil {
 		entry.OriginPublicKey = *originPubKey
+	}
+	if entityType != nil {
+		entry.EntityType = *entityType
+	}
+	if serviceEndpoint != nil {
+		entry.ServiceEndpoint = *serviceEndpoint
+	}
+	if openapiURL != nil {
+		entry.OpenAPIURL = *openapiURL
 	}
 	if len(pricingBytes) > 0 {
 		entry.EntityPricing = &models.EntityPricing{}
@@ -679,17 +699,27 @@ func (s *PostgresStore) SearchGossipByKeyword(query string, category string, tag
 		var tagsJSON []byte
 		var receivedAt time.Time
 		var pricingBytes []byte
+		var entityType, serviceEndpoint, openapiURL *string
 		if err := rows.Scan(
 			&entry.AgentID, &entry.Name, &entry.Category, &tagsJSON,
 			&entry.Summary, &entry.HomeRegistry, &entry.EntityURL,
 			&receivedAt, &entry.Tombstoned, &entry.Status,
-			&entry.EntityType, &entry.ServiceEndpoint, &entry.OpenAPIURL, &pricingBytes,
+			&entityType, &serviceEndpoint, &openapiURL, &pricingBytes,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan gossip entry: %w", err)
 		}
 		entry.ReceivedAt = receivedAt.UTC().Format(time.RFC3339)
 		if err := json.Unmarshal(tagsJSON, &entry.Tags); err != nil {
 			entry.Tags = []string{}
+		}
+		if entityType != nil {
+			entry.EntityType = *entityType
+		}
+		if serviceEndpoint != nil {
+			entry.ServiceEndpoint = *serviceEndpoint
+		}
+		if openapiURL != nil {
+			entry.OpenAPIURL = *openapiURL
 		}
 		if len(pricingBytes) > 0 {
 			entry.EntityPricing = &models.EntityPricing{}
@@ -1045,6 +1075,7 @@ func scanAgentRows(rows pgx.Rows) ([]*models.RegistryRecord, error) {
 		var developerProofJSON []byte
 		var lastHeartbeat *time.Time
 		var pricingBytes []byte
+		var entityType, serviceEndpoint, openapiURL *string
 		if err := rows.Scan(
 			&agent.AgentID, &agent.Name, &agent.Owner, &agent.EntityURL,
 			&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
@@ -1052,7 +1083,7 @@ func scanAgentRows(rows pgx.Rows) ([]*models.RegistryRecord, error) {
 			&agent.TTL, &agent.Signature,
 			&developerID, &agentIndex, &developerProofJSON,
 			&agent.Status, &lastHeartbeat,
-			&agent.EntityType, &agent.ServiceEndpoint, &agent.OpenAPIURL, &pricingBytes,
+			&entityType, &serviceEndpoint, &openapiURL, &pricingBytes,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan agent: %w", err)
 		}
@@ -1073,6 +1104,15 @@ func scanAgentRows(rows pgx.Rows) ([]*models.RegistryRecord, error) {
 		if len(developerProofJSON) > 0 {
 			agent.DeveloperProof = &models.DeveloperProof{}
 			json.Unmarshal(developerProofJSON, agent.DeveloperProof)
+		}
+		if entityType != nil {
+			agent.EntityType = *entityType
+		}
+		if serviceEndpoint != nil {
+			agent.ServiceEndpoint = *serviceEndpoint
+		}
+		if openapiURL != nil {
+			agent.OpenAPIURL = *openapiURL
 		}
 		if len(pricingBytes) > 0 {
 			agent.EntityPricing = &models.EntityPricing{}

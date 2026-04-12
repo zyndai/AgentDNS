@@ -141,11 +141,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/agents/{agentID}", s.handleDeleteAgent)
 	mux.HandleFunc("GET /v1/agents/{agentID}/card", s.handleGetAgentCard)
 	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
-	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterAgent))
-	mux.HandleFunc("GET /v1/services/{agentID}", s.handleGetAgent)
-
 	// Service registration alias (same handler, entity_type defaults to "agent" if not set)
 	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterAgent))
+	mux.HandleFunc("GET /v1/services/{agentID}", s.handleGetAgent)
 
 	// Search
 	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))
