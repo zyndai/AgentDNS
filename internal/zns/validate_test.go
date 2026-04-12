@@ -101,8 +101,8 @@ func TestParseFQAN(t *testing.T) {
 		{"dns01.zynd.ai/acme-corp/doc-translator#nlp.translation", "dns01.zynd.ai", "acme-corp", "doc-translator", false},
 		{"dns01.zynd.ai/acme-corp/doc-translator@2.1.0#nlp.translation", "dns01.zynd.ai", "acme-corp", "doc-translator", false},
 
-		// With agdns:// scheme
-		{"agdns://dns01.zynd.ai/acme-corp/doc-translator", "dns01.zynd.ai", "acme-corp", "doc-translator", false},
+		// With zns:// scheme
+		{"zns://dns01.zynd.ai/acme-corp/doc-translator", "dns01.zynd.ai", "acme-corp", "doc-translator", false},
 
 		// Invalid
 		{"", "", "", "", true},
@@ -141,7 +141,7 @@ func TestParseQualifiedFQAN(t *testing.T) {
 		{"dns01.zynd.ai/acme-corp/doc-translator@2", "dns01.zynd.ai/acme-corp/doc-translator", "2", "", false},
 		{"dns01.zynd.ai/acme-corp/doc-translator#nlp.translation", "dns01.zynd.ai/acme-corp/doc-translator", "", "nlp.translation", false},
 		{"dns01.zynd.ai/acme-corp/doc-translator@2.1.0#nlp.translation", "dns01.zynd.ai/acme-corp/doc-translator", "2.1.0", "nlp.translation", false},
-		{"agdns://dns01.zynd.ai/acme-corp/doc-translator@2.1.0", "dns01.zynd.ai/acme-corp/doc-translator", "2.1.0", "", false},
+		{"zns://dns01.zynd.ai/acme-corp/doc-translator@2.1.0", "dns01.zynd.ai/acme-corp/doc-translator", "2.1.0", "", false},
 
 		// Invalid
 		{"", "", "", "", true},
@@ -168,7 +168,7 @@ func TestParseQualifiedFQAN(t *testing.T) {
 
 func TestBuildAgdnsURI(t *testing.T) {
 	uri := BuildAgdnsURI("dns01.zynd.ai/acme-corp/doc-translator")
-	expected := "agdns://dns01.zynd.ai/acme-corp/doc-translator"
+	expected := "zns://dns01.zynd.ai/acme-corp/doc-translator"
 	if uri != expected {
 		t.Errorf("BuildAgdnsURI() = %q, want %q", uri, expected)
 	}

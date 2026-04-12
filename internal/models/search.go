@@ -12,9 +12,11 @@ type SearchRequest struct {
 	Models        []string `json:"models,omitempty"`    // e.g., ["gpt-4"]
 	MinTrustScore float64  `json:"min_trust_score,omitempty"`
 	Status        string   `json:"status,omitempty"`       // online, offline, any
-	DeveloperID   string   `json:"developer_id,omitempty"` // filter by developer
-	EntityType    string   `json:"entity_type,omitempty"`
-	MaxResults    int      `json:"max_results,omitempty"`
+	DeveloperID     string   `json:"developer_id,omitempty"`      // filter by developer
+	DeveloperHandle string   `json:"developer_handle,omitempty"` // filter by developer handle
+	FQAN            string   `json:"fqan,omitempty"`             // filter by exact FQAN
+	EntityType      string   `json:"entity_type,omitempty"`      // "agent", "service", or "" (any)
+	MaxResults      int      `json:"max_results,omitempty"`
 	Offset        int      `json:"offset,omitempty"`
 	Federated     bool     `json:"federated"`
 	Enrich        bool     `json:"enrich"`
@@ -45,7 +47,7 @@ type SearchResult struct {
 	ScoreBreakdown    *ScoreBreakdown    `json:"score_breakdown,omitempty"`
 	Card              *AgentCard         `json:"card,omitempty"` // included if enrich=true
 
-	// ZNS fields (populated when agent has a name binding)
+	// ZNS fields (populated when entity has a name binding)
 	FQAN            string `json:"fqan,omitempty"`
 	DeveloperHandle string `json:"developer_handle,omitempty"`
 
@@ -53,7 +55,7 @@ type SearchResult struct {
 	EntityType      string          `json:"entity_type,omitempty"`
 	ServiceEndpoint string          `json:"service_endpoint,omitempty"`
 	OpenAPIURL      string          `json:"openapi_url,omitempty"`
-	ServicePricing  *ServicePricing `json:"service_pricing,omitempty"`
+	EntityPricing  *EntityPricing `json:"entity_pricing,omitempty"`
 }
 
 // ScoreBreakdown explains how the score was computed.

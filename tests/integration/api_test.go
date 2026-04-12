@@ -85,7 +85,7 @@ func TestRegistrationRequest_Validation(t *testing.T) {
 	// Test that registration request validation works
 	req := &models.RegistrationRequest{
 		Name:      "TestAgent",
-		AgentURL:  "https://example.com/.well-known/agent.json",
+		EntityURL:  "https://example.com/.well-known/agent.json",
 		Category:  "tools",
 		Tags:      []string{"test"},
 		Summary:   "A test agent",
@@ -97,7 +97,7 @@ func TestRegistrationRequest_Validation(t *testing.T) {
 	if req.Name == "" {
 		t.Error("name should be set")
 	}
-	if req.AgentURL == "" {
+	if req.EntityURL == "" {
 		t.Error("agent_url should be set")
 	}
 	if req.Category == "" {
@@ -139,7 +139,7 @@ func TestSearchResponse_Serialization(t *testing.T) {
 	resp := models.SearchResponse{
 		Results: []models.SearchResult{
 			{
-				AgentID:  "agdns:test1",
+				AgentID:  "zns:test1",
 				Name:     "TestAgent",
 				Summary:  "A test agent",
 				Category: "tools",

@@ -291,7 +291,7 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 				Tags:               ann.Tags,
 				Summary:            ann.Summary,
 				HomeRegistry:       ann.HomeRegistry,
-				AgentURL:           ann.AgentURL,
+				EntityURL:           ann.EntityURL,
 				ReceivedAt:         time.Now().UTC().Format(time.RFC3339),
 				DeveloperID:        ann.DeveloperID,
 				DeveloperPublicKey: ann.DeveloperPublicKey,
@@ -301,7 +301,7 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 				EntityType:         ann.EntityType,
 				ServiceEndpoint:    ann.ServiceEndpoint,
 				OpenAPIURL:         ann.OpenAPIURL,
-				ServicePricing:     ann.ServicePricing,
+				EntityPricing:     ann.EntityPricing,
 			}
 			if err := gh.store.UpsertGossipEntry(entry); err != nil {
 				log.Printf("failed to store gossip entry: %v", err)
@@ -364,7 +364,7 @@ func (gh *GossipHandler) CreateAnnouncement(
 		Tags:            agent.Tags,
 		Summary:         agent.Summary,
 		HomeRegistry:    registryID,
-		AgentURL:        agent.AgentURL,
+		EntityURL:        agent.EntityURL,
 		Action:          action,
 		Timestamp:       time.Now().UTC().Format(time.RFC3339),
 		OriginPublicKey: pubKey,
@@ -373,7 +373,7 @@ func (gh *GossipHandler) CreateAnnouncement(
 		EntityType:      agent.EntityType,
 		ServiceEndpoint: agent.ServiceEndpoint,
 		OpenAPIURL:      agent.OpenAPIURL,
-		ServicePricing:  agent.ServicePricing,
+		EntityPricing:  agent.EntityPricing,
 	}
 
 	// Include developer identity fields if present

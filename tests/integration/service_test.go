@@ -110,7 +110,7 @@ func TestServiceRegistration(t *testing.T) {
 		"entity_type":      "service",
 		"service_endpoint": endpoint,
 		"openapi_url":      openapiURL,
-		"service_pricing": map[string]interface{}{
+		"entity_pricing": map[string]interface{}{
 			"model":           "per_request",
 			"base_price_usd":  0.01,
 			"currency":        "USD",
@@ -145,14 +145,14 @@ func TestServiceRegistration(t *testing.T) {
 	if record.OpenAPIURL != openapiURL {
 		t.Errorf("expected openapi_url %q, got %q", openapiURL, record.OpenAPIURL)
 	}
-	if record.ServicePricing == nil {
-		t.Fatal("expected service_pricing to be set")
+	if record.EntityPricing == nil {
+		t.Fatal("expected entity_pricing to be set")
 	}
-	if record.ServicePricing.Model != "per_request" {
-		t.Errorf("expected pricing model 'per_request', got %q", record.ServicePricing.Model)
+	if record.EntityPricing.Model != "per_request" {
+		t.Errorf("expected pricing model 'per_request', got %q", record.EntityPricing.Model)
 	}
-	if record.ServicePricing.BasePriceUSD != 0.01 {
-		t.Errorf("expected base_price_usd 0.01, got %f", record.ServicePricing.BasePriceUSD)
+	if record.EntityPricing.BasePriceUSD != 0.01 {
+		t.Errorf("expected base_price_usd 0.01, got %f", record.EntityPricing.BasePriceUSD)
 	}
 }
 

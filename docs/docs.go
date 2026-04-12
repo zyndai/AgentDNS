@@ -113,317 +113,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/agents": {
-            "post": {
-                "description": "Register a new AI agent on the registry network. Requires name, agent_url, category, and public_key. Optionally includes developer_id and developer_proof for developer chain of trust.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Register a new agent",
-                "parameters": [
-                    {
-                        "description": "Agent registration payload",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.RegistrationRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "agent_id and success message",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Validation error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Invalid signature",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Agent already registered",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/agents/{agentID}": {
-            "get": {
-                "description": "Retrieve a registry record for a specific agent by its agent_id.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Get agent by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Agent ID (e.g. agdns:7f3a9c2e...)",
-                        "name": "agentID",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Agent registry record",
-                        "schema": {
-                            "$ref": "#/definitions/models.RegistryRecord"
-                        }
-                    },
-                    "400": {
-                        "description": "Missing agent_id",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Agent not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Update fields on an existing agent registry record. Only provided fields are changed.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Update an agent",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Agent ID",
-                        "name": "agentID",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Fields to update",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.UpdateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Updated agent record",
-                        "schema": {
-                            "$ref": "#/definitions/models.RegistryRecord"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request body",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Agent not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "Deregister an agent from the registry. Creates a tombstone that propagates via gossip.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Delete an agent",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Agent ID",
-                        "name": "agentID",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Deregistration confirmation",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Missing agent_id",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Agent not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/agents/{agentID}/card": {
-            "get": {
-                "description": "Fetch the live Agent Card from the agent's endpoint. The card contains capabilities, pricing, status, and more.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Get agent card",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Agent ID",
-                        "name": "agentID",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Agent card",
-                        "schema": {
-                            "$ref": "#/definitions/models.AgentCard"
-                        }
-                    },
-                    "400": {
-                        "description": "Missing agent_id",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Agent not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "502": {
-                        "description": "Failed to fetch agent card from remote",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/v1/categories": {
             "get": {
-                "description": "Get all agent categories currently registered in the system.",
+                "description": "Get all entity categories currently registered in the system.",
                 "produces": [
                     "application/json"
                 ],
@@ -731,16 +423,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/developers/{developerID}/agents": {
+        "/v1/developers/{developerID}/entities": {
             "get": {
-                "description": "Retrieve all agents registered by a given developer_id, including developer_id, agents array, and count.",
+                "description": "Retrieve all entities registered by a developer. Alias: GET /v1/developers/{id}/agents.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Developers"
                 ],
-                "summary": "List agents by developer",
+                "summary": "List entities by developer",
                 "parameters": [
                     {
                         "type": "string",
@@ -752,7 +444,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "developer_id, agents, and count",
+                        "description": "developer_id, entities, and count",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -769,6 +461,368 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/entities": {
+            "get": {
+                "description": "List all registered entities. Filter by type (agent, service) and category. Supports pagination.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Entities"
+                ],
+                "summary": "List entities",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by type: agent, service (default: all)",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by category",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max results (default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of entities",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Register an entity. Set type to \"service\" for services (entity_url not required). Alias: POST /v1/agents, POST /v1/services.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Entities"
+                ],
+                "summary": "Register a new entity",
+                "parameters": [
+                    {
+                        "description": "Entity registration payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.RegistrationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "agent_id and success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid signature",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Entity already registered",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/entities/{entityID}": {
+            "get": {
+                "description": "Retrieve a registry record for a specific entity. Alias: GET /v1/agents/{id}, GET /v1/services/{id}.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Entities"
+                ],
+                "summary": "Get entity by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Entity ID (e.g. zns:7f3a9c2e... or zns:svc:7f3a9c2e...)",
+                        "name": "entityID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Entity registry record",
+                        "schema": {
+                            "$ref": "#/definitions/models.RegistryRecord"
+                        }
+                    },
+                    "400": {
+                        "description": "Missing ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Entity not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update fields on an existing entity. Only provided fields are changed. Alias: PUT /v1/agents/{id}.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Entities"
+                ],
+                "summary": "Update an entity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Entity ID",
+                        "name": "entityID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated entity record",
+                        "schema": {
+                            "$ref": "#/definitions/models.RegistryRecord"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Entity not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deregister an entity. Creates a tombstone that propagates via gossip. Alias: DELETE /v1/agents/{id}.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Entities"
+                ],
+                "summary": "Delete an entity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Entity ID",
+                        "name": "entityID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Deregistration confirmation",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Missing ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Entity not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/entities/{entityID}/card": {
+            "get": {
+                "description": "Fetch the live card from the entity's endpoint. Contains capabilities, pricing, status, and more. Alias: GET /v1/agents/{id}/card.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Entities"
+                ],
+                "summary": "Get entity card",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Entity ID",
+                        "name": "entityID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Entity card",
+                        "schema": {
+                            "$ref": "#/definitions/models.AgentCard"
+                        }
+                    },
+                    "400": {
+                        "description": "Missing ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Entity not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Failed to fetch card from remote",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -991,56 +1045,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/handles/{handle}/agents": {
-            "get": {
-                "description": "List all ZNS name bindings (agent names) registered under a given developer handle.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Handles"
-                ],
-                "summary": "List agents for a handle",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ZNS developer handle",
-                        "name": "handle",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "List of ZNS name bindings",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.ZNSName"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Missing handle",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/v1/handles/{handle}/available": {
             "get": {
                 "description": "Check whether a ZNS handle is available on this registry. Returns availability and optional reason if taken.",
@@ -1066,6 +1070,56 @@ const docTemplate = `{
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Missing handle",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/handles/{handle}/entities": {
+            "get": {
+                "description": "List all ZNS name bindings (entity names) registered under a given developer handle.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Handles"
+                ],
+                "summary": "List entities for a handle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ZNS developer handle",
+                        "name": "handle",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of ZNS name bindings",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.ZNSName"
+                            }
                         }
                     },
                     "400": {
@@ -1162,7 +1216,7 @@ const docTemplate = `{
         },
         "/v1/names": {
             "post": {
-                "description": "Register a ZNS agent name binding, creating a Fully Qualified Agent Name (FQAN) under a developer handle.",
+                "description": "Register a ZNS entity name binding, creating a Fully Qualified Agent Name (FQAN) under a developer handle.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1172,7 +1226,7 @@ const docTemplate = `{
                 "tags": [
                     "Names"
                 ],
-                "summary": "Register an agent name",
+                "summary": "Register an entity name",
                 "parameters": [
                     {
                         "description": "Name binding payload",
@@ -1213,7 +1267,7 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "Developer handle or agent not found",
+                        "description": "Developer handle or entity not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1242,9 +1296,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/names/{developer}/{agent}": {
+        "/v1/names/{developer}/{entity}": {
             "get": {
-                "description": "Retrieve a ZNS name binding record by developer handle and agent name path parameters.",
+                "description": "Retrieve a ZNS name binding record by developer handle and entity name path parameters.",
                 "produces": [
                     "application/json"
                 ],
@@ -1262,8 +1316,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     }
@@ -1305,7 +1359,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Update the version and/or capability_tags of an existing ZNS agent name binding.",
+                "description": "Update the version and/or capability_tags of an existing ZNS entity name binding.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1326,8 +1380,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     },
@@ -1378,7 +1432,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Release a ZNS agent name binding. Requires Authorization header with Bearer ed25519 signature.",
+                "description": "Release a ZNS entity name binding. Requires Authorization header with Bearer ed25519 signature.",
                 "produces": [
                     "application/json"
                 ],
@@ -1396,8 +1450,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     },
@@ -1449,9 +1503,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/names/{developer}/{agent}/available": {
+        "/v1/names/{developer}/{entity}/available": {
             "get": {
-                "description": "Check whether a ZNS agent name is available under a given developer handle.",
+                "description": "Check whether a ZNS entity name is available under a given developer handle.",
                 "produces": [
                     "application/json"
                 ],
@@ -1469,8 +1523,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     }
@@ -1504,9 +1558,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/names/{developer}/{agent}/versions": {
+        "/v1/names/{developer}/{entity}/versions": {
             "get": {
-                "description": "Retrieve the full version history for a ZNS agent name binding.",
+                "description": "Retrieve the full version history for a ZNS entity name binding.",
                 "produces": [
                     "application/json"
                 ],
@@ -1524,8 +1578,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     }
@@ -1633,7 +1687,7 @@ const docTemplate = `{
         },
         "/v1/network/stats": {
             "get": {
-                "description": "Returns estimated global network statistics including registry and agent counts.",
+                "description": "Returns estimated global network statistics including registry and entity counts.",
                 "produces": [
                     "application/json"
                 ],
@@ -1653,7 +1707,7 @@ const docTemplate = `{
         },
         "/v1/network/status": {
             "get": {
-                "description": "Returns the current registry node's identity, uptime, peer count, and agent statistics.",
+                "description": "Returns the current registry node's identity, uptime, peer count, and entity statistics.",
                 "produces": [
                     "application/json"
                 ],
@@ -1671,9 +1725,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/resolve/{developer}/{agent}": {
+        "/v1/resolve/{developer}/{entity}": {
             "get": {
-                "description": "Resolve a Fully Qualified Agent Name (FQAN) to its agent details, including agent_url, public_key, and trust information.",
+                "description": "Resolve a Fully Qualified Agent Name (FQAN) to its entity details, including entity_url, public_key, and trust information.",
                 "produces": [
                     "application/json"
                 ],
@@ -1691,15 +1745,15 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
-                        "name": "agent",
+                        "description": "Entity name",
+                        "name": "entity",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Resolved agent details",
+                        "description": "Resolved entity details",
                         "schema": {
                             "$ref": "#/definitions/models.ZNSResolveResponse"
                         }
@@ -1736,7 +1790,7 @@ const docTemplate = `{
         },
         "/v1/search": {
             "post": {
-                "description": "Search the registry for agents by natural language query, with optional category/tag/trust filters.",
+                "description": "Search the registry for entities by natural language query, with optional category/tag/trust filters.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1746,7 +1800,7 @@ const docTemplate = `{
                 "tags": [
                     "Search"
                 ],
-                "summary": "Search for agents",
+                "summary": "Search for entities",
                 "parameters": [
                     {
                         "description": "Search query and filters",
@@ -1788,7 +1842,7 @@ const docTemplate = `{
         },
         "/v1/tags": {
             "get": {
-                "description": "Get all agent tags currently in use across registered agents.",
+                "description": "Get all entity tags currently in use across registered entities.",
                 "produces": [
                     "application/json"
                 ],
@@ -2361,10 +2415,32 @@ const docTemplate = `{
                 }
             }
         },
+        "models.PricingModel": {
+            "type": "object",
+            "properties": {
+                "base_price": {
+                    "type": "number"
+                },
+                "currency": {
+                    "description": "USD, USDC",
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "free, per-call, subscription, usage-based",
+                    "type": "string"
+                },
+                "unit": {
+                    "description": "request, token, month",
+                    "type": "string"
+                }
+            }
+        },
         "models.RegistrationRequest": {
             "type": "object",
             "required": [
-                "agent_url",
                 "category",
                 "name",
                 "public_key",
@@ -2376,9 +2452,6 @@ const docTemplate = `{
                     "description": "ZNS naming fields (optional — requires developer with claimed handle)",
                     "type": "string"
                 },
-                "agent_url": {
-                    "type": "string"
-                },
                 "capability_summary": {
                     "$ref": "#/definitions/models.CapabilitySummary"
                 },
@@ -2388,18 +2461,30 @@ const docTemplate = `{
                     "minLength": 1
                 },
                 "developer_id": {
-                    "description": "Developer identity fields (optional -- agents can register without a developer)",
+                    "description": "Developer identity fields",
                     "type": "string"
                 },
                 "developer_proof": {
                     "$ref": "#/definitions/models.DeveloperProof"
+                },
+                "entity_url": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string",
                     "maxLength": 100,
                     "minLength": 1
                 },
+                "openapi_url": {
+                    "type": "string"
+                },
+                "pricing_model": {
+                    "$ref": "#/definitions/models.PricingModel"
+                },
                 "public_key": {
+                    "type": "string"
+                },
+                "service_endpoint": {
                     "type": "string"
                 },
                 "signature": {
@@ -2416,6 +2501,10 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "type": {
+                    "description": "Entity type: \"agent\" (default) or \"service\"",
+                    "type": "string"
+                },
                 "version": {
                     "description": "semver, e.g., \"2.1.0\"",
                     "type": "string"
@@ -2431,9 +2520,6 @@ const docTemplate = `{
                 "agent_index": {
                     "type": "integer"
                 },
-                "agent_url": {
-                    "type": "string"
-                },
                 "capability_summary": {
                     "$ref": "#/definitions/models.CapabilitySummary"
                 },
@@ -2445,7 +2531,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "developer_id": {
-                    "description": "Developer identity fields (optional for backward compatibility)",
+                    "description": "Developer identity fields",
                     "type": "string"
                 },
                 "developer_proof": {
@@ -2456,6 +2542,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "entity_url": {
+                    "type": "string"
+                },
                 "home_registry": {
                     "type": "string"
                 },
@@ -2465,8 +2554,19 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "openapi_url": {
+                    "type": "string"
+                },
                 "owner": {
                     "type": "string"
+                },
+                "pricing_model": {
+                    "description": "stored as JSONB",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.PricingModel"
+                        }
+                    ]
                 },
                 "public_key": {
                     "type": "string"
@@ -2475,6 +2575,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "schema_version": {
+                    "type": "string"
+                },
+                "service_endpoint": {
                     "type": "string"
                 },
                 "signature": {
@@ -2495,6 +2598,10 @@ const docTemplate = `{
                 },
                 "ttl": {
                     "type": "integer"
+                },
+                "type": {
+                    "description": "Entity type: \"agent\" (default) or \"service\"",
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string"
@@ -2527,6 +2634,10 @@ const docTemplate = `{
                 "category": {
                     "type": "string"
                 },
+                "developer_handle": {
+                    "description": "filter by developer handle",
+                    "type": "string"
+                },
                 "developer_id": {
                     "description": "filter by developer",
                     "type": "string"
@@ -2536,6 +2647,10 @@ const docTemplate = `{
                 },
                 "federated": {
                     "type": "boolean"
+                },
+                "fqan": {
+                    "description": "filter by exact FQAN",
+                    "type": "string"
                 },
                 "languages": {
                     "description": "e.g., [\"python\", \"javascript\"]",
@@ -2589,6 +2704,10 @@ const docTemplate = `{
                 },
                 "timeout_ms": {
                     "type": "integer"
+                },
+                "type": {
+                    "description": "\"agent\", \"service\", or \"\" (any)",
+                    "type": "string"
                 }
             }
         },
@@ -2642,7 +2761,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "fqan": {
-                    "description": "ZNS fields (populated when agent has a name binding)",
+                    "description": "ZNS fields (populated when entity has a name binding)",
                     "type": "string"
                 },
                 "home_registry": {
@@ -2651,11 +2770,17 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "openapi_url": {
+                    "type": "string"
+                },
                 "score": {
                     "type": "number"
                 },
                 "score_breakdown": {
                     "$ref": "#/definitions/models.ScoreBreakdown"
+                },
+                "service_endpoint": {
+                    "type": "string"
                 },
                 "status": {
                     "type": "string"
@@ -2668,6 +2793,10 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "type": {
+                    "description": "Entity type",
+                    "type": "string"
                 }
             }
         },
@@ -2720,9 +2849,6 @@ const docTemplate = `{
                 "signature"
             ],
             "properties": {
-                "agent_url": {
-                    "type": "string"
-                },
                 "capability_summary": {
                     "$ref": "#/definitions/models.CapabilitySummary"
                 },
@@ -2730,6 +2856,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "codebase_hash": {
+                    "type": "string"
+                },
+                "entity_url": {
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 },
                 "signature": {
@@ -2817,13 +2949,13 @@ const docTemplate = `{
                 "agent_id": {
                     "type": "string"
                 },
-                "agent_url": {
-                    "type": "string"
-                },
                 "developer_handle": {
                     "type": "string"
                 },
                 "developer_id": {
+                    "type": "string"
+                },
+                "entity_url": {
                     "type": "string"
                 },
                 "fqan": {
@@ -2889,7 +3021,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{"http"},
 	Title:            "Agent DNS Registry API",
-	Description:      "Decentralized Agent Registry Network — register, discover, and resolve AI agents across a federated mesh.",
+	Description:      "Decentralized Agent Registry Network — register, discover, and resolve AI entities across a federated mesh.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

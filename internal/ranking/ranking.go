@@ -38,7 +38,7 @@ type CandidateResult struct {
 	Summary      string
 	Category     string
 	Tags         []string
-	AgentURL     string
+	EntityURL     string
 	HomeRegistry string
 	Status       string
 	UpdatedAt    string
@@ -56,7 +56,7 @@ type CandidateResult struct {
 	// Optional enriched Agent Card
 	Card *models.AgentCard
 
-	// ZNS fields (populated when agent has a name binding)
+	// ZNS fields (populated when entity has a name binding)
 	FQAN            string
 	DeveloperHandle string
 	DeveloperID     string
@@ -65,7 +65,7 @@ type CandidateResult struct {
 	EntityType      string
 	ServiceEndpoint string
 	OpenAPIURL      string
-	ServicePricing  *models.ServicePricing
+	EntityPricing  *models.EntityPricing
 }
 
 // RankWeighted scores candidates using the weighted linear combination.
@@ -182,7 +182,7 @@ func ToSearchResults(candidates []*CandidateResult) []models.SearchResult {
 			EntityType:      c.EntityType,
 			ServiceEndpoint: c.ServiceEndpoint,
 			OpenAPIURL:      c.OpenAPIURL,
-			ServicePricing:  c.ServicePricing,
+			EntityPricing:  c.EntityPricing,
 		}
 	}
 	return results

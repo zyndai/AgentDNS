@@ -2,7 +2,7 @@
 //
 //	@title			Agent DNS Registry API
 //	@version		0.2.0
-//	@description	Decentralized Agent Registry Network — register, discover, and resolve AI agents across a federated mesh.
+//	@description	Decentralized Agent Registry Network — register, discover, and resolve AI entities across a federated mesh.
 //
 //	@contact.name	Agent DNS
 //	@contact.url	https://github.com/agentdns/agent-dns
@@ -108,6 +108,13 @@ func main() {
 			fmt.Fprintf(os.Stderr, "unknown onboarding subcommand: %s\nUsage: agentdns onboarding setup\n", subcommand)
 			os.Exit(1)
 		}
+	case "db":
+		if subcommand == "reset" {
+			cmdDBReset()
+		} else {
+			fmt.Fprintf(os.Stderr, "unknown db subcommand: %s\nUsage: agentdns db reset --confirm\n", subcommand)
+			os.Exit(1)
+		}
 	case "models":
 		cmdModels()
 	case "test":
@@ -144,7 +151,7 @@ Commands:
   Agent Management:
   register      Register an agent on this node (supports --developer-key for HD derivation, --agent-name for ZNS naming)
   deregister    Remove an agent from the registry
-  resolve       Get a specific agent's registry record (supports agdns: IDs and developer/agent names)
+  resolve       Get a specific entity's registry record (supports agdns: IDs and developer/entity names)
   card          Fetch an agent's dynamic Agent Card
 
   Discovery:
@@ -155,6 +162,7 @@ Commands:
   peers         Show connected peers
 
   Maintenance:
+  db reset      Clear all data from the database (requires --confirm)
   models        Manage embedding models (list, download, info)
   test          Load testing (register/deregister N agents)
   version       Print version
@@ -296,7 +304,7 @@ func cmdStart() {
 		// Auto-derive prefix from node name if not explicitly set
 		redisPrefix := cfg.Redis.Prefix
 		if redisPrefix == "" {
-			redisPrefix = "agdns:" + cfg.Node.Name + ":"
+			redisPrefix = "zns:" + cfg.Node.Name + ":"
 		}
 		redisCache, err = agcache.NewRedisCache(agcache.RedisConfig{
 			URL:      cfg.Redis.URL,
@@ -335,7 +343,7 @@ func cmdStart() {
 			Tags:         ann.Tags,
 			Summary:      ann.Summary,
 			HomeRegistry: ann.HomeRegistry,
-			AgentURL:     ann.AgentURL,
+			EntityURL:     ann.EntityURL,
 			ReceivedAt:   time.Now().UTC().Format(time.RFC3339),
 		}
 		engine.IndexGossipEntry(entry)
@@ -428,7 +436,7 @@ func cmdStart() {
 				Category:     rec.Category,
 				Tags:         rec.Tags,
 				Summary:      rec.Summary,
-				AgentURL:     rec.AgentURL,
+				EntityURL:     rec.EntityURL,
 				PublicKey:     rec.PublicKey,
 				HomeRegistry: rec.HomeRegistry,
 				DeveloperID:  rec.DeveloperID,
@@ -784,17 +792,17 @@ func cmdSearch() {
 
 func cmdResolve() {
 	if len(os.Args) < 3 {
-		fmt.Fprintln(os.Stderr, "Usage: agentdns resolve <agdns:ID | developer/agent>")
+		fmt.Fprintln(os.Stderr, "Usage: agentdns resolve <agdns:ID | developer/entity>")
 		os.Exit(1)
 	}
 
 	target := os.Args[2]
 
-	// If target contains "/", treat as ZNS name (developer/agent)
+	// If target contains "/", treat as ZNS name (developer/entity)
 	if strings.Contains(target, "/") {
 		parts := strings.SplitN(target, "/", 2)
 		if len(parts) != 2 {
-			fmt.Fprintln(os.Stderr, "Invalid name format. Expected: developer/agent")
+			fmt.Fprintln(os.Stderr, "Invalid name format. Expected: developer/entity")
 			os.Exit(1)
 		}
 		resp, err := http.Get("http://localhost:8080/v1/resolve/" + parts[0] + "/" + parts[1])

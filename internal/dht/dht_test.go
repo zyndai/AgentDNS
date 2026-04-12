@@ -66,7 +66,7 @@ func TestLess(t *testing.T) {
 }
 
 func TestNodeIDFromAgentID(t *testing.T) {
-	id, err := NodeIDFromAgentID("agdns:7f3a9c2e12345678")
+	id, err := NodeIDFromAgentID("zns:7f3a9c2e12345678")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestNodeIDFromAgentID(t *testing.T) {
 		t.Fatalf("unexpected prefix: %x %x", id[0], id[1])
 	}
 
-	id, err = NodeIDFromAgentID("agdns:dev:abcdef0123456789")
+	id, err = NodeIDFromAgentID("zns:dev:abcdef0123456789")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -231,9 +231,9 @@ func TestDHTStoreAndFindValue(t *testing.T) {
 	var key NodeID
 	key[0] = 0x50 // between nodes
 	record := AgentDHTRecord{
-		AgentID:  "agdns:test1234",
+		AgentID:  "zns:test1234",
 		Name:     "TestAgent",
-		AgentURL: "http://localhost:5000",
+		EntityURL: "http://localhost:5000",
 		StoredAt: time.Now().Format(time.RFC3339),
 	}
 
@@ -247,8 +247,8 @@ func TestDHTStoreAndFindValue(t *testing.T) {
 	if found == nil {
 		t.Fatal("expected to find value")
 	}
-	if found.AgentID != "agdns:test1234" {
-		t.Fatalf("expected agdns:test1234, got %s", found.AgentID)
+	if found.AgentID != "zns:test1234" {
+		t.Fatalf("expected zns:test1234, got %s", found.AgentID)
 	}
 }
 

@@ -12,13 +12,13 @@ type GossipAnnouncement struct {
 	Summary           string             `json:"summary,omitempty"`
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty"`
 	HomeRegistry      string             `json:"home_registry"`
-	AgentURL          string             `json:"agent_url,omitempty"`
+	EntityURL         string             `json:"entity_url,omitempty"`
 	Action            string             `json:"action"` // register, update, deregister, agent_status
 	Status            string             `json:"status,omitempty"`
-	EntityType        string             `json:"entity_type,omitempty"`
+	EntityType        string             `json:"entity_type,omitempty"` // "agent" or "service"
 	ServiceEndpoint   string             `json:"service_endpoint,omitempty"`
 	OpenAPIURL        string             `json:"openapi_url,omitempty"`
-	ServicePricing    *ServicePricing    `json:"service_pricing,omitempty"`
+	EntityPricing    *EntityPricing    `json:"entity_pricing,omitempty"`
 	Timestamp         string             `json:"timestamp"`
 	OriginPublicKey   string             `json:"origin_public_key"` // public key of originating registry
 	Signature         string             `json:"signature"`         // signed by originating registry
@@ -67,7 +67,7 @@ type GossipEntry struct {
 	Summary           string             `json:"summary" db:"summary"`
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty" db:"-"`
 	HomeRegistry      string             `json:"home_registry" db:"home_registry"`
-	AgentURL          string             `json:"agent_url" db:"agent_url"`
+	EntityURL         string             `json:"entity_url" db:"agent_url"`
 	ReceivedAt        string             `json:"received_at" db:"received_at"`
 	Tombstoned        bool               `json:"tombstoned" db:"tombstoned"`
 	TombstoneAt       string             `json:"tombstone_at,omitempty" db:"tombstone_at"`
@@ -87,7 +87,7 @@ type GossipEntry struct {
 	EntityType      string          `json:"entity_type,omitempty" db:"entity_type"`
 	ServiceEndpoint string          `json:"service_endpoint,omitempty" db:"service_endpoint"`
 	OpenAPIURL      string          `json:"openapi_url,omitempty" db:"openapi_url"`
-	ServicePricing  *ServicePricing `json:"service_pricing,omitempty" db:"-"`
+	EntityPricing  *EntityPricing `json:"entity_pricing,omitempty" db:"-"`
 }
 
 // PeerInfo describes a connected peer registry in the mesh.

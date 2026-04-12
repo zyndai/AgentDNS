@@ -57,12 +57,12 @@ func createMonitorTestAgent(t *testing.T, st store.Store, agentID string) {
 		AgentID:      agentID,
 		Name:         "MonitorAgent-" + agentID,
 		Owner:        "did:key:test",
-		AgentURL:     "https://example.com/agent.json",
+		EntityURL:     "https://example.com/agent.json",
 		Category:     "tools",
 		Tags:         []string{},
 		Summary:      "Monitor test agent",
 		PublicKey:    "ed25519:pk-" + agentID,
-		HomeRegistry: "agdns:registry:test",
+		HomeRegistry: "zns:registry:test",
 		RegisteredAt: time.Now().UTC().Format(time.RFC3339),
 		UpdatedAt:    time.Now().UTC().Format(time.RFC3339),
 		TTL:          86400,
@@ -77,11 +77,11 @@ func TestMonitor_StaleAgentsMarkedInactive(t *testing.T) {
 	st, monitor := testMonitorSetup(t)
 
 	// Create two agents
-	createMonitorTestAgent(t, st, "agdns:mon-stale")
-	createMonitorTestAgent(t, st, "agdns:mon-fresh")
+	createMonitorTestAgent(t, st, "zns:mon-stale")
+	createMonitorTestAgent(t, st, "zns:mon-fresh")
 
 	// Give fresh agent a heartbeat
-	if err := st.UpdateAgentHeartbeat("agdns:mon-fresh"); err != nil {
+	if err := st.UpdateAgentHeartbeat("zns:mon-fresh"); err != nil {
 		t.Fatalf("failed to update heartbeat: %v", err)
 	}
 
@@ -94,13 +94,13 @@ func TestMonitor_StaleAgentsMarkedInactive(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// Stale agent should be inactive (NULL last_heartbeat, threshold is 2s)
-	stale, _ := st.GetAgent("agdns:mon-stale")
+	stale, _ := st.GetAgent("zns:mon-stale")
 	if stale.Status != "inactive" {
 		t.Errorf("expected stale agent to be 'inactive', got '%s'", stale.Status)
 	}
 
 	// Fresh agent should still be active
-	fresh, _ := st.GetAgent("agdns:mon-fresh")
+	fresh, _ := st.GetAgent("zns:mon-fresh")
 	if fresh.Status != "active" {
 		t.Errorf("expected fresh agent to be 'active', got '%s'", fresh.Status)
 	}
@@ -109,10 +109,10 @@ func TestMonitor_StaleAgentsMarkedInactive(t *testing.T) {
 func TestMonitor_RecentHeartbeatsRemainActive(t *testing.T) {
 	st, monitor := testMonitorSetup(t)
 
-	createMonitorTestAgent(t, st, "agdns:mon-alive")
+	createMonitorTestAgent(t, st, "zns:mon-alive")
 
 	// Give it a heartbeat
-	if err := st.UpdateAgentHeartbeat("agdns:mon-alive"); err != nil {
+	if err := st.UpdateAgentHeartbeat("zns:mon-alive"); err != nil {
 		t.Fatalf("failed to update heartbeat: %v", err)
 	}
 
@@ -120,7 +120,7 @@ func TestMonitor_RecentHeartbeatsRemainActive(t *testing.T) {
 	monitor.sweep()
 
 	// Should still be active
-	agent, _ := st.GetAgent("agdns:mon-alive")
+	agent, _ := st.GetAgent("zns:mon-alive")
 	if agent.Status != "active" {
 		t.Errorf("expected agent to remain 'active', got '%s'", agent.Status)
 	}

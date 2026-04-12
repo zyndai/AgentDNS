@@ -2,8 +2,8 @@ package models
 
 import "fmt"
 
-// ServicePricing describes how a service charges for usage.
-type ServicePricing struct {
+// EntityPricing describes how an entity (agent or service) charges for usage.
+type EntityPricing struct {
 	Model          string             `json:"model"`
 	BasePriceUSD   float64            `json:"base_price_usd"`
 	Currency       string             `json:"currency"`
@@ -30,9 +30,9 @@ func ValidateServiceFields(r *RegistryRecord) error {
 	if r.ServiceEndpoint == "" {
 		return fmt.Errorf("service_endpoint is required for entity_type 'service'")
 	}
-	if r.ServicePricing != nil && r.ServicePricing.Model != "" {
-		if !ValidPricingModels[r.ServicePricing.Model] {
-			return fmt.Errorf("invalid pricing model: %s (must be per_request, subscription, or free)", r.ServicePricing.Model)
+	if r.EntityPricing != nil && r.EntityPricing.Model != "" {
+		if !ValidPricingModels[r.EntityPricing.Model] {
+			return fmt.Errorf("invalid pricing model: %s (must be per_request, subscription, or free)", r.EntityPricing.Model)
 		}
 	}
 	return nil

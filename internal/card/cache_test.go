@@ -11,19 +11,19 @@ func TestLRUCache_PutAndGet(t *testing.T) {
 	cache := NewLRUCache(10, 3600)
 
 	card := &models.AgentCard{
-		AgentID: "agdns:test1",
+		AgentID: "zns:test1",
 		Version: "1.0",
 		Status:  "online",
 	}
 
-	cache.Put("agdns:test1", card)
+	cache.Put("zns:test1", card)
 
-	got := cache.Get("agdns:test1")
+	got := cache.Get("zns:test1")
 	if got == nil {
 		t.Fatal("expected card from cache")
 	}
-	if got.AgentID != "agdns:test1" {
-		t.Errorf("expected agdns:test1, got %s", got.AgentID)
+	if got.AgentID != "zns:test1" {
+		t.Errorf("expected zns:test1, got %s", got.AgentID)
 	}
 }
 

@@ -370,13 +370,27 @@ definitions:
           type: number
         type: object
     type: object
+  models.PricingModel:
+    properties:
+      base_price:
+        type: number
+      currency:
+        description: USD, USDC
+        type: string
+      details:
+        type: string
+      type:
+        description: free, per-call, subscription, usage-based
+        type: string
+      unit:
+        description: request, token, month
+        type: string
+    type: object
   models.RegistrationRequest:
     properties:
       agent_name:
         description: ZNS naming fields (optional — requires developer with claimed
           handle)
-        type: string
-      agent_url:
         type: string
       capability_summary:
         $ref: '#/definitions/models.CapabilitySummary'
@@ -385,16 +399,23 @@ definitions:
         minLength: 1
         type: string
       developer_id:
-        description: Developer identity fields (optional -- agents can register without
-          a developer)
+        description: Developer identity fields
         type: string
       developer_proof:
         $ref: '#/definitions/models.DeveloperProof'
+      entity_url:
+        type: string
       name:
         maxLength: 100
         minLength: 1
         type: string
+      openapi_url:
+        type: string
+      pricing_model:
+        $ref: '#/definitions/models.PricingModel'
       public_key:
+        type: string
+      service_endpoint:
         type: string
       signature:
         type: string
@@ -406,11 +427,13 @@ definitions:
           type: string
         maxItems: 20
         type: array
+      type:
+        description: 'Entity type: "agent" (default) or "service"'
+        type: string
       version:
         description: semver, e.g., "2.1.0"
         type: string
     required:
-    - agent_url
     - category
     - name
     - public_key
@@ -423,8 +446,6 @@ definitions:
         type: string
       agent_index:
         type: integer
-      agent_url:
-        type: string
       capability_summary:
         $ref: '#/definitions/models.CapabilitySummary'
       category:
@@ -433,25 +454,35 @@ definitions:
         description: Codebase integrity
         type: string
       developer_id:
-        description: Developer identity fields (optional for backward compatibility)
+        description: Developer identity fields
         type: string
       developer_proof:
         allOf:
         - $ref: '#/definitions/models.DeveloperProof'
         description: stored as JSONB
+      entity_url:
+        type: string
       home_registry:
         type: string
       last_heartbeat:
         type: string
       name:
         type: string
+      openapi_url:
+        type: string
       owner:
         type: string
+      pricing_model:
+        allOf:
+        - $ref: '#/definitions/models.PricingModel'
+        description: stored as JSONB
       public_key:
         type: string
       registered_at:
         type: string
       schema_version:
+        type: string
+      service_endpoint:
         type: string
       signature:
         type: string
@@ -466,6 +497,9 @@ definitions:
         type: array
       ttl:
         type: integer
+      type:
+        description: 'Entity type: "agent" (default) or "service"'
+        type: string
       updated_at:
         type: string
     type: object
@@ -486,6 +520,9 @@ definitions:
     properties:
       category:
         type: string
+      developer_handle:
+        description: filter by developer handle
+        type: string
       developer_id:
         description: filter by developer
         type: string
@@ -493,6 +530,9 @@ definitions:
         type: boolean
       federated:
         type: boolean
+      fqan:
+        description: filter by exact FQAN
+        type: string
       languages:
         description: e.g., ["python", "javascript"]
         items:
@@ -530,6 +570,9 @@ definitions:
         type: array
       timeout_ms:
         type: integer
+      type:
+        description: '"agent", "service", or "" (any)'
+        type: string
     type: object
   models.SearchResponse:
     properties:
@@ -563,16 +606,20 @@ definitions:
       developer_id:
         type: string
       fqan:
-        description: ZNS fields (populated when agent has a name binding)
+        description: ZNS fields (populated when entity has a name binding)
         type: string
       home_registry:
         type: string
       name:
         type: string
+      openapi_url:
+        type: string
       score:
         type: number
       score_breakdown:
         $ref: '#/definitions/models.ScoreBreakdown'
+      service_endpoint:
+        type: string
       status:
         type: string
       summary:
@@ -581,6 +628,9 @@ definitions:
         items:
           type: string
         type: array
+      type:
+        description: Entity type
+        type: string
     type: object
   models.SearchStats:
     properties:
@@ -612,13 +662,15 @@ definitions:
     type: object
   models.UpdateRequest:
     properties:
-      agent_url:
-        type: string
       capability_summary:
         $ref: '#/definitions/models.CapabilitySummary'
       category:
         type: string
       codebase_hash:
+        type: string
+      entity_url:
+        type: string
+      name:
         type: string
       signature:
         type: string
@@ -680,11 +732,11 @@ definitions:
     properties:
       agent_id:
         type: string
-      agent_url:
-        type: string
       developer_handle:
         type: string
       developer_id:
+        type: string
+      entity_url:
         type: string
       fqan:
         type: string
@@ -727,7 +779,7 @@ info:
     name: Agent DNS
     url: https://github.com/agentdns/agent-dns
   description: Decentralized Agent Registry Network — register, discover, and resolve
-    AI agents across a federated mesh.
+    AI entities across a federated mesh.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -795,218 +847,9 @@ paths:
       summary: Approve developer registration
       tags:
       - Admin
-  /v1/agents:
-    post:
-      consumes:
-      - application/json
-      description: Register a new AI agent on the registry network. Requires name,
-        agent_url, category, and public_key. Optionally includes developer_id and
-        developer_proof for developer chain of trust.
-      parameters:
-      - description: Agent registration payload
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/models.RegistrationRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: agent_id and success message
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Validation error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Invalid signature
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "409":
-          description: Agent already registered
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Register a new agent
-      tags:
-      - Agents
-  /v1/agents/{agentID}:
-    delete:
-      description: Deregister an agent from the registry. Creates a tombstone that
-        propagates via gossip.
-      parameters:
-      - description: Agent ID
-        in: path
-        name: agentID
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Deregistration confirmation
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Missing agent_id
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Agent not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Delete an agent
-      tags:
-      - Agents
-    get:
-      description: Retrieve a registry record for a specific agent by its agent_id.
-      parameters:
-      - description: Agent ID (e.g. agdns:7f3a9c2e...)
-        in: path
-        name: agentID
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Agent registry record
-          schema:
-            $ref: '#/definitions/models.RegistryRecord'
-        "400":
-          description: Missing agent_id
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Agent not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Get agent by ID
-      tags:
-      - Agents
-    put:
-      consumes:
-      - application/json
-      description: Update fields on an existing agent registry record. Only provided
-        fields are changed.
-      parameters:
-      - description: Agent ID
-        in: path
-        name: agentID
-        required: true
-        type: string
-      - description: Fields to update
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/models.UpdateRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Updated agent record
-          schema:
-            $ref: '#/definitions/models.RegistryRecord'
-        "400":
-          description: Invalid request body
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Agent not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Update an agent
-      tags:
-      - Agents
-  /v1/agents/{agentID}/card:
-    get:
-      description: Fetch the live Agent Card from the agent's endpoint. The card contains
-        capabilities, pricing, status, and more.
-      parameters:
-      - description: Agent ID
-        in: path
-        name: agentID
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Agent card
-          schema:
-            $ref: '#/definitions/models.AgentCard'
-        "400":
-          description: Missing agent_id
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Agent not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "502":
-          description: Failed to fetch agent card from remote
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Get agent card
-      tags:
-      - Agents
   /v1/categories:
     get:
-      description: Get all agent categories currently registered in the system.
+      description: Get all entity categories currently registered in the system.
       produces:
       - application/json
       responses:
@@ -1214,10 +1057,9 @@ paths:
       summary: Update developer profile
       tags:
       - Developers
-  /v1/developers/{developerID}/agents:
+  /v1/developers/{developerID}/entities:
     get:
-      description: Retrieve all agents registered by a given developer_id, including
-        developer_id, agents array, and count.
+      description: 'Retrieve all entities registered by a developer. Alias: GET /v1/developers/{id}/agents.'
       parameters:
       - description: Developer ID
         in: path
@@ -1228,7 +1070,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: developer_id, agents, and count
+          description: developer_id, entities, and count
           schema:
             additionalProperties: true
             type: object
@@ -1244,9 +1086,255 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: List agents by developer
+      summary: List entities by developer
       tags:
       - Developers
+  /v1/entities:
+    get:
+      description: List all registered entities. Filter by type (agent, service) and
+        category. Supports pagination.
+      parameters:
+      - description: 'Filter by type: agent, service (default: all)'
+        in: query
+        name: type
+        type: string
+      - description: Filter by category
+        in: query
+        name: category
+        type: string
+      - description: Max results (default 50)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of entities
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List entities
+      tags:
+      - Entities
+    post:
+      consumes:
+      - application/json
+      description: 'Register an entity. Set type to "service" for services (entity_url
+        not required). Alias: POST /v1/agents, POST /v1/services.'
+      parameters:
+      - description: Entity registration payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.RegistrationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: agent_id and success message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Validation error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid signature
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Entity already registered
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new entity
+      tags:
+      - Entities
+  /v1/entities/{entityID}:
+    delete:
+      description: 'Deregister an entity. Creates a tombstone that propagates via
+        gossip. Alias: DELETE /v1/agents/{id}.'
+      parameters:
+      - description: Entity ID
+        in: path
+        name: entityID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Deregistration confirmation
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Missing ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Entity not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete an entity
+      tags:
+      - Entities
+    get:
+      description: 'Retrieve a registry record for a specific entity. Alias: GET /v1/agents/{id},
+        GET /v1/services/{id}.'
+      parameters:
+      - description: Entity ID (e.g. zns:7f3a9c2e... or zns:svc:7f3a9c2e...)
+        in: path
+        name: entityID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Entity registry record
+          schema:
+            $ref: '#/definitions/models.RegistryRecord'
+        "400":
+          description: Missing ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Entity not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get entity by ID
+      tags:
+      - Entities
+    put:
+      consumes:
+      - application/json
+      description: 'Update fields on an existing entity. Only provided fields are
+        changed. Alias: PUT /v1/agents/{id}.'
+      parameters:
+      - description: Entity ID
+        in: path
+        name: entityID
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated entity record
+          schema:
+            $ref: '#/definitions/models.RegistryRecord'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Entity not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update an entity
+      tags:
+      - Entities
+  /v1/entities/{entityID}/card:
+    get:
+      description: 'Fetch the live card from the entity''s endpoint. Contains capabilities,
+        pricing, status, and more. Alias: GET /v1/agents/{id}/card.'
+      parameters:
+      - description: Entity ID
+        in: path
+        name: entityID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Entity card
+          schema:
+            $ref: '#/definitions/models.AgentCard'
+        "400":
+          description: Missing ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Entity not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Failed to fetch card from remote
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get entity card
+      tags:
+      - Entities
   /v1/handles:
     post:
       consumes:
@@ -1391,40 +1479,6 @@ paths:
       summary: Get developer by handle
       tags:
       - Handles
-  /v1/handles/{handle}/agents:
-    get:
-      description: List all ZNS name bindings (agent names) registered under a given
-        developer handle.
-      parameters:
-      - description: ZNS developer handle
-        in: path
-        name: handle
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: List of ZNS name bindings
-          schema:
-            items:
-              $ref: '#/definitions/models.ZNSName'
-            type: array
-        "400":
-          description: Missing handle
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: List agents for a handle
-      tags:
-      - Handles
   /v1/handles/{handle}/available:
     get:
       description: Check whether a ZNS handle is available on this registry. Returns
@@ -1456,6 +1510,40 @@ paths:
               type: string
             type: object
       summary: Check handle availability
+      tags:
+      - Handles
+  /v1/handles/{handle}/entities:
+    get:
+      description: List all ZNS name bindings (entity names) registered under a given
+        developer handle.
+      parameters:
+      - description: ZNS developer handle
+        in: path
+        name: handle
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of ZNS name bindings
+          schema:
+            items:
+              $ref: '#/definitions/models.ZNSName'
+            type: array
+        "400":
+          description: Missing handle
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List entities for a handle
       tags:
       - Handles
   /v1/handles/{handle}/verify:
@@ -1510,8 +1598,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Register a ZNS agent name binding, creating a Fully Qualified Agent
-        Name (FQAN) under a developer handle.
+      description: Register a ZNS entity name binding, creating a Fully Qualified
+        Agent Name (FQAN) under a developer handle.
       parameters:
       - description: Name binding payload
         in: body
@@ -1541,7 +1629,7 @@ paths:
               type: string
             type: object
         "404":
-          description: Developer handle or agent not found
+          description: Developer handle or entity not found
           schema:
             additionalProperties:
               type: string
@@ -1558,12 +1646,12 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: Register an agent name
+      summary: Register an entity name
       tags:
       - Names
-  /v1/names/{developer}/{agent}:
+  /v1/names/{developer}/{entity}:
     delete:
-      description: Release a ZNS agent name binding. Requires Authorization header
+      description: Release a ZNS entity name binding. Requires Authorization header
         with Bearer ed25519 signature.
       parameters:
       - description: Developer handle
@@ -1571,9 +1659,9 @@ paths:
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       - description: Bearer ed25519:<base64sig>
@@ -1612,7 +1700,7 @@ paths:
       tags:
       - Names
     get:
-      description: Retrieve a ZNS name binding record by developer handle and agent
+      description: Retrieve a ZNS name binding record by developer handle and entity
         name path parameters.
       parameters:
       - description: Developer handle
@@ -1620,9 +1708,9 @@ paths:
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       produces:
@@ -1656,7 +1744,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: Update the version and/or capability_tags of an existing ZNS agent
+      description: Update the version and/or capability_tags of an existing ZNS entity
         name binding.
       parameters:
       - description: Developer handle
@@ -1664,9 +1752,9 @@ paths:
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       - description: Fields to update (version, capability_tags, signature)
@@ -1703,9 +1791,9 @@ paths:
       summary: Update name binding
       tags:
       - Names
-  /v1/names/{developer}/{agent}/available:
+  /v1/names/{developer}/{entity}/available:
     get:
-      description: Check whether a ZNS agent name is available under a given developer
+      description: Check whether a ZNS entity name is available under a given developer
         handle.
       parameters:
       - description: Developer handle
@@ -1713,9 +1801,9 @@ paths:
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       produces:
@@ -1741,18 +1829,18 @@ paths:
       summary: Check name availability
       tags:
       - Names
-  /v1/names/{developer}/{agent}/versions:
+  /v1/names/{developer}/{entity}/versions:
     get:
-      description: Retrieve the full version history for a ZNS agent name binding.
+      description: Retrieve the full version history for a ZNS entity name binding.
       parameters:
       - description: Developer handle
         in: path
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       produces:
@@ -1829,7 +1917,7 @@ paths:
   /v1/network/stats:
     get:
       description: Returns estimated global network statistics including registry
-        and agent counts.
+        and entity counts.
       produces:
       - application/json
       responses:
@@ -1843,7 +1931,7 @@ paths:
   /v1/network/status:
     get:
       description: Returns the current registry node's identity, uptime, peer count,
-        and agent statistics.
+        and entity statistics.
       produces:
       - application/json
       responses:
@@ -1854,26 +1942,26 @@ paths:
       summary: Get node status
       tags:
       - Network
-  /v1/resolve/{developer}/{agent}:
+  /v1/resolve/{developer}/{entity}:
     get:
-      description: Resolve a Fully Qualified Agent Name (FQAN) to its agent details,
-        including agent_url, public_key, and trust information.
+      description: Resolve a Fully Qualified Agent Name (FQAN) to its entity details,
+        including entity_url, public_key, and trust information.
       parameters:
       - description: Developer handle
         in: path
         name: developer
         required: true
         type: string
-      - description: Agent name
+      - description: Entity name
         in: path
-        name: agent
+        name: entity
         required: true
         type: string
       produces:
       - application/json
       responses:
         "200":
-          description: Resolved agent details
+          description: Resolved entity details
           schema:
             $ref: '#/definitions/models.ZNSResolveResponse'
         "400":
@@ -1901,7 +1989,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Search the registry for agents by natural language query, with
+      description: Search the registry for entities by natural language query, with
         optional category/tag/trust filters.
       parameters:
       - description: Search query and filters
@@ -1929,12 +2017,12 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: Search for agents
+      summary: Search for entities
       tags:
       - Search
   /v1/tags:
     get:
-      description: Get all agent tags currently in use across registered agents.
+      description: Get all entity tags currently in use across registered entities.
       produces:
       - application/json
       responses:

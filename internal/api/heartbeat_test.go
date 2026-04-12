@@ -103,12 +103,12 @@ func registerTestAgent(t *testing.T, st store.Store, kp *identity.Keypair, suffi
 		AgentID:      agentID,
 		Name:         "HeartbeatTestAgent-" + suffix,
 		Owner:        "did:key:test",
-		AgentURL:     "https://example.com/agent.json",
+		EntityURL:     "https://example.com/agent.json",
 		Category:     "tools",
 		Tags:         []string{},
 		Summary:      "Test agent for heartbeat",
 		PublicKey:    kp.PublicKeyString(),
-		HomeRegistry: "agdns:registry:test",
+		HomeRegistry: "zns:registry:test",
 		RegisteredAt: time.Now().UTC().Format(time.RFC3339),
 		UpdatedAt:    time.Now().UTC().Format(time.RFC3339),
 		TTL:          86400,
@@ -253,7 +253,7 @@ func TestHeartbeat_AgentNotFound(t *testing.T) {
 	defer ts.Close()
 
 	// Try to connect for a non-existent agent — should get 404
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/agents/agdns:nonexistent/ws"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/agents/zns:nonexistent/ws"
 	_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
 		t.Fatal("expected error connecting for non-existent agent")

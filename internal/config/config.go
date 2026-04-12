@@ -129,7 +129,7 @@ type RedisConfig struct {
 	URL      string `toml:"url"`      // redis://localhost:6379/0
 	Password string `toml:"password"` // optional auth password
 	DB       int    `toml:"db"`       // database number (default 0)
-	Prefix   string `toml:"prefix"`   // key prefix (default "agdns:")
+	Prefix   string `toml:"prefix"`   // key prefix (default "zns:")
 }
 
 // TrustConfig tunes the trust/reputation system.
