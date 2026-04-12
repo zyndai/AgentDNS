@@ -1,0 +1,21 @@
+[node]
+name = "registry-a"
+type = "full"
+data_dir = "/root/.zynd/data"
+
+[registry]
+postgres_url = "postgres://agentdns:agentdns@postgres:5432/agentdns?sslmode=disable"
+
+[redis]
+url = "redis://redis:6379/0"
+
+[search]
+embedding_backend = "hash"
+
+[api]
+listen = "0.0.0.0:8080"
+cors_origins = ["*"]
+
+[onboarding]
+mode = "restricted"
+webhook_secret = "9fb7f197-b4dd-4171-a5f7-54a74a6a465f"
