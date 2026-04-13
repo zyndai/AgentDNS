@@ -17,9 +17,6 @@ import (
 func (s *Server) handleAgentHeartbeat(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("entityID")
 	if agentID == "" {
-		agentID = r.PathValue("agentID") // fallback for /v1/agents/{agentID}/ws alias
-	}
-	if agentID == "" {
 		writeError(w, http.StatusBadRequest, "entity_id is required")
 		return
 	}

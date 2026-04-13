@@ -136,14 +136,14 @@ func (s *Server) Handler() http.Handler {
 
 	// Aliases: /v1/agents and /v1/services point to the same entity handlers
 	mux.HandleFunc("POST /v1/agents", rateLimited(registerRL, s.handleRegisterAgent))
-	mux.HandleFunc("GET /v1/agents/{agentID}", s.handleGetAgent)
-	mux.HandleFunc("PUT /v1/agents/{agentID}", s.handleUpdateAgent)
-	mux.HandleFunc("DELETE /v1/agents/{agentID}", s.handleDeleteAgent)
-	mux.HandleFunc("GET /v1/agents/{agentID}/card", s.handleGetAgentCard)
-	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
+	mux.HandleFunc("GET /v1/agents/{entityID}", s.handleGetAgent)
+	mux.HandleFunc("PUT /v1/agents/{entityID}", s.handleUpdateAgent)
+	mux.HandleFunc("DELETE /v1/agents/{entityID}", s.handleDeleteAgent)
+	mux.HandleFunc("GET /v1/agents/{entityID}/card", s.handleGetAgentCard)
+	mux.HandleFunc("GET /v1/agents/{entityID}/ws", s.handleAgentHeartbeat)
 	// Service registration alias (same handler, entity_type defaults to "agent" if not set)
 	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterAgent))
-	mux.HandleFunc("GET /v1/services/{agentID}", s.handleGetAgent)
+	mux.HandleFunc("GET /v1/services/{entityID}", s.handleGetAgent)
 
 	// Search
 	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))
@@ -1071,9 +1071,9 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 //	@Failure		500		{object}	map[string]string	"Internal server error"
 //	@Router			/v1/entities/{agentID} [delete]
 func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
-	agentID := r.PathValue("agentID")
+	agentID := r.PathValue("entityID")
 	if agentID == "" {
-		writeError(w, http.StatusBadRequest, "agent_id is required")
+		writeError(w, http.StatusBadRequest, "entity_id is required")
 		return
 	}
 
