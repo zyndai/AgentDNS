@@ -15,9 +15,12 @@ import (
 // handleAgentHeartbeat upgrades to a WebSocket and accepts signed heartbeat
 // messages from an agent to prove liveness.
 func (s *Server) handleAgentHeartbeat(w http.ResponseWriter, r *http.Request) {
-	agentID := r.PathValue("agentID")
+	agentID := r.PathValue("entityID")
 	if agentID == "" {
-		writeError(w, http.StatusBadRequest, "agent_id is required")
+		agentID = r.PathValue("agentID") // fallback for /v1/agents/{agentID}/ws alias
+	}
+	if agentID == "" {
+		writeError(w, http.StatusBadRequest, "entity_id is required")
 		return
 	}
 
