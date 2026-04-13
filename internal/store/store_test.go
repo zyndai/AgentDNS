@@ -25,8 +25,8 @@ func newTestStore(t *testing.T) Store {
 	}
 
 	// Clean tables before each test
-	s.pool.Exec(t.Context(), "DELETE FROM agents")
-	s.pool.Exec(t.Context(), "DELETE FROM gossip_entries")
+	s.pool.Exec(t.Context(), "DELETE FROM entities")
+	s.pool.Exec(t.Context(), "DELETE FROM gossip_entities")
 	s.pool.Exec(t.Context(), "DELETE FROM tombstones")
 	s.pool.Exec(t.Context(), "DELETE FROM node_meta")
 

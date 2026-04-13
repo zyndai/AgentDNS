@@ -60,7 +60,7 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 // migrate creates the database schema.
 func (s *PostgresStore) migrate() error {
 	schema := `
-	CREATE TABLE IF NOT EXISTS agents (
+	CREATE TABLE IF NOT EXISTS entities (
 		agent_id      TEXT PRIMARY KEY,
 		name          TEXT NOT NULL,
 		owner         TEXT NOT NULL,
@@ -77,13 +77,13 @@ func (s *PostgresStore) migrate() error {
 		codebase_hash TEXT NOT NULL DEFAULT ''
 	);
 
-	CREATE INDEX IF NOT EXISTS idx_agents_category ON agents(category);
-	CREATE INDEX IF NOT EXISTS idx_agents_name ON agents(name);
-	CREATE INDEX IF NOT EXISTS idx_agents_owner ON agents(owner);
-	CREATE INDEX IF NOT EXISTS idx_agents_updated_at ON agents(updated_at DESC);
-	CREATE INDEX IF NOT EXISTS idx_agents_tags ON agents USING GIN(tags);
+	CREATE INDEX IF NOT EXISTS idx_entities_category ON entities(category);
+	CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(name);
+	CREATE INDEX IF NOT EXISTS idx_entities_owner ON entities(owner);
+	CREATE INDEX IF NOT EXISTS idx_entities_updated_at ON entities(updated_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_entities_tags ON entitiesUSING GIN(tags);
 
-	CREATE TABLE IF NOT EXISTS gossip_entries (
+	CREATE TABLE IF NOT EXISTS gossip_entities (
 		agent_id      TEXT PRIMARY KEY,
 		name          TEXT NOT NULL,
 		category      TEXT NOT NULL,
@@ -96,8 +96,8 @@ func (s *PostgresStore) migrate() error {
 		tombstone_at  TIMESTAMPTZ
 	);
 
-	CREATE INDEX IF NOT EXISTS idx_gossip_category ON gossip_entries(category);
-	CREATE INDEX IF NOT EXISTS idx_gossip_tombstoned ON gossip_entries(tombstoned);
+	CREATE INDEX IF NOT EXISTS idx_gossip_category ON gossip_entities(category);
+	CREATE INDEX IF NOT EXISTS idx_gossip_tombstoned ON gossip_entities(tombstoned);
 
 	CREATE TABLE IF NOT EXISTS tombstones (
 		agent_id   TEXT PRIMARY KEY,
@@ -128,10 +128,10 @@ func (s *PostgresStore) migrate() error {
 	);
 
 	-- Schema evolution: add schema_version column if not present
-	ALTER TABLE agents ADD COLUMN IF NOT EXISTS schema_version TEXT NOT NULL DEFAULT '1.0';
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS schema_version TEXT NOT NULL DEFAULT '1.0';
 
 	-- Schema evolution: add codebase_hash column if not present
-	ALTER TABLE agents ADD COLUMN IF NOT EXISTS codebase_hash TEXT NOT NULL DEFAULT '';
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS codebase_hash TEXT NOT NULL DEFAULT '';
 
 	-- Developer identity table
 	CREATE TABLE IF NOT EXISTS developers (
@@ -151,16 +151,16 @@ func (s *PostgresStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_developers_name ON developers(name);
 
 	-- Developer fields on agents table
-	ALTER TABLE agents ADD COLUMN IF NOT EXISTS developer_id TEXT;
-	ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_index INTEGER;
-	ALTER TABLE agents ADD COLUMN IF NOT EXISTS developer_proof JSONB;
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS developer_id TEXT;
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS agent_index INTEGER;
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS developer_proof JSONB;
 
-	CREATE INDEX IF NOT EXISTS idx_agents_developer_id ON agents(developer_id);
+	CREATE INDEX IF NOT EXISTS idx_entities_developer_id ON entities(developer_id);
 
-	-- Developer fields on gossip_entries table
-	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS developer_id TEXT;
-	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS developer_public_key TEXT;
-	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS developer_proof JSONB;
+	-- Developer fields on gossip_entities table
+	ALTER TABLE gossip_entities ADD COLUMN IF NOT EXISTS developer_id TEXT;
+	ALTER TABLE gossip_entities ADD COLUMN IF NOT EXISTS developer_public_key TEXT;
+	ALTER TABLE gossip_entities ADD COLUMN IF NOT EXISTS developer_proof JSONB;
 
 	-- Gossip developer entries table
 	CREATE TABLE IF NOT EXISTS gossip_developers (
@@ -178,15 +178,15 @@ func (s *PostgresStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_gossip_developers_public_key ON gossip_developers(public_key);
 
 	-- Agent heartbeat liveness
-	ALTER TABLE agents ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
-	ALTER TABLE agents ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMPTZ;
-	CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
-	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'inactive';
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMPTZ;
+	CREATE INDEX IF NOT EXISTS idx_entities_status ON entities(status);
+	ALTER TABLE gossip_entities ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'inactive';
 
 	-- Origin registry public key pinning for gossip authorization
-	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS origin_public_key TEXT;
+	ALTER TABLE gossip_entities ADD COLUMN IF NOT EXISTS origin_public_key TEXT;
 
-	CREATE INDEX IF NOT EXISTS idx_gossip_entries_status ON gossip_entries(status);
+	CREATE INDEX IF NOT EXISTS idx_gossip_entities_status ON gossip_entities(status);
 
 	-- ============================================================
 	-- ZNS (Zynd Naming Service) schema extensions
@@ -212,7 +212,7 @@ func (s *PostgresStore) migrate() error {
 		agent_name       TEXT NOT NULL,
 		developer_handle TEXT NOT NULL,
 		registry_host    TEXT NOT NULL,
-		agent_id         TEXT NOT NULL REFERENCES agents(agent_id),
+		agent_id         TEXT NOT NULL REFERENCES entities(agent_id),
 		developer_id     TEXT NOT NULL,
 		current_version  TEXT,
 		capability_tags  TEXT[] DEFAULT '{}',
@@ -275,17 +275,17 @@ func (s *PostgresStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_attestations_subject ON peer_attestations(subject_id);
 
 	-- Services Directory schema extensions
-	ALTER TABLE agents ADD COLUMN IF NOT EXISTS entity_type TEXT NOT NULL DEFAULT 'agent';
-	ALTER TABLE agents ADD COLUMN IF NOT EXISTS service_endpoint TEXT NOT NULL DEFAULT '';
-	ALTER TABLE agents ADD COLUMN IF NOT EXISTS openapi_url TEXT NOT NULL DEFAULT '';
-	ALTER TABLE agents ADD COLUMN IF NOT EXISTS entity_pricing JSONB;
-	CREATE INDEX IF NOT EXISTS idx_agents_entity_type ON agents(entity_type);
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS entity_type TEXT NOT NULL DEFAULT 'agent';
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS service_endpoint TEXT NOT NULL DEFAULT '';
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS openapi_url TEXT NOT NULL DEFAULT '';
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS entity_pricing JSONB;
+	CREATE INDEX IF NOT EXISTS idx_entities_entity_type ON entities(entity_type);
 
-	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS entity_type TEXT NOT NULL DEFAULT 'agent';
-	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS service_endpoint TEXT NOT NULL DEFAULT '';
-	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS openapi_url TEXT NOT NULL DEFAULT '';
-	ALTER TABLE gossip_entries ADD COLUMN IF NOT EXISTS entity_pricing JSONB;
-	CREATE INDEX IF NOT EXISTS idx_gossip_entity_type ON gossip_entries(entity_type);
+	ALTER TABLE gossip_entities ADD COLUMN IF NOT EXISTS entity_type TEXT NOT NULL DEFAULT 'agent';
+	ALTER TABLE gossip_entities ADD COLUMN IF NOT EXISTS service_endpoint TEXT NOT NULL DEFAULT '';
+	ALTER TABLE gossip_entities ADD COLUMN IF NOT EXISTS openapi_url TEXT NOT NULL DEFAULT '';
+	ALTER TABLE gossip_entities ADD COLUMN IF NOT EXISTS entity_pricing JSONB;
+	CREATE INDEX IF NOT EXISTS idx_gossip_entity_type ON gossip_entities(entity_type);
 	`
 
 	_, err := s.pool.Exec(context.Background(), schema)
@@ -330,7 +330,7 @@ func (s *PostgresStore) CreateAgent(agent *models.RegistryRecord) error {
 	}
 
 	_, err = s.pool.Exec(context.Background(), `
-		INSERT INTO agents (agent_id, name, owner, agent_url, category, tags, summary,
+		INSERT INTO entities (agent_id, name, owner, agent_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
 			developer_id, agent_index, developer_proof, last_heartbeat,
 			entity_type, service_endpoint, openapi_url, entity_pricing)
@@ -355,7 +355,7 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 			developer_id, agent_index, developer_proof,
 			status, last_heartbeat,
 			entity_type, service_endpoint, openapi_url, entity_pricing
-		FROM agents WHERE agent_id = $1`, agentID)
+		FROM entities WHERE agent_id = $1`, agentID)
 
 	agent := &models.RegistryRecord{}
 	var tagsJSON []byte
@@ -436,7 +436,7 @@ func (s *PostgresStore) UpdateAgent(agent *models.RegistryRecord) error {
 	}
 
 	ct, err := s.pool.Exec(context.Background(), `
-		UPDATE agents SET name=$1, agent_url=$2, category=$3, tags=$4, summary=$5,
+		UPDATE entities SET name=$1, agent_url=$2, category=$3, tags=$4, summary=$5,
 			updated_at=$6, ttl=$7, signature=$8, schema_version=$9, codebase_hash=$10,
 			entity_type=$11, service_endpoint=$12, openapi_url=$13, entity_pricing=$14
 		WHERE agent_id = $15 AND owner = $16`,
@@ -458,7 +458,7 @@ func (s *PostgresStore) UpdateAgent(agent *models.RegistryRecord) error {
 
 func (s *PostgresStore) DeleteAgent(agentID string, owner string) error {
 	ct, err := s.pool.Exec(context.Background(),
-		`DELETE FROM agents WHERE agent_id = $1 AND owner = $2`, agentID, owner)
+		`DELETE FROM entities WHERE agent_id = $1 AND owner = $2`, agentID, owner)
 	if err != nil {
 		return fmt.Errorf("failed to delete agent: %w", err)
 	}
@@ -480,7 +480,7 @@ func (s *PostgresStore) ListAgents(category string, limit, offset int) ([]*model
 				developer_id, agent_index, developer_proof,
 				status, last_heartbeat,
 				entity_type, service_endpoint, openapi_url, entity_pricing
-			FROM agents WHERE category = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`
+			FROM entities WHERE category = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`
 		args = []interface{}{category, limit, offset}
 	} else {
 		query = `
@@ -489,7 +489,7 @@ func (s *PostgresStore) ListAgents(category string, limit, offset int) ([]*model
 				developer_id, agent_index, developer_proof,
 				status, last_heartbeat,
 				entity_type, service_endpoint, openapi_url, entity_pricing
-			FROM agents ORDER BY updated_at DESC LIMIT $1 OFFSET $2`
+			FROM entities ORDER BY updated_at DESC LIMIT $1 OFFSET $2`
 		args = []interface{}{limit, offset}
 	}
 
@@ -504,7 +504,7 @@ func (s *PostgresStore) ListAgents(category string, limit, offset int) ([]*model
 
 func (s *PostgresStore) CountAgents() (int, error) {
 	var count int
-	err := s.pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM agents").Scan(&count)
+	err := s.pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM entities").Scan(&count)
 	return count, err
 }
 
@@ -517,7 +517,7 @@ func (s *PostgresStore) SearchAgentsByKeyword(query string, category string, tag
 			developer_id, agent_index, developer_proof,
 			status, last_heartbeat,
 			entity_type, service_endpoint, openapi_url, entity_pricing
-		FROM agents
+		FROM entities
 		WHERE (LOWER(name) LIKE $1 OR LOWER(summary) LIKE $1 OR tags::text ILIKE $1)`
 
 	args := []interface{}{likeQuery}
@@ -556,7 +556,7 @@ func (s *PostgresStore) GetGossipEntry(agentID string) (*models.GossipEntry, err
 		SELECT agent_id, name, category, tags, summary, home_registry, agent_url,
 			received_at, tombstoned, status, origin_public_key,
 			entity_type, service_endpoint, openapi_url, entity_pricing
-		FROM gossip_entries WHERE agent_id = $1`, agentID)
+		FROM gossip_entities WHERE agent_id = $1`, agentID)
 
 	entry := &models.GossipEntry{}
 	var tagsJSON []byte
@@ -629,7 +629,7 @@ func (s *PostgresStore) UpsertGossipEntry(entry *models.GossipEntry) error {
 	}
 
 	_, err = s.pool.Exec(context.Background(), `
-		INSERT INTO gossip_entries (agent_id, name, category, tags, summary,
+		INSERT INTO gossip_entities (agent_id, name, category, tags, summary,
 			home_registry, agent_url, received_at, tombstoned,
 			developer_id, developer_public_key, developer_proof,
 			origin_public_key, status,
@@ -642,7 +642,7 @@ func (s *PostgresStore) UpsertGossipEntry(entry *models.GossipEntry) error {
 			received_at=EXCLUDED.received_at,
 			developer_id=EXCLUDED.developer_id, developer_public_key=EXCLUDED.developer_public_key,
 			developer_proof=EXCLUDED.developer_proof,
-			origin_public_key=COALESCE(gossip_entries.origin_public_key, EXCLUDED.origin_public_key),
+			origin_public_key=COALESCE(gossip_entities.origin_public_key, EXCLUDED.origin_public_key),
 			status=EXCLUDED.status,
 			entity_type=EXCLUDED.entity_type, service_endpoint=EXCLUDED.service_endpoint,
 			openapi_url=EXCLUDED.openapi_url, entity_pricing=EXCLUDED.entity_pricing`,
@@ -664,7 +664,7 @@ func (s *PostgresStore) SearchGossipByKeyword(query string, category string, tag
 	baseQuery := `
 		SELECT agent_id, name, category, tags, summary, home_registry, agent_url, received_at, tombstoned, status,
 			entity_type, service_endpoint, openapi_url, entity_pricing
-		FROM gossip_entries
+		FROM gossip_entities
 		WHERE tombstoned = FALSE AND (LOWER(name) LIKE $1 OR LOWER(summary) LIKE $1 OR tags::text ILIKE $1)`
 
 	args := []interface{}{likeQuery}
@@ -732,7 +732,7 @@ func (s *PostgresStore) SearchGossipByKeyword(query string, category string, tag
 
 func (s *PostgresStore) TombstoneGossipEntry(agentID string) error {
 	_, err := s.pool.Exec(context.Background(), `
-		UPDATE gossip_entries SET tombstoned = TRUE, tombstone_at = $1 WHERE agent_id = $2`,
+		UPDATE gossip_entities SET tombstoned = TRUE, tombstone_at = $1 WHERE agent_id = $2`,
 		time.Now().UTC(), agentID)
 	return err
 }
@@ -740,7 +740,7 @@ func (s *PostgresStore) TombstoneGossipEntry(agentID string) error {
 func (s *PostgresStore) CountGossipEntries() (int, error) {
 	var count int
 	err := s.pool.QueryRow(context.Background(),
-		"SELECT COUNT(*) FROM gossip_entries WHERE tombstoned = FALSE").Scan(&count)
+		"SELECT COUNT(*) FROM gossip_entities WHERE tombstoned = FALSE").Scan(&count)
 	return count, err
 }
 
@@ -768,7 +768,7 @@ func (s *PostgresStore) CleanExpiredTombstones() (int, error) {
 
 	// Also clean tombstoned gossip entries
 	s.pool.Exec(context.Background(),
-		"DELETE FROM gossip_entries WHERE tombstoned = TRUE AND tombstone_at < $1", now)
+		"DELETE FROM gossip_entities WHERE tombstoned = TRUE AND tombstone_at < $1", now)
 
 	return int(ct.RowsAffected()), nil
 }
@@ -941,7 +941,7 @@ func (s *PostgresStore) ListAgentsByDeveloper(developerID string, limit, offset 
 			developer_id, agent_index, developer_proof,
 			status, last_heartbeat,
 			entity_type, service_endpoint, openapi_url, entity_pricing
-		FROM agents WHERE developer_id = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`,
+		FROM entities WHERE developer_id = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`,
 		developerID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list agents by developer: %w", err)
@@ -1001,7 +1001,7 @@ func (s *PostgresStore) TombstoneGossipDeveloper(developerID string) error {
 
 func (s *PostgresStore) UpdateAgentHeartbeat(agentID string) error {
 	ct, err := s.pool.Exec(context.Background(),
-		`UPDATE agents SET last_heartbeat = NOW(), status = 'active' WHERE agent_id = $1`, agentID)
+		`UPDATE entities SET last_heartbeat = NOW(), status = 'active' WHERE agent_id = $1`, agentID)
 	if err != nil {
 		return fmt.Errorf("failed to update agent heartbeat: %w", err)
 	}
@@ -1014,7 +1014,7 @@ func (s *PostgresStore) UpdateAgentHeartbeat(agentID string) error {
 func (s *PostgresStore) MarkInactiveAgents(threshold time.Duration) ([]string, error) {
 	cutoff := time.Now().UTC().Add(-threshold)
 	rows, err := s.pool.Query(context.Background(), `
-		UPDATE agents SET status = 'inactive'
+		UPDATE entities SET status = 'inactive'
 		WHERE status = 'active' AND type != 'service'
 		AND (last_heartbeat IS NULL OR last_heartbeat < $1)
 		RETURNING agent_id`, cutoff)
@@ -1036,7 +1036,7 @@ func (s *PostgresStore) MarkInactiveAgents(threshold time.Duration) ([]string, e
 
 func (s *PostgresStore) UpdateGossipEntryStatus(agentID, status string) error {
 	_, err := s.pool.Exec(context.Background(),
-		`UPDATE gossip_entries SET status = $1 WHERE agent_id = $2`, status, agentID)
+		`UPDATE gossip_entities SET status = $1 WHERE agent_id = $2`, status, agentID)
 	if err != nil {
 		return fmt.Errorf("failed to update gossip entry status: %w", err)
 	}
@@ -1125,7 +1125,7 @@ func scanAgentRows(rows pgx.Rows) ([]*models.RegistryRecord, error) {
 
 func (s *PostgresStore) GetAllTags() ([]string, error) {
 	rows, err := s.pool.Query(context.Background(),
-		"SELECT DISTINCT jsonb_array_elements_text(tags) AS tag FROM agents ORDER BY tag")
+		"SELECT DISTINCT jsonb_array_elements_text(tags) AS tag FROM entities ORDER BY tag")
 	if err != nil {
 		return nil, err
 	}
@@ -1144,7 +1144,7 @@ func (s *PostgresStore) GetAllTags() ([]string, error) {
 
 func (s *PostgresStore) GetAllCategories() ([]string, error) {
 	rows, err := s.pool.Query(context.Background(),
-		"SELECT DISTINCT category FROM agents ORDER BY category")
+		"SELECT DISTINCT category FROM entities ORDER BY category")
 	if err != nil {
 		return nil, err
 	}

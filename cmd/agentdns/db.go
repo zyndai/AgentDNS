@@ -63,9 +63,9 @@ func cmdDBReset() {
 		"registry_identity_proofs",
 		"attestations",
 		"tombstones",
-		"gossip_entries",
+		"gossip_entities",
 		"gossip_developers",
-		"agents",
+		"entities",
 		"developers",
 		"node_meta",
 	}
