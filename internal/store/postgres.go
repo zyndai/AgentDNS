@@ -81,7 +81,7 @@ func (s *PostgresStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(name);
 	CREATE INDEX IF NOT EXISTS idx_entities_owner ON entities(owner);
 	CREATE INDEX IF NOT EXISTS idx_entities_updated_at ON entities(updated_at DESC);
-	CREATE INDEX IF NOT EXISTS idx_entities_tags ON entitiesUSING GIN(tags);
+	CREATE INDEX IF NOT EXISTS idx_entities_tags ON entities USING GIN(tags);
 
 	CREATE TABLE IF NOT EXISTS gossip_entities (
 		agent_id      TEXT PRIMARY KEY,
