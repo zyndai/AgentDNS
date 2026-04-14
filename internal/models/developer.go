@@ -4,7 +4,6 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 )
 
@@ -87,11 +86,12 @@ func GenerateDeveloperID(publicKey ed25519.PublicKey) string {
 }
 
 // SignableBytes returns the canonical JSON bytes of the developer record for signing,
-// excluding the signature field itself.
+// excluding the signature field itself. Routed through CanonicalJSON so the
+// output matches the Python SDK's canonical form (see canonical.go).
 func (d *DeveloperRecord) SignableBytes() ([]byte, error) {
 	rec := *d
 	rec.Signature = ""
-	return json.Marshal(rec)
+	return CanonicalJSON(rec)
 }
 
 // Validate performs basic validation of a DeveloperRecord.

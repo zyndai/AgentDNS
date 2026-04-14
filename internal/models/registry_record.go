@@ -5,7 +5,6 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -125,14 +124,16 @@ func GenerateRegistryID(publicKey ed25519.PublicKey) string {
 }
 
 // SignableBytes returns the canonical JSON bytes of the record for signing,
-// excluding the signature field itself.
+// excluding the signature field itself. Must go through CanonicalJSON
+// (not json.Marshal) so the byte sequence matches what the Python SDK
+// produces — see canonical.go for the interop rules.
 func (r *RegistryRecord) SignableBytes() ([]byte, error) {
 	// Create a copy without signature and server-managed fields
 	rec := *r
 	rec.Signature = ""
 	rec.Status = ""
 	rec.LastHeartbeat = ""
-	return json.Marshal(rec)
+	return CanonicalJSON(rec)
 }
 
 // Validate performs basic validation of a RegistryRecord.

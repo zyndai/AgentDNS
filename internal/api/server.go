@@ -688,7 +688,13 @@ func (s *Server) handleRegisterEntity(w http.ResponseWriter, r *http.Request) {
 	if req.EntityType != "" {
 		signableMap["entity_type"] = req.EntityType
 	}
-	signable, _ := json.Marshal(signableMap)
+	// Use canonical JSON (HTML escaping disabled) so the byte sequence
+	// matches what the Python SDK signs — see internal/models/canonical.go.
+	signable, err := models.CanonicalJSON(signableMap)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to canonicalize signable payload")
+		return
+	}
 	valid, err := identity.Verify(pubKeyStr, signable, req.Signature)
 	if err != nil || !valid {
 		writeError(w, http.StatusUnauthorized, "invalid agent signature")

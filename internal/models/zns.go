@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
@@ -26,7 +25,7 @@ type ZNSName struct {
 func (n *ZNSName) SignableBytes() ([]byte, error) {
 	c := *n
 	c.Signature = ""
-	return json.Marshal(c)
+	return CanonicalJSON(c)
 }
 
 // Validate performs basic validation of a ZNSName.
@@ -66,7 +65,7 @@ type ZNSVersion struct {
 func (v *ZNSVersion) SignableBytes() ([]byte, error) {
 	c := *v
 	c.Signature = ""
-	return json.Marshal(c)
+	return CanonicalJSON(c)
 }
 
 // GossipZNSName is a remote name binding learned via gossip from other registries.
@@ -145,7 +144,7 @@ func (p *RegistryIdentityProof) SignableBytes() ([]byte, error) {
 	c.Signature = ""
 	c.VerificationTier = ""
 	c.ReceivedAt = ""
-	return json.Marshal(c)
+	return CanonicalJSON(c)
 }
 
 // PeerAttestation is a co-signature by an existing trusted registry vouching for another.
@@ -163,5 +162,5 @@ type PeerAttestation struct {
 func (a *PeerAttestation) SignableBytes() ([]byte, error) {
 	c := *a
 	c.Signature = ""
-	return json.Marshal(c)
+	return CanonicalJSON(c)
 }
