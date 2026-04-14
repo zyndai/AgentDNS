@@ -1026,7 +1026,7 @@ func (s *PostgresStore) MarkInactiveAgents(threshold time.Duration) ([]string, e
 	cutoff := time.Now().UTC().Add(-threshold)
 	rows, err := s.pool.Query(context.Background(), `
 		UPDATE entities SET status = 'inactive'
-		WHERE status = 'active' AND type != 'service'
+		WHERE status = 'active' AND entity_type != 'service'
 		AND (last_heartbeat IS NULL OR last_heartbeat < $1)
 		RETURNING entity_id`, cutoff)
 	if err != nil {
