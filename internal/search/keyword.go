@@ -208,25 +208,42 @@ func (idx *KeywordIndex) Count() int {
 	return idx.docCount
 }
 
-// tokenize splits text into lowercase terms, removing short terms.
+// tokenize splits text on non-alphanumeric characters into lowercase terms.
+// Tokens containing hyphens or underscores are ALSO emitted as their split
+// parts, so "job-scrapper-service" yields {"job-scrapper-service", "job",
+// "scrapper", "service"}. This lets natural-language queries match compound
+// indexed names while preserving the higher BM25 score on exact compound matches.
 func tokenize(text string) []string {
-	// Split on non-alphanumeric characters
 	var terms []string
 	current := strings.Builder{}
+
+	flush := func() {
+		if current.Len() < 2 {
+			current.Reset()
+			return
+		}
+		full := current.String()
+		terms = append(terms, full)
+		if strings.ContainsAny(full, "-_") {
+			for _, part := range strings.FieldsFunc(full, func(r rune) bool {
+				return r == '-' || r == '_'
+			}) {
+				if part != full && len(part) >= 2 {
+					terms = append(terms, part)
+				}
+			}
+		}
+		current.Reset()
+	}
 
 	for _, r := range text {
 		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
 			current.WriteRune(r)
 		} else {
-			if current.Len() >= 2 { // minimum term length
-				terms = append(terms, current.String())
-			}
-			current.Reset()
+			flush()
 		}
 	}
-	if current.Len() >= 2 {
-		terms = append(terms, current.String())
-	}
+	flush()
 
 	return terms
 }

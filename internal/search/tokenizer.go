@@ -115,24 +115,42 @@ func (t *AdvancedTokenizer) Tokenize(text string) []string {
 	return result
 }
 
-// basicTokenize splits text on non-alphanumeric characters, preserving hyphens and underscores.
+// basicTokenize splits text on non-alphanumeric characters, preserving hyphens and
+// underscores. When a token contains hyphens or underscores, it ALSO emits the
+// split parts — so "job-scrapper-service" yields {"job-scrapper-service", "job",
+// "scrapper", "service"}. This lets a natural-language query ("give me a job
+// scrapper service") match a compound indexed name, while preserving exact
+// compound matches (which still score highest via BM25 + name field boost).
 func (t *AdvancedTokenizer) basicTokenize(text string) []string {
 	var terms []string
 	current := strings.Builder{}
+
+	flush := func() {
+		if current.Len() == 0 {
+			return
+		}
+		full := current.String()
+		terms = append(terms, full)
+		if strings.ContainsAny(full, "-_") {
+			for _, part := range strings.FieldsFunc(full, func(r rune) bool {
+				return r == '-' || r == '_'
+			}) {
+				if part != full && len(part) >= 2 {
+					terms = append(terms, part)
+				}
+			}
+		}
+		current.Reset()
+	}
 
 	for _, r := range text {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_' {
 			current.WriteRune(r)
 		} else {
-			if current.Len() > 0 {
-				terms = append(terms, current.String())
-				current.Reset()
-			}
+			flush()
 		}
 	}
-	if current.Len() > 0 {
-		terms = append(terms, current.String())
-	}
+	flush()
 
 	return terms
 }

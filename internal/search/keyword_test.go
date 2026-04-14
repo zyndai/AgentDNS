@@ -107,7 +107,7 @@ func TestTokenize(t *testing.T) {
 		expected int
 	}{
 		{"hello world", 2},
-		{"code-review", 1}, // hyphenated terms stay together
+		{"code-review", 3}, // hyphenated: compound + split parts ("code-review", "code", "review")
 		{"a b c", 0},       // single chars filtered out
 		{"python javascript go rust", 4},
 		{"", 0},
