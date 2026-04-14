@@ -7,6 +7,8 @@ import (
 	"math"
 	"strings"
 	"sync"
+
+	"github.com/agentdns/agent-dns/internal/config"
 )
 
 // Embedder generates embedding vectors for text.
@@ -34,6 +36,10 @@ type EmbedderConfig struct {
 	ModelName string
 	// Endpoint is the HTTP URL for remote embedding services (used by "http" backend).
 	Endpoint string
+	// OnnxRuntimePath is an optional absolute path to libonnxruntime.so.
+	// Only consulted by the "onnx" backend. If empty, standard system
+	// locations are searched.
+	OnnxRuntimePath string
 }
 
 // EmbedderFactory creates an Embedder from config. Return an error if the
@@ -56,28 +62,29 @@ func RegisterEmbedder(name string, factory EmbedderFactory) {
 	embedderRegistry[name] = factory
 }
 
-// NewEmbedderFromConfig returns the embedder for the given backend name.
-// Fail-fast by design: if `backend` is empty, unregistered, or if the factory
-// returns an error, this returns an error and the server startup MUST abort.
-// There is no silent fallback to the hash embedder — hash is only available
-// if you explicitly set `embedding_backend = "hash"` in config.
-func NewEmbedderFromConfig(backend, modelName, modelDir, endpoint string, dims int) (Embedder, error) {
-	if backend == "" {
+// NewEmbedderFromConfig returns the embedder for the given search config.
+// Fail-fast by design: if the backend is empty, unregistered, or if the
+// factory returns an error, this returns an error and the server startup
+// MUST abort. There is no silent fallback to the hash embedder — hash is
+// only available if you explicitly set `embedding_backend = "hash"` in config.
+func NewEmbedderFromConfig(cfg config.SearchConfig) (Embedder, error) {
+	if cfg.EmbeddingBackend == "" {
 		return nil, fmt.Errorf("search: embedding_backend is required in config (got empty string)")
 	}
-	if dims <= 0 {
-		return nil, fmt.Errorf("search: embedding_dimensions must be > 0 (got %d)", dims)
+	if cfg.EmbeddingDimensions <= 0 {
+		return nil, fmt.Errorf("search: embedding_dimensions must be > 0 (got %d)", cfg.EmbeddingDimensions)
 	}
 
-	cfg := EmbedderConfig{
-		Dimensions: dims,
-		ModelDir:   modelDir,
-		ModelName:  modelName,
-		Endpoint:   endpoint,
+	edcfg := EmbedderConfig{
+		Dimensions:      cfg.EmbeddingDimensions,
+		ModelDir:        cfg.EmbeddingModelDir,
+		ModelName:       cfg.EmbeddingModel,
+		Endpoint:        cfg.EmbeddingEndpoint,
+		OnnxRuntimePath: cfg.OnnxRuntimePath,
 	}
 
 	embedderMu.RLock()
-	factory, ok := embedderRegistry[backend]
+	factory, ok := embedderRegistry[cfg.EmbeddingBackend]
 	registered := make([]string, 0, len(embedderRegistry))
 	for name := range embedderRegistry {
 		registered = append(registered, name)
@@ -90,21 +97,21 @@ func NewEmbedderFromConfig(backend, modelName, modelDir, endpoint string, dims i
 				"If you expected %q to be available, check that the binary was built "+
 				"with the required build tags (onnx needs CGO_ENABLED=1) and that the "+
 				"native libraries are installed",
-			backend, registered, backend)
+			cfg.EmbeddingBackend, registered, cfg.EmbeddingBackend)
 	}
 
-	embedder, err := factory(cfg)
+	embedder, err := factory(edcfg)
 	if err != nil {
-		return nil, fmt.Errorf("search: embedding_backend %q failed to initialize: %w", backend, err)
+		return nil, fmt.Errorf("search: embedding_backend %q failed to initialize: %w", cfg.EmbeddingBackend, err)
 	}
 	if embedder == nil {
-		return nil, fmt.Errorf("search: embedding_backend %q factory returned nil embedder without an error", backend)
+		return nil, fmt.Errorf("search: embedding_backend %q factory returned nil embedder without an error", cfg.EmbeddingBackend)
 	}
 
-	if modelName != "" {
-		log.Printf("search: using embedding backend %q with model %q (dims=%d)", backend, modelName, dims)
+	if cfg.EmbeddingModel != "" {
+		log.Printf("search: using embedding backend %q with model %q (dims=%d)", cfg.EmbeddingBackend, cfg.EmbeddingModel, cfg.EmbeddingDimensions)
 	} else {
-		log.Printf("search: using embedding backend %q (dims=%d)", backend, dims)
+		log.Printf("search: using embedding backend %q (dims=%d)", cfg.EmbeddingBackend, cfg.EmbeddingDimensions)
 	}
 	return embedder, nil
 }

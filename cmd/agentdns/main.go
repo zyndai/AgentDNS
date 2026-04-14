@@ -324,13 +324,7 @@ func cmdStart() {
 	// Initialize components
 	lruCache := card.NewLRUCache(cfg.Cache.MaxAgentCards, cfg.Cache.AgentCardTTLSeconds)
 	fetcher := card.NewFetcher(lruCache, redisCache, cfg.Cache.AgentCardTTLSeconds)
-	embedder, err := search.NewEmbedderFromConfig(
-		cfg.Search.EmbeddingBackend,
-		cfg.Search.EmbeddingModel,
-		cfg.Search.EmbeddingModelDir,
-		cfg.Search.EmbeddingEndpoint,
-		cfg.Search.EmbeddingDimensions,
-	)
+	embedder, err := search.NewEmbedderFromConfig(cfg.Search)
 	if err != nil {
 		// Fail fast. Misconfigured embeddings silently falling back to the
 		// hash embedder masks real problems and produces unpredictable

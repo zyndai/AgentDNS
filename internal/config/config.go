@@ -93,6 +93,13 @@ type SearchConfig struct {
 	EmbeddingModelDir string `toml:"embedding_model_dir"`
 	// EmbeddingEndpoint is the HTTP URL for the embedding service (for "http" backend).
 	EmbeddingEndpoint string `toml:"embedding_endpoint"`
+	// OnnxRuntimePath is an optional absolute path to libonnxruntime.so
+	// (or .dylib on macOS). If empty, the onnx backend searches common
+	// system locations — /usr/local/lib, /usr/lib, /usr/lib/x86_64-linux-gnu,
+	// /opt/onnxruntime/lib, and the homebrew prefix on macOS — before
+	// failing with a list of paths tried. Set this explicitly if ONNX
+	// Runtime is installed in a non-standard location.
+	OnnxRuntimePath string `toml:"onnx_runtime_path"`
 	// UseImprovedKeyword enables advanced BM25 with field boosting, stemming, and synonyms.
 	UseImprovedKeyword bool `toml:"use_improved_keyword"`
 	// MinScore is the minimum final ranking score a candidate must hit to be

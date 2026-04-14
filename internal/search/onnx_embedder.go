@@ -4,9 +4,11 @@ package search
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
 	"github.com/daulet/tokenizers"
@@ -15,6 +17,20 @@ import (
 
 func init() {
 	RegisterEmbedder("onnx", func(cfg EmbedderConfig) (Embedder, error) {
+		// Resolve and initialize ONNX Runtime's native shared library BEFORE
+		// doing anything else with it. Linux ships libonnxruntime.so.X.Y.Z by
+		// convention, but the Go wrapper's default lookup name is
+		// "onnxruntime.so" (no lib prefix) — so if the operator doesn't set
+		// search.onnx_runtime_path explicitly, we probe a short list of
+		// standard installation paths and pass the first hit to ORT.
+		libPath, err := findOnnxRuntimeLibrary(cfg.OnnxRuntimePath)
+		if err != nil {
+			return nil, fmt.Errorf("locate ONNX Runtime shared library: %w", err)
+		}
+		if err := initOnnxRuntime(libPath); err != nil {
+			return nil, fmt.Errorf("ONNX Runtime initialization failed (lib=%s): %w", libPath, err)
+		}
+
 		// Auto-download model if needed
 		modelName := cfg.ModelName
 		if modelName == "" {
@@ -56,6 +72,96 @@ var (
 	ortOnce sync.Once
 	ortErr  error
 )
+
+// initOnnxRuntime calls ort.SetSharedLibraryPath + ort.InitializeEnvironment
+// exactly once per process. Subsequent calls are no-ops and return the result
+// of the first initialization.
+func initOnnxRuntime(libPath string) error {
+	ortOnce.Do(func() {
+		log.Printf("onnx: loading shared library %s", libPath)
+		ort.SetSharedLibraryPath(libPath)
+		ortErr = ort.InitializeEnvironment()
+	})
+	return ortErr
+}
+
+// findOnnxRuntimeLibrary returns the absolute path of the ONNX Runtime
+// shared library to pass to ort.SetSharedLibraryPath. Resolution order:
+//
+//  1. configPath (from search.onnx_runtime_path in config.toml) — if set,
+//     it must exist or we return an error. No fallback when the operator
+//     has pinned a specific path — fail loud instead of quietly picking
+//     a different one.
+//
+//  2. ONNX_RUNTIME_LIB environment variable — if set, same contract as #1.
+//
+//  3. A short list of well-known locations for the current OS (Linux
+//     convention libonnxruntime.so.X, then the yalue/onnxruntime_go
+//     historical default onnxruntime.so, then macOS dylibs for dev boxes).
+//
+// If nothing works, returns an error listing every path that was tried.
+func findOnnxRuntimeLibrary(configPath string) (string, error) {
+	if configPath != "" {
+		if _, err := os.Stat(configPath); err == nil {
+			return configPath, nil
+		}
+		return "", fmt.Errorf(
+			"search.onnx_runtime_path=%q does not exist on disk — "+
+				"remove it from config.toml to fall back to standard lookup paths "+
+				"or point it at the correct libonnxruntime.so file", configPath)
+	}
+
+	if envPath := os.Getenv("ONNX_RUNTIME_LIB"); envPath != "" {
+		if _, err := os.Stat(envPath); err == nil {
+			return envPath, nil
+		}
+		return "", fmt.Errorf(
+			"ONNX_RUNTIME_LIB=%q does not exist on disk", envPath)
+	}
+
+	var candidates []string
+	switch runtime.GOOS {
+	case "linux":
+		candidates = []string{
+			"/usr/local/lib/libonnxruntime.so",
+			"/usr/local/lib/libonnxruntime.so.1",
+			"/usr/lib/libonnxruntime.so",
+			"/usr/lib/x86_64-linux-gnu/libonnxruntime.so",
+			"/usr/lib/aarch64-linux-gnu/libonnxruntime.so",
+			"/opt/onnxruntime/lib/libonnxruntime.so",
+			// Also check the yalue/onnxruntime_go historical default name.
+			"/usr/local/lib/onnxruntime.so",
+			"/usr/lib/onnxruntime.so",
+		}
+	case "darwin":
+		candidates = []string{
+			"/usr/local/lib/libonnxruntime.dylib",
+			"/opt/homebrew/lib/libonnxruntime.dylib",
+			"/usr/local/lib/onnxruntime.dylib",
+			"/opt/homebrew/lib/onnxruntime.dylib",
+		}
+	case "windows":
+		candidates = []string{
+			`C:\Program Files\onnxruntime\lib\onnxruntime.dll`,
+			`C:\onnxruntime\lib\onnxruntime.dll`,
+		}
+	default:
+		return "", fmt.Errorf("unsupported GOOS %q for ONNX Runtime auto-discovery — set search.onnx_runtime_path explicitly", runtime.GOOS)
+	}
+
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+
+	return "", fmt.Errorf(
+		"could not find ONNX Runtime shared library in any standard location. "+
+			"Install ONNX Runtime (https://github.com/microsoft/onnxruntime/releases), "+
+			"set search.onnx_runtime_path in ~/.zynd/config.toml to its absolute path, "+
+			"or set the ONNX_RUNTIME_LIB environment variable. Paths tried: %v",
+		candidates)
+}
 
 // ONNXEmbedder runs all-MiniLM-L6-v2 in-process via ONNX Runtime.
 // Produces real 384-dim sentence embeddings for genuine semantic search.
