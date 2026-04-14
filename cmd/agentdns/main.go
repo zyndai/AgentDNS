@@ -324,13 +324,19 @@ func cmdStart() {
 	// Initialize components
 	lruCache := card.NewLRUCache(cfg.Cache.MaxAgentCards, cfg.Cache.AgentCardTTLSeconds)
 	fetcher := card.NewFetcher(lruCache, redisCache, cfg.Cache.AgentCardTTLSeconds)
-	embedder := search.NewEmbedderFromConfig(
+	embedder, err := search.NewEmbedderFromConfig(
 		cfg.Search.EmbeddingBackend,
 		cfg.Search.EmbeddingModel,
 		cfg.Search.EmbeddingModelDir,
 		cfg.Search.EmbeddingEndpoint,
 		cfg.Search.EmbeddingDimensions,
 	)
+	if err != nil {
+		// Fail fast. Misconfigured embeddings silently falling back to the
+		// hash embedder masks real problems and produces unpredictable
+		// search results — refuse to start instead.
+		log.Fatalf("failed to initialize embedding backend: %v", err)
+	}
 	engine := search.NewEngine(st, fetcher, cfg.Search, embedder)
 	peerMgr := mesh.NewPeerManager(cfg.Mesh, cfg.Bloom)
 	gossipHandler := mesh.NewGossipHandler(st, cfg.Gossip)

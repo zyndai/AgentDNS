@@ -34,6 +34,8 @@ type Engine struct {
 // NewEngine creates a new search engine.
 // embedder is the embedding backend to use; build one with NewEmbedderFromConfig
 // and pass it here so the embedder lifecycle is managed by the caller.
+// A nil embedder is a programmer error and panics — the caller must resolve
+// the backend up front via NewEmbedderFromConfig and propagate any error.
 func NewEngine(
 	st store.Store,
 	fetcher *card.Fetcher,
@@ -41,7 +43,7 @@ func NewEngine(
 	embedder Embedder,
 ) *Engine {
 	if embedder == nil {
-		embedder = NewHashEmbedder(cfg.EmbeddingDimensions)
+		panic("search.NewEngine: embedder must not be nil — build one with NewEmbedderFromConfig and propagate its error instead of silently substituting a fallback")
 	}
 
 	var keyword *KeywordIndex

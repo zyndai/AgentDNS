@@ -37,8 +37,9 @@ type EmbedderConfig struct {
 }
 
 // EmbedderFactory creates an Embedder from config. Return an error if the
-// backend is unavailable (e.g. missing model files) — the engine will fall
-// back to HashEmbedder and log a warning.
+// backend is unavailable (e.g. missing model files, native lib not linked,
+// model download blocked). Errors from a factory bubble all the way up and
+// fail the server startup — there is intentionally no fallback.
 type EmbedderFactory func(cfg EmbedderConfig) (Embedder, error)
 
 var (
@@ -56,8 +57,18 @@ func RegisterEmbedder(name string, factory EmbedderFactory) {
 }
 
 // NewEmbedderFromConfig returns the embedder for the given backend name.
-// If the backend is unavailable or unknown, falls back to HashEmbedder and logs a warning.
-func NewEmbedderFromConfig(backend, modelName, modelDir, endpoint string, dims int) Embedder {
+// Fail-fast by design: if `backend` is empty, unregistered, or if the factory
+// returns an error, this returns an error and the server startup MUST abort.
+// There is no silent fallback to the hash embedder — hash is only available
+// if you explicitly set `embedding_backend = "hash"` in config.
+func NewEmbedderFromConfig(backend, modelName, modelDir, endpoint string, dims int) (Embedder, error) {
+	if backend == "" {
+		return nil, fmt.Errorf("search: embedding_backend is required in config (got empty string)")
+	}
+	if dims <= 0 {
+		return nil, fmt.Errorf("search: embedding_dimensions must be > 0 (got %d)", dims)
+	}
+
 	cfg := EmbedderConfig{
 		Dimensions: dims,
 		ModelDir:   modelDir,
@@ -65,23 +76,29 @@ func NewEmbedderFromConfig(backend, modelName, modelDir, endpoint string, dims i
 		Endpoint:   endpoint,
 	}
 
-	if backend == "" {
-		backend = "hash"
-	}
-
 	embedderMu.RLock()
 	factory, ok := embedderRegistry[backend]
+	registered := make([]string, 0, len(embedderRegistry))
+	for name := range embedderRegistry {
+		registered = append(registered, name)
+	}
 	embedderMu.RUnlock()
 
 	if !ok {
-		log.Printf("search: unknown embedding_backend %q — falling back to hash embedder", backend)
-		return NewHashEmbedder(dims)
+		return nil, fmt.Errorf(
+			"search: embedding_backend %q is not registered (available: %v). "+
+				"If you expected %q to be available, check that the binary was built "+
+				"with the required build tags (onnx needs CGO_ENABLED=1) and that the "+
+				"native libraries are installed",
+			backend, registered, backend)
 	}
 
 	embedder, err := factory(cfg)
 	if err != nil {
-		log.Printf("search: embedding_backend %q unavailable (%v) — falling back to hash embedder", backend, err)
-		return NewHashEmbedder(dims)
+		return nil, fmt.Errorf("search: embedding_backend %q failed to initialize: %w", backend, err)
+	}
+	if embedder == nil {
+		return nil, fmt.Errorf("search: embedding_backend %q factory returned nil embedder without an error", backend)
 	}
 
 	if modelName != "" {
@@ -89,7 +106,7 @@ func NewEmbedderFromConfig(backend, modelName, modelDir, endpoint string, dims i
 	} else {
 		log.Printf("search: using embedding backend %q (dims=%d)", backend, dims)
 	}
-	return embedder
+	return embedder, nil
 }
 
 // ListEmbedders returns the names of all registered embedder backends.
