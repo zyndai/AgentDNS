@@ -197,6 +197,19 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 	allCandidates = ranking.Deduplicate(allCandidates)
 	allCandidates = e.ranker.Rank(allCandidates)
 
+	// Apply the minimum-score threshold from config. Anything below is
+	// dropped. The default is 0 (no filter); raise this in config.toml
+	// under [search] min_score to trim low-relevance matches.
+	if e.cfg.MinScore > 0 {
+		filtered := allCandidates[:0]
+		for _, c := range allCandidates {
+			if c.FinalScore >= e.cfg.MinScore {
+				filtered = append(filtered, c)
+			}
+		}
+		allCandidates = filtered
+	}
+
 	totalFound := localCount + gossipCount + federatedCount
 
 	// Apply offset for pagination

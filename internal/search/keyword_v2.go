@@ -247,7 +247,13 @@ func (idx *ImprovedKeywordIndex) Search(query string, maxResults int) []KeywordR
 				summaryScore*idx.boosts.Summary +
 				categoryScore*idx.boosts.Category
 
-			scores[id] += fieldScore
+			// Only record entries for docs that actually matched this term.
+			// `scores[id] += 0` on a missing key would otherwise create a
+			// zero-score entry, which made Search return every indexed doc
+			// for any query whose tokens were in the global df map.
+			if fieldScore > 0 {
+				scores[id] += fieldScore
+			}
 		}
 	}
 

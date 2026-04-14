@@ -94,7 +94,15 @@ type SearchConfig struct {
 	// EmbeddingEndpoint is the HTTP URL for the embedding service (for "http" backend).
 	EmbeddingEndpoint string `toml:"embedding_endpoint"`
 	// UseImprovedKeyword enables advanced BM25 with field boosting, stemming, and synonyms.
-	UseImprovedKeyword bool          `toml:"use_improved_keyword"`
+	UseImprovedKeyword bool `toml:"use_improved_keyword"`
+	// MinScore is the minimum final ranking score a candidate must hit to be
+	// included in the search response. Anything below is dropped after
+	// ranker.Rank() runs. Default 0.0 disables the filter. Raise this when
+	// the baseline trust/freshness/availability signals are pulling
+	// non-matching docs into results — for the default weights, the
+	// "no text + no semantic" baseline is ~0.30, so setting min_score=0.31
+	// removes zero-signal docs while keeping anything with real relevance.
+	MinScore           float64       `toml:"min_score"`
 	MaxFederatedPeers  int           `toml:"max_federated_peers"`
 	FederatedTimeoutMs int           `toml:"federated_timeout_ms"`
 	DefaultMaxResults  int           `toml:"default_max_results"`
@@ -182,6 +190,7 @@ func DefaultConfig() *Config {
 			EmbeddingModel:      "all-MiniLM-L6-v2",
 			EmbeddingDimensions: 384,
 			UseImprovedKeyword:  true,
+			MinScore:            0.0,
 			MaxFederatedPeers:   10,
 			FederatedTimeoutMs:  1500,
 			DefaultMaxResults:   20,
