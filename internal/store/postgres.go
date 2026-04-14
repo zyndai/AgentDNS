@@ -49,6 +49,17 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 	}
 
 	s := &PostgresStore{pool: pool}
+
+	// Run pending embedded migrations FIRST — these rename legacy columns
+	// (agent_id → entity_id etc.) on existing databases. On fresh installs
+	// they no-op via DO block exception handlers. This has to happen before
+	// migrate() because migrate()'s CREATE INDEX IF NOT EXISTS statements
+	// reference entity_* columns by name and would fail on an old schema.
+	if err := runMigrations(context.Background(), pool); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
+	}
+
 	if err := s.migrate(); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
