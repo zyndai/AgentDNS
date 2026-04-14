@@ -34,11 +34,11 @@ func newTestStore(t *testing.T) Store {
 	return s
 }
 
-func TestStore_CreateAndGetAgent(t *testing.T) {
+func TestStore_CreateAndGetEntity(t *testing.T) {
 	s := newTestStore(t)
 
 	agent := &models.RegistryRecord{
-		AgentID:      "zns:test123",
+		EntityID:      "zns:test123",
 		Name:         "TestAgent",
 		Owner:        "did:key:testowner",
 		EntityURL:     "https://example.com/.well-known/agent.json",
@@ -59,12 +59,12 @@ func TestStore_CreateAndGetAgent(t *testing.T) {
 	}
 
 	// Get
-	got, err := s.GetAgent("zns:test123")
+	got, err := s.GetEntity("zns:test123")
 	if err != nil {
 		t.Fatalf("failed to get agent: %v", err)
 	}
 	if got == nil {
-		t.Fatal("agent not found")
+		t.Fatal("entity not found")
 	}
 	if got.Name != "TestAgent" {
 		t.Errorf("expected name 'TestAgent', got '%s'", got.Name)
@@ -74,11 +74,11 @@ func TestStore_CreateAndGetAgent(t *testing.T) {
 	}
 }
 
-func TestStore_UpdateAgent(t *testing.T) {
+func TestStore_UpdateEntity(t *testing.T) {
 	s := newTestStore(t)
 
 	agent := &models.RegistryRecord{
-		AgentID:      "zns:update123",
+		EntityID:      "zns:update123",
 		Name:         "Original",
 		Owner:        "did:key:owner1",
 		EntityURL:     "https://example.com/agent.json",
@@ -99,21 +99,21 @@ func TestStore_UpdateAgent(t *testing.T) {
 	agent.Name = "Updated"
 	agent.Summary = "Updated summary"
 	agent.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-	if err := s.UpdateAgent(agent); err != nil {
+	if err := s.UpdateEntity(agent); err != nil {
 		t.Fatalf("failed to update agent: %v", err)
 	}
 
-	got, _ := s.GetAgent("zns:update123")
+	got, _ := s.GetEntity("zns:update123")
 	if got.Name != "Updated" {
 		t.Errorf("expected name 'Updated', got '%s'", got.Name)
 	}
 }
 
-func TestStore_DeleteAgent(t *testing.T) {
+func TestStore_DeleteEntity(t *testing.T) {
 	s := newTestStore(t)
 
 	agent := &models.RegistryRecord{
-		AgentID:      "zns:delete123",
+		EntityID:      "zns:delete123",
 		Name:         "ToDelete",
 		Owner:        "did:key:owner1",
 		EntityURL:     "https://example.com/agent.json",
@@ -131,11 +131,11 @@ func TestStore_DeleteAgent(t *testing.T) {
 	s.CreateAgent(agent)
 
 	// Delete
-	if err := s.DeleteAgent("zns:delete123", "did:key:owner1"); err != nil {
+	if err := s.DeleteEntity("zns:delete123", "did:key:owner1"); err != nil {
 		t.Fatalf("failed to delete agent: %v", err)
 	}
 
-	got, _ := s.GetAgent("zns:delete123")
+	got, _ := s.GetEntity("zns:delete123")
 	if got != nil {
 		t.Error("agent should be deleted")
 	}
@@ -146,7 +146,7 @@ func TestStore_SearchByKeyword(t *testing.T) {
 
 	agents := []*models.RegistryRecord{
 		{
-			AgentID: "zns:search1", Name: "PythonReviewer", Owner: "did:key:o1",
+			EntityID: "zns:search1", Name: "PythonReviewer", Owner: "did:key:o1",
 			EntityURL: "https://example.com/a1.json", Category: "developer-tools",
 			Tags: []string{"python", "code-review"}, Summary: "Reviews Python code",
 			PublicKey: "ed25519:pk1", HomeRegistry: "zns:registry:test",
@@ -155,7 +155,7 @@ func TestStore_SearchByKeyword(t *testing.T) {
 			TTL:          86400, Signature: "ed25519:sig1",
 		},
 		{
-			AgentID: "zns:search2", Name: "JapaneseTranslator", Owner: "did:key:o2",
+			EntityID: "zns:search2", Name: "JapaneseTranslator", Owner: "did:key:o2",
 			EntityURL: "https://example.com/a2.json", Category: "translation",
 			Tags: []string{"japanese", "english", "legal"}, Summary: "Translates legal documents",
 			PublicKey: "ed25519:pk2", HomeRegistry: "zns:registry:test",
@@ -188,16 +188,16 @@ func TestStore_SearchByKeyword(t *testing.T) {
 	}
 }
 
-func TestStore_CountAgents(t *testing.T) {
+func TestStore_CountEntities(t *testing.T) {
 	s := newTestStore(t)
 
-	count, _ := s.CountAgents()
+	count, _ := s.CountEntities()
 	if count != 0 {
 		t.Errorf("expected 0 agents, got %d", count)
 	}
 
 	agent := &models.RegistryRecord{
-		AgentID: "zns:count1", Name: "Test", Owner: "did:key:o",
+		EntityID: "zns:count1", Name: "Test", Owner: "did:key:o",
 		EntityURL: "https://example.com/a.json", Category: "test",
 		Tags: []string{}, Summary: "Test", PublicKey: "ed25519:pk",
 		HomeRegistry: "zns:registry:test",
@@ -207,7 +207,7 @@ func TestStore_CountAgents(t *testing.T) {
 	}
 	s.CreateAgent(agent)
 
-	count, _ = s.CountAgents()
+	count, _ = s.CountEntities()
 	if count != 1 {
 		t.Errorf("expected 1 agent, got %d", count)
 	}
@@ -217,7 +217,7 @@ func TestStore_GossipEntries(t *testing.T) {
 	s := newTestStore(t)
 
 	entry := &models.GossipEntry{
-		AgentID:      "zns:gossip1",
+		EntityID:      "zns:gossip1",
 		Name:         "RemoteAgent",
 		Category:     "translation",
 		Tags:         []string{"japanese"},
@@ -257,7 +257,7 @@ func TestStore_CreateAgentSetsLastHeartbeat(t *testing.T) {
 	s := newTestStore(t)
 
 	agent := &models.RegistryRecord{
-		AgentID:      "zns:create-hb-test",
+		EntityID:      "zns:create-hb-test",
 		Name:         "CreateHBAgent",
 		Owner:        "did:key:owner",
 		EntityURL:     "https://example.com/agent.json",
@@ -277,7 +277,7 @@ func TestStore_CreateAgentSetsLastHeartbeat(t *testing.T) {
 		t.Fatalf("failed to create agent: %v", err)
 	}
 
-	got, err := s.GetAgent("zns:create-hb-test")
+	got, err := s.GetEntity("zns:create-hb-test")
 	if err != nil {
 		t.Fatalf("failed to get agent: %v", err)
 	}
@@ -298,7 +298,7 @@ func TestStore_UpsertGossipEntryWithStatus(t *testing.T) {
 	s := newTestStore(t)
 
 	entry := &models.GossipEntry{
-		AgentID:      "zns:gossip-status-upsert",
+		EntityID:      "zns:gossip-status-upsert",
 		Name:         "StatusUpsertAgent",
 		Category:     "tools",
 		Tags:         []string{},
@@ -329,7 +329,7 @@ func TestStore_UpdateAgentHeartbeat(t *testing.T) {
 	s := newTestStore(t)
 
 	agent := &models.RegistryRecord{
-		AgentID:      "zns:hb1",
+		EntityID:      "zns:hb1",
 		Name:         "HeartbeatAgent",
 		Owner:        "did:key:owner",
 		EntityURL:     "https://example.com/agent.json",
@@ -348,12 +348,12 @@ func TestStore_UpdateAgentHeartbeat(t *testing.T) {
 	}
 
 	// Update heartbeat
-	if err := s.UpdateAgentHeartbeat("zns:hb1"); err != nil {
+	if err := s.UpdateEntityHeartbeat("zns:hb1"); err != nil {
 		t.Fatalf("failed to update heartbeat: %v", err)
 	}
 
 	// Verify agent is active with a non-empty last_heartbeat
-	got, err := s.GetAgent("zns:hb1")
+	got, err := s.GetEntity("zns:hb1")
 	if err != nil {
 		t.Fatalf("failed to get agent: %v", err)
 	}
@@ -371,7 +371,7 @@ func TestStore_MarkInactiveAgents(t *testing.T) {
 	// Create two agents
 	for _, id := range []string{"zns:active1", "zns:stale1"} {
 		agent := &models.RegistryRecord{
-			AgentID:      id,
+			EntityID:      id,
 			Name:         "Agent-" + id,
 			Owner:        "did:key:owner",
 			EntityURL:     "https://example.com/agent.json",
@@ -391,7 +391,7 @@ func TestStore_MarkInactiveAgents(t *testing.T) {
 	}
 
 	// Give active1 a fresh heartbeat
-	if err := s.UpdateAgentHeartbeat("zns:active1"); err != nil {
+	if err := s.UpdateEntityHeartbeat("zns:active1"); err != nil {
 		t.Fatalf("failed to update heartbeat: %v", err)
 	}
 
@@ -417,13 +417,13 @@ func TestStore_MarkInactiveAgents(t *testing.T) {
 	}
 
 	// Verify stale1 is now inactive
-	got, _ := s.GetAgent("zns:stale1")
+	got, _ := s.GetEntity("zns:stale1")
 	if got.Status != "inactive" {
 		t.Errorf("expected stale1 status 'inactive', got '%s'", got.Status)
 	}
 
 	// Verify active1 is still active
-	got, _ = s.GetAgent("zns:active1")
+	got, _ = s.GetEntity("zns:active1")
 	if got.Status != "active" {
 		t.Errorf("expected active1 status 'active', got '%s'", got.Status)
 	}
@@ -433,7 +433,7 @@ func TestStore_UpdateGossipEntryStatus(t *testing.T) {
 	s := newTestStore(t)
 
 	entry := &models.GossipEntry{
-		AgentID:      "zns:gossip-status1",
+		EntityID:      "zns:gossip-status1",
 		Name:         "GossipStatusAgent",
 		Category:     "tools",
 		Tags:         []string{},

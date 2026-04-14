@@ -337,7 +337,7 @@ func cmdStart() {
 	// Set up gossip callback to index new entries
 	gossipHandler.SetAnnounceCallback(func(ann *models.GossipAnnouncement) {
 		entry := &models.GossipEntry{
-			AgentID:      ann.AgentID,
+			EntityID:      ann.EntityID,
 			Name:         ann.Name,
 			Category:     ann.Category,
 			Tags:         ann.Tags,
@@ -431,7 +431,7 @@ func cmdStart() {
 				return nil
 			}
 			return &api.DHTRecord{
-				AgentID:      rec.AgentID,
+				EntityID:      rec.EntityID,
 				Name:         rec.Name,
 				Category:     rec.Category,
 				Tags:         rec.Tags,
@@ -596,7 +596,7 @@ func cmdRegister() {
 
 		reqBody := map[string]interface{}{
 			"name":         name,
-			"agent_url":    agentURL,
+			"entity_url":    agentURL,
 			"category":     category,
 			"tags":         tags,
 			"summary":      summary,
@@ -604,14 +604,14 @@ func cmdRegister() {
 			"developer_id": developerID,
 			"developer_proof": map[string]interface{}{
 				"developer_public_key": proof.DeveloperPublicKey,
-				"agent_index":          proof.AgentIndex,
+				"entity_index":          proof.EntityIndex,
 				"developer_signature":  proof.DeveloperSignature,
 			},
 		}
 
 		// Add ZNS naming fields if provided
 		if agentNameZNS != "" {
-			reqBody["agent_name"] = agentNameZNS
+			reqBody["entity_name"] = agentNameZNS
 		}
 		if versionZNS != "" {
 			reqBody["version"] = versionZNS
@@ -620,7 +620,7 @@ func cmdRegister() {
 		// Sign with agent key
 		signable, _ := json.Marshal(map[string]interface{}{
 			"name":       name,
-			"agent_url":  agentURL,
+			"entity_url":  agentURL,
 			"category":   category,
 			"tags":       tags,
 			"summary":    summary,
@@ -629,7 +629,7 @@ func cmdRegister() {
 		reqBody["signature"] = agentKP.Sign(signable)
 
 		body, _ := json.Marshal(reqBody)
-		resp, err := http.Post("http://localhost:8080/v1/agents", "application/json", strings.NewReader(string(body)))
+		resp, err := http.Post("http://localhost:8080/v1/entities", "application/json", strings.NewReader(string(body)))
 		if err != nil {
 			log.Fatalf("failed to connect to registry: %v", err)
 		}
@@ -640,7 +640,7 @@ func cmdRegister() {
 
 		if resp.StatusCode == http.StatusCreated {
 			fmt.Printf("Agent registered successfully (developer: %s, index: %d)!\n", developerID, agentIndex)
-			fmt.Printf("  Agent ID: %s\n", result["agent_id"])
+			fmt.Printf("  Agent ID: %s\n", result["entity_id"])
 			if fqan, ok := result["fqan"]; ok {
 				fmt.Printf("  FQAN:     %s\n", fqan)
 			}
@@ -660,7 +660,7 @@ func cmdRegister() {
 
 	reqBody := map[string]interface{}{
 		"name":       name,
-		"agent_url":  agentURL,
+		"entity_url":  agentURL,
 		"category":   category,
 		"tags":       tags,
 		"summary":    summary,
@@ -673,7 +673,7 @@ func cmdRegister() {
 
 	body, _ := json.Marshal(reqBody)
 
-	resp, err := http.Post("http://localhost:8080/v1/agents", "application/json", strings.NewReader(string(body)))
+	resp, err := http.Post("http://localhost:8080/v1/entities", "application/json", strings.NewReader(string(body)))
 	if err != nil {
 		log.Fatalf("failed to connect to registry: %v", err)
 	}
@@ -684,7 +684,7 @@ func cmdRegister() {
 
 	if resp.StatusCode == http.StatusCreated {
 		fmt.Printf("Agent registered successfully!\n")
-		fmt.Printf("  Agent ID: %s\n", result["agent_id"])
+		fmt.Printf("  Agent ID: %s\n", result["entity_id"])
 	} else {
 		fmt.Fprintf(os.Stderr, "Registration failed: %v\n", result["error"])
 		os.Exit(1)
@@ -763,7 +763,7 @@ func cmdSearch() {
 
 	fmt.Printf("Found %d agents (showing %d):\n\n", result.TotalFound, len(result.Results))
 	for i, r := range result.Results {
-		fmt.Printf("  %d. %s (%s)\n", i+1, r.Name, r.AgentID)
+		fmt.Printf("  %d. %s (%s)\n", i+1, r.Name, r.EntityID)
 		fmt.Printf("     Category: %s | Tags: %s\n", r.Category, strings.Join(r.Tags, ", "))
 		fmt.Printf("     Summary:  %s\n", r.Summary)
 		fmt.Printf("     Score:    %.3f\n", r.Score)
@@ -824,7 +824,7 @@ func cmdResolve() {
 	}
 
 	// Otherwise treat as agdns: ID (existing flow)
-	resp, err := http.Get("http://localhost:8080/v1/agents/" + target)
+	resp, err := http.Get("http://localhost:8080/v1/entities/" + target)
 	if err != nil {
 		log.Fatalf("failed to connect to registry: %v", err)
 	}
@@ -851,7 +851,7 @@ func cmdCard() {
 	}
 
 	agentID := os.Args[2]
-	resp, err := http.Get("http://localhost:8080/v1/agents/" + agentID + "/card")
+	resp, err := http.Get("http://localhost:8080/v1/entities/" + agentID + "/card")
 	if err != nil {
 		log.Fatalf("failed to connect to registry: %v", err)
 	}
@@ -864,7 +864,7 @@ func cmdCard() {
 		os.Exit(1)
 	}
 
-	var agentCard models.AgentCard
+	var agentCard models.EntityCard
 	json.NewDecoder(resp.Body).Decode(&agentCard)
 
 	data, _ := json.MarshalIndent(agentCard, "", "  ")
@@ -1191,7 +1191,7 @@ func cmdDeriveAgent() {
 
 	fmt.Printf("Agent keypair derived (index %d):\n", agentIndex)
 	fmt.Printf("  Developer ID: %s\n", devKP.DeveloperID())
-	fmt.Printf("  Agent ID:     %s\n", agentKP.AgentID())
+	fmt.Printf("  Agent ID:     %s\n", agentKP.EntityID())
 	fmt.Printf("  Public Key:   %s\n", agentKP.PublicKeyString())
 
 	if save {
@@ -1225,7 +1225,7 @@ func cmdDeregister() {
 		log.Fatalf("failed to load identity: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodDelete, "http://localhost:8080/v1/agents/"+agentID, nil)
+	req, err := http.NewRequest(http.MethodDelete, "http://localhost:8080/v1/entities/"+agentID, nil)
 	if err != nil {
 		log.Fatalf("failed to create request: %v", err)
 	}

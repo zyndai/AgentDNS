@@ -61,10 +61,10 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 func (s *PostgresStore) migrate() error {
 	schema := `
 	CREATE TABLE IF NOT EXISTS entities (
-		agent_id      TEXT PRIMARY KEY,
+		entity_id      TEXT PRIMARY KEY,
 		name          TEXT NOT NULL,
 		owner         TEXT NOT NULL,
-		agent_url     TEXT NOT NULL,
+		entity_url     TEXT NOT NULL,
 		category      TEXT NOT NULL,
 		tags          JSONB NOT NULL DEFAULT '[]',
 		summary       TEXT NOT NULL DEFAULT '',
@@ -84,13 +84,13 @@ func (s *PostgresStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_entities_tags ON entities USING GIN(tags);
 
 	CREATE TABLE IF NOT EXISTS gossip_entities (
-		agent_id      TEXT PRIMARY KEY,
+		entity_id      TEXT PRIMARY KEY,
 		name          TEXT NOT NULL,
 		category      TEXT NOT NULL,
 		tags          JSONB NOT NULL DEFAULT '[]',
 		summary       TEXT NOT NULL DEFAULT '',
 		home_registry TEXT NOT NULL,
-		agent_url     TEXT NOT NULL,
+		entity_url     TEXT NOT NULL,
 		received_at   TIMESTAMPTZ NOT NULL,
 		tombstoned    BOOLEAN NOT NULL DEFAULT FALSE,
 		tombstone_at  TIMESTAMPTZ
@@ -100,7 +100,7 @@ func (s *PostgresStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_gossip_tombstoned ON gossip_entities(tombstoned);
 
 	CREATE TABLE IF NOT EXISTS tombstones (
-		agent_id   TEXT PRIMARY KEY,
+		entity_id   TEXT PRIMARY KEY,
 		reason     TEXT NOT NULL DEFAULT '',
 		created_at TIMESTAMPTZ NOT NULL,
 		expires_at TIMESTAMPTZ NOT NULL,
@@ -110,7 +110,7 @@ func (s *PostgresStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_tombstones_expires ON tombstones(expires_at);
 
 	CREATE TABLE IF NOT EXISTS attestations (
-		agent_id          TEXT NOT NULL,
+		entity_id          TEXT NOT NULL,
 		observer_registry TEXT NOT NULL,
 		period            TEXT NOT NULL,
 		invocations       BIGINT NOT NULL DEFAULT 0,
@@ -119,7 +119,7 @@ func (s *PostgresStore) migrate() error {
 		avg_latency_ms    DOUBLE PRECISION NOT NULL DEFAULT 0,
 		avg_rating        DOUBLE PRECISION NOT NULL DEFAULT 0,
 		signature         TEXT NOT NULL,
-		PRIMARY KEY (agent_id, observer_registry, period)
+		PRIMARY KEY (entity_id, observer_registry, period)
 	);
 
 	CREATE TABLE IF NOT EXISTS node_meta (
@@ -152,7 +152,7 @@ func (s *PostgresStore) migrate() error {
 
 	-- Developer fields on agents table
 	ALTER TABLE entities ADD COLUMN IF NOT EXISTS developer_id TEXT;
-	ALTER TABLE entities ADD COLUMN IF NOT EXISTS agent_index INTEGER;
+	ALTER TABLE entities ADD COLUMN IF NOT EXISTS entity_index INTEGER;
 	ALTER TABLE entities ADD COLUMN IF NOT EXISTS developer_proof JSONB;
 
 	CREATE INDEX IF NOT EXISTS idx_entities_developer_id ON entities(developer_id);
@@ -209,10 +209,10 @@ func (s *PostgresStore) migrate() error {
 	-- ZNS name bindings
 	CREATE TABLE IF NOT EXISTS zns_names (
 		fqan             TEXT PRIMARY KEY,
-		agent_name       TEXT NOT NULL,
+		entity_name       TEXT NOT NULL,
 		developer_handle TEXT NOT NULL,
 		registry_host    TEXT NOT NULL,
-		agent_id         TEXT NOT NULL REFERENCES entities(agent_id),
+		entity_id         TEXT NOT NULL REFERENCES entities(entity_id),
 		developer_id     TEXT NOT NULL,
 		current_version  TEXT,
 		capability_tags  TEXT[] DEFAULT '{}',
@@ -220,7 +220,7 @@ func (s *PostgresStore) migrate() error {
 		updated_at       TIMESTAMPTZ NOT NULL,
 		signature        TEXT NOT NULL
 	);
-	CREATE INDEX IF NOT EXISTS idx_zns_agent_id ON zns_names(agent_id);
+	CREATE INDEX IF NOT EXISTS idx_zns_entity_id ON zns_names(entity_id);
 	CREATE INDEX IF NOT EXISTS idx_zns_developer ON zns_names(developer_handle, registry_host);
 	CREATE INDEX IF NOT EXISTS idx_zns_capability ON zns_names USING GIN(capability_tags);
 
@@ -228,7 +228,7 @@ func (s *PostgresStore) migrate() error {
 	CREATE TABLE IF NOT EXISTS zns_versions (
 		fqan          TEXT NOT NULL REFERENCES zns_names(fqan) ON DELETE CASCADE,
 		version       TEXT NOT NULL,
-		agent_id      TEXT NOT NULL,
+		entity_id      TEXT NOT NULL,
 		build_hash    TEXT,
 		registered_at TIMESTAMPTZ NOT NULL,
 		signature     TEXT NOT NULL,
@@ -238,10 +238,10 @@ func (s *PostgresStore) migrate() error {
 	-- Gossip ZNS name entries (from remote registries)
 	CREATE TABLE IF NOT EXISTS gossip_zns_names (
 		fqan             TEXT PRIMARY KEY,
-		agent_name       TEXT NOT NULL,
+		entity_name       TEXT NOT NULL,
 		developer_handle TEXT NOT NULL,
 		registry_host    TEXT NOT NULL,
-		agent_id         TEXT NOT NULL,
+		entity_id         TEXT NOT NULL,
 		current_version  TEXT,
 		capability_tags  TEXT[] DEFAULT '{}',
 		received_at      TIMESTAMPTZ NOT NULL,
@@ -330,16 +330,16 @@ func (s *PostgresStore) CreateAgent(agent *models.RegistryRecord) error {
 	}
 
 	_, err = s.pool.Exec(context.Background(), `
-		INSERT INTO entities (agent_id, name, owner, agent_url, category, tags, summary,
+		INSERT INTO entities (entity_id, name, owner, entity_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-			developer_id, agent_index, developer_proof, last_heartbeat,
+			developer_id, entity_index, developer_proof, last_heartbeat,
 			entity_type, service_endpoint, openapi_url, entity_pricing)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(),
 			$18, $19, $20, $21)`,
-		agent.AgentID, agent.Name, agent.Owner, agent.EntityURL, agent.Category,
+		agent.EntityID, agent.Name, agent.Owner, agent.EntityURL, agent.Category,
 		string(tagsJSON), agent.Summary, agent.PublicKey, agent.HomeRegistry,
 		schemaVersion, agent.RegisteredAt, agent.UpdatedAt, agent.TTL, agent.Signature,
-		nilIfEmpty(agent.DeveloperID), agent.AgentIndex, nilIfEmptyBytes(developerProofJSON),
+		nilIfEmpty(agent.DeveloperID), agent.EntityIndex, nilIfEmptyBytes(developerProofJSON),
 		entityType, agent.ServiceEndpoint, agent.OpenAPIURL, nilIfEmptyBytes(pricingJSON),
 	)
 	if err != nil {
@@ -348,14 +348,14 @@ func (s *PostgresStore) CreateAgent(agent *models.RegistryRecord) error {
 	return nil
 }
 
-func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error) {
+func (s *PostgresStore) GetEntity(agentID string) (*models.RegistryRecord, error) {
 	row := s.pool.QueryRow(context.Background(), `
-		SELECT agent_id, name, owner, agent_url, category, tags, summary,
+		SELECT entity_id, name, owner, entity_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-			developer_id, agent_index, developer_proof,
+			developer_id, entity_index, developer_proof,
 			status, last_heartbeat,
 			entity_type, service_endpoint, openapi_url, entity_pricing
-		FROM entities WHERE agent_id = $1`, agentID)
+		FROM entities WHERE entity_id = $1`, agentID)
 
 	agent := &models.RegistryRecord{}
 	var tagsJSON []byte
@@ -367,7 +367,7 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	var pricingBytes []byte
 	var entityType, serviceEndpoint, openapiURL *string
 	err := row.Scan(
-		&agent.AgentID, &agent.Name, &agent.Owner, &agent.EntityURL,
+		&agent.EntityID, &agent.Name, &agent.Owner, &agent.EntityURL,
 		&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
 		&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
 		&agent.TTL, &agent.Signature,
@@ -396,7 +396,7 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 		agent.DeveloperID = *developerID
 	}
 	if agentIndex != nil {
-		agent.AgentIndex = agentIndex
+		agent.EntityIndex = agentIndex
 	}
 	if len(developerProofJSON) > 0 {
 		agent.DeveloperProof = &models.DeveloperProof{}
@@ -419,7 +419,7 @@ func (s *PostgresStore) GetAgent(agentID string) (*models.RegistryRecord, error)
 	return agent, nil
 }
 
-func (s *PostgresStore) UpdateAgent(agent *models.RegistryRecord) error {
+func (s *PostgresStore) UpdateEntity(agent *models.RegistryRecord) error {
 	tagsJSON, err := json.Marshal(agent.Tags)
 	if err != nil {
 		return fmt.Errorf("failed to marshal tags: %w", err)
@@ -436,57 +436,57 @@ func (s *PostgresStore) UpdateAgent(agent *models.RegistryRecord) error {
 	}
 
 	ct, err := s.pool.Exec(context.Background(), `
-		UPDATE entities SET name=$1, agent_url=$2, category=$3, tags=$4, summary=$5,
+		UPDATE entities SET name=$1, entity_url=$2, category=$3, tags=$4, summary=$5,
 			updated_at=$6, ttl=$7, signature=$8, schema_version=$9, codebase_hash=$10,
 			entity_type=$11, service_endpoint=$12, openapi_url=$13, entity_pricing=$14
-		WHERE agent_id = $15 AND owner = $16`,
+		WHERE entity_id = $15 AND owner = $16`,
 		agent.Name, agent.EntityURL, agent.Category, string(tagsJSON),
 		agent.Summary, agent.UpdatedAt, agent.TTL, agent.Signature,
 		agent.SchemaVersion, agent.CodebaseHash,
 		entityType, agent.ServiceEndpoint, agent.OpenAPIURL, nilIfEmptyBytes(pricingJSON),
-		agent.AgentID, agent.Owner,
+		agent.EntityID, agent.Owner,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update agent: %w", err)
 	}
 
 	if ct.RowsAffected() == 0 {
-		return fmt.Errorf("agent not found or not owned by caller")
+		return fmt.Errorf("entity not found or not owned by caller")
 	}
 	return nil
 }
 
-func (s *PostgresStore) DeleteAgent(agentID string, owner string) error {
+func (s *PostgresStore) DeleteEntity(agentID string, owner string) error {
 	ct, err := s.pool.Exec(context.Background(),
-		`DELETE FROM entities WHERE agent_id = $1 AND owner = $2`, agentID, owner)
+		`DELETE FROM entities WHERE entity_id = $1 AND owner = $2`, agentID, owner)
 	if err != nil {
 		return fmt.Errorf("failed to delete agent: %w", err)
 	}
 
 	if ct.RowsAffected() == 0 {
-		return fmt.Errorf("agent not found or not owned by caller")
+		return fmt.Errorf("entity not found or not owned by caller")
 	}
 	return nil
 }
 
-func (s *PostgresStore) ListAgents(category string, limit, offset int) ([]*models.RegistryRecord, error) {
+func (s *PostgresStore) ListEntities(category string, limit, offset int) ([]*models.RegistryRecord, error) {
 	var query string
 	var args []interface{}
 
 	if category != "" {
 		query = `
-			SELECT agent_id, name, owner, agent_url, category, tags, summary,
+			SELECT entity_id, name, owner, entity_url, category, tags, summary,
 				public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-				developer_id, agent_index, developer_proof,
+				developer_id, entity_index, developer_proof,
 				status, last_heartbeat,
 				entity_type, service_endpoint, openapi_url, entity_pricing
 			FROM entities WHERE category = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`
 		args = []interface{}{category, limit, offset}
 	} else {
 		query = `
-			SELECT agent_id, name, owner, agent_url, category, tags, summary,
+			SELECT entity_id, name, owner, entity_url, category, tags, summary,
 				public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-				developer_id, agent_index, developer_proof,
+				developer_id, entity_index, developer_proof,
 				status, last_heartbeat,
 				entity_type, service_endpoint, openapi_url, entity_pricing
 			FROM entities ORDER BY updated_at DESC LIMIT $1 OFFSET $2`
@@ -502,7 +502,7 @@ func (s *PostgresStore) ListAgents(category string, limit, offset int) ([]*model
 	return scanAgentRows(rows)
 }
 
-func (s *PostgresStore) CountAgents() (int, error) {
+func (s *PostgresStore) CountEntities() (int, error) {
 	var count int
 	err := s.pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM entities").Scan(&count)
 	return count, err
@@ -512,9 +512,9 @@ func (s *PostgresStore) SearchAgentsByKeyword(query string, category string, tag
 	likeQuery := "%" + strings.ToLower(query) + "%"
 
 	baseQuery := `
-		SELECT agent_id, name, owner, agent_url, category, tags, summary,
+		SELECT entity_id, name, owner, entity_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-			developer_id, agent_index, developer_proof,
+			developer_id, entity_index, developer_proof,
 			status, last_heartbeat,
 			entity_type, service_endpoint, openapi_url, entity_pricing
 		FROM entities
@@ -553,10 +553,10 @@ func (s *PostgresStore) SearchAgentsByKeyword(query string, category string, tag
 
 func (s *PostgresStore) GetGossipEntry(agentID string) (*models.GossipEntry, error) {
 	row := s.pool.QueryRow(context.Background(), `
-		SELECT agent_id, name, category, tags, summary, home_registry, agent_url,
+		SELECT entity_id, name, category, tags, summary, home_registry, entity_url,
 			received_at, tombstoned, status, origin_public_key,
 			entity_type, service_endpoint, openapi_url, entity_pricing
-		FROM gossip_entities WHERE agent_id = $1`, agentID)
+		FROM gossip_entities WHERE entity_id = $1`, agentID)
 
 	entry := &models.GossipEntry{}
 	var tagsJSON []byte
@@ -565,7 +565,7 @@ func (s *PostgresStore) GetGossipEntry(agentID string) (*models.GossipEntry, err
 	var pricingBytes []byte
 	var entityType, serviceEndpoint, openapiURL *string
 	err := row.Scan(
-		&entry.AgentID, &entry.Name, &entry.Category, &tagsJSON,
+		&entry.EntityID, &entry.Name, &entry.Category, &tagsJSON,
 		&entry.Summary, &entry.HomeRegistry, &entry.EntityURL,
 		&receivedAt, &entry.Tombstoned, &entry.Status, &originPubKey,
 		&entityType, &serviceEndpoint, &openapiURL, &pricingBytes,
@@ -629,16 +629,16 @@ func (s *PostgresStore) UpsertGossipEntry(entry *models.GossipEntry) error {
 	}
 
 	_, err = s.pool.Exec(context.Background(), `
-		INSERT INTO gossip_entities (agent_id, name, category, tags, summary,
-			home_registry, agent_url, received_at, tombstoned,
+		INSERT INTO gossip_entities (entity_id, name, category, tags, summary,
+			home_registry, entity_url, received_at, tombstoned,
 			developer_id, developer_public_key, developer_proof,
 			origin_public_key, status,
 			entity_type, service_endpoint, openapi_url, entity_pricing)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
 			$15, $16, $17, $18)
-		ON CONFLICT(agent_id) DO UPDATE SET
+		ON CONFLICT(entity_id) DO UPDATE SET
 			name=EXCLUDED.name, category=EXCLUDED.category, tags=EXCLUDED.tags,
-			summary=EXCLUDED.summary, agent_url=EXCLUDED.agent_url,
+			summary=EXCLUDED.summary, entity_url=EXCLUDED.entity_url,
 			received_at=EXCLUDED.received_at,
 			developer_id=EXCLUDED.developer_id, developer_public_key=EXCLUDED.developer_public_key,
 			developer_proof=EXCLUDED.developer_proof,
@@ -646,7 +646,7 @@ func (s *PostgresStore) UpsertGossipEntry(entry *models.GossipEntry) error {
 			status=EXCLUDED.status,
 			entity_type=EXCLUDED.entity_type, service_endpoint=EXCLUDED.service_endpoint,
 			openapi_url=EXCLUDED.openapi_url, entity_pricing=EXCLUDED.entity_pricing`,
-		entry.AgentID, entry.Name, entry.Category, string(tagsJSON),
+		entry.EntityID, entry.Name, entry.Category, string(tagsJSON),
 		entry.Summary, entry.HomeRegistry, entry.EntityURL,
 		entry.ReceivedAt, entry.Tombstoned,
 		nilIfEmpty(entry.DeveloperID), nilIfEmpty(entry.DeveloperPublicKey),
@@ -662,7 +662,7 @@ func (s *PostgresStore) SearchGossipByKeyword(query string, category string, tag
 	likeQuery := "%" + strings.ToLower(query) + "%"
 
 	baseQuery := `
-		SELECT agent_id, name, category, tags, summary, home_registry, agent_url, received_at, tombstoned, status,
+		SELECT entity_id, name, category, tags, summary, home_registry, entity_url, received_at, tombstoned, status,
 			entity_type, service_endpoint, openapi_url, entity_pricing
 		FROM gossip_entities
 		WHERE tombstoned = FALSE AND (LOWER(name) LIKE $1 OR LOWER(summary) LIKE $1 OR tags::text ILIKE $1)`
@@ -701,7 +701,7 @@ func (s *PostgresStore) SearchGossipByKeyword(query string, category string, tag
 		var pricingBytes []byte
 		var entityType, serviceEndpoint, openapiURL *string
 		if err := rows.Scan(
-			&entry.AgentID, &entry.Name, &entry.Category, &tagsJSON,
+			&entry.EntityID, &entry.Name, &entry.Category, &tagsJSON,
 			&entry.Summary, &entry.HomeRegistry, &entry.EntityURL,
 			&receivedAt, &entry.Tombstoned, &entry.Status,
 			&entityType, &serviceEndpoint, &openapiURL, &pricingBytes,
@@ -732,7 +732,7 @@ func (s *PostgresStore) SearchGossipByKeyword(query string, category string, tag
 
 func (s *PostgresStore) TombstoneGossipEntry(agentID string) error {
 	_, err := s.pool.Exec(context.Background(), `
-		UPDATE gossip_entities SET tombstoned = TRUE, tombstone_at = $1 WHERE agent_id = $2`,
+		UPDATE gossip_entities SET tombstoned = TRUE, tombstone_at = $1 WHERE entity_id = $2`,
 		time.Now().UTC(), agentID)
 	return err
 }
@@ -748,12 +748,12 @@ func (s *PostgresStore) CountGossipEntries() (int, error) {
 
 func (s *PostgresStore) CreateTombstone(t *models.Tombstone) error {
 	_, err := s.pool.Exec(context.Background(), `
-		INSERT INTO tombstones (agent_id, reason, created_at, expires_at, signature)
+		INSERT INTO tombstones (entity_id, reason, created_at, expires_at, signature)
 		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT(agent_id) DO UPDATE SET
+		ON CONFLICT(entity_id) DO UPDATE SET
 			reason=EXCLUDED.reason, created_at=EXCLUDED.created_at,
 			expires_at=EXCLUDED.expires_at, signature=EXCLUDED.signature`,
-		t.AgentID, t.Reason, t.CreatedAt, t.ExpiresAt, t.Signature,
+		t.EntityID, t.Reason, t.CreatedAt, t.ExpiresAt, t.Signature,
 	)
 	return err
 }
@@ -934,11 +934,11 @@ func (s *PostgresStore) CountDevelopers() (int, error) {
 	return count, err
 }
 
-func (s *PostgresStore) ListAgentsByDeveloper(developerID string, limit, offset int) ([]*models.RegistryRecord, error) {
+func (s *PostgresStore) ListEntitiesByDeveloper(developerID string, limit, offset int) ([]*models.RegistryRecord, error) {
 	rows, err := s.pool.Query(context.Background(), `
-		SELECT agent_id, name, owner, agent_url, category, tags, summary,
+		SELECT entity_id, name, owner, entity_url, category, tags, summary,
 			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-			developer_id, agent_index, developer_proof,
+			developer_id, entity_index, developer_proof,
 			status, last_heartbeat,
 			entity_type, service_endpoint, openapi_url, entity_pricing
 		FROM entities WHERE developer_id = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`,
@@ -999,14 +999,14 @@ func (s *PostgresStore) TombstoneGossipDeveloper(developerID string) error {
 
 // --- Agent Heartbeat Liveness ---
 
-func (s *PostgresStore) UpdateAgentHeartbeat(agentID string) error {
+func (s *PostgresStore) UpdateEntityHeartbeat(agentID string) error {
 	ct, err := s.pool.Exec(context.Background(),
-		`UPDATE entities SET last_heartbeat = NOW(), status = 'active' WHERE agent_id = $1`, agentID)
+		`UPDATE entities SET last_heartbeat = NOW(), status = 'active' WHERE entity_id = $1`, agentID)
 	if err != nil {
 		return fmt.Errorf("failed to update agent heartbeat: %w", err)
 	}
 	if ct.RowsAffected() == 0 {
-		return fmt.Errorf("agent not found")
+		return fmt.Errorf("entity not found")
 	}
 	return nil
 }
@@ -1017,7 +1017,7 @@ func (s *PostgresStore) MarkInactiveAgents(threshold time.Duration) ([]string, e
 		UPDATE entities SET status = 'inactive'
 		WHERE status = 'active' AND type != 'service'
 		AND (last_heartbeat IS NULL OR last_heartbeat < $1)
-		RETURNING agent_id`, cutoff)
+		RETURNING entity_id`, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("failed to mark inactive agents: %w", err)
 	}
@@ -1027,7 +1027,7 @@ func (s *PostgresStore) MarkInactiveAgents(threshold time.Duration) ([]string, e
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("failed to scan agent_id: %w", err)
+			return nil, fmt.Errorf("failed to scan entity_id: %w", err)
 		}
 		ids = append(ids, id)
 	}
@@ -1036,7 +1036,7 @@ func (s *PostgresStore) MarkInactiveAgents(threshold time.Duration) ([]string, e
 
 func (s *PostgresStore) UpdateGossipEntryStatus(agentID, status string) error {
 	_, err := s.pool.Exec(context.Background(),
-		`UPDATE gossip_entities SET status = $1 WHERE agent_id = $2`, status, agentID)
+		`UPDATE gossip_entities SET status = $1 WHERE entity_id = $2`, status, agentID)
 	if err != nil {
 		return fmt.Errorf("failed to update gossip entry status: %w", err)
 	}
@@ -1077,7 +1077,7 @@ func scanAgentRows(rows pgx.Rows) ([]*models.RegistryRecord, error) {
 		var pricingBytes []byte
 		var entityType, serviceEndpoint, openapiURL *string
 		if err := rows.Scan(
-			&agent.AgentID, &agent.Name, &agent.Owner, &agent.EntityURL,
+			&agent.EntityID, &agent.Name, &agent.Owner, &agent.EntityURL,
 			&agent.Category, &tagsJSON, &agent.Summary, &agent.PublicKey,
 			&agent.HomeRegistry, &agent.SchemaVersion, &registeredAt, &updatedAt,
 			&agent.TTL, &agent.Signature,
@@ -1099,7 +1099,7 @@ func scanAgentRows(rows pgx.Rows) ([]*models.RegistryRecord, error) {
 			agent.DeveloperID = *developerID
 		}
 		if agentIndex != nil {
-			agent.AgentIndex = agentIndex
+			agent.EntityIndex = agentIndex
 		}
 		if len(developerProofJSON) > 0 {
 			agent.DeveloperProof = &models.DeveloperProof{}
@@ -1261,12 +1261,12 @@ func (s *PostgresStore) CreateZNSName(name *models.ZNSName) error {
 		capTags = []string{}
 	}
 	_, err := s.pool.Exec(context.Background(), `
-		INSERT INTO zns_names (fqan, agent_name, developer_handle, registry_host,
-			agent_id, developer_id, current_version, capability_tags,
+		INSERT INTO zns_names (fqan, entity_name, developer_handle, registry_host,
+			entity_id, developer_id, current_version, capability_tags,
 			registered_at, updated_at, signature)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-		name.FQAN, name.AgentName, name.DeveloperHandle, name.RegistryHost,
-		name.AgentID, name.DeveloperID, name.CurrentVersion, capTags,
+		name.FQAN, name.EntityName, name.DeveloperHandle, name.RegistryHost,
+		name.EntityID, name.DeveloperID, name.CurrentVersion, capTags,
 		name.RegisteredAt, name.UpdatedAt, name.Signature,
 	)
 	if err != nil {
@@ -1277,7 +1277,7 @@ func (s *PostgresStore) CreateZNSName(name *models.ZNSName) error {
 
 func (s *PostgresStore) GetZNSName(fqan string) (*models.ZNSName, error) {
 	row := s.pool.QueryRow(context.Background(), `
-		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+		SELECT fqan, entity_name, developer_handle, registry_host, entity_id,
 			developer_id, current_version, capability_tags, registered_at, updated_at, signature
 		FROM zns_names WHERE fqan = $1`, fqan)
 	return scanZNSName(row)
@@ -1285,19 +1285,19 @@ func (s *PostgresStore) GetZNSName(fqan string) (*models.ZNSName, error) {
 
 func (s *PostgresStore) GetZNSNameByParts(devHandle, agentName, registryHost string) (*models.ZNSName, error) {
 	row := s.pool.QueryRow(context.Background(), `
-		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+		SELECT fqan, entity_name, developer_handle, registry_host, entity_id,
 			developer_id, current_version, capability_tags, registered_at, updated_at, signature
 		FROM zns_names
-		WHERE developer_handle = $1 AND agent_name = $2 AND registry_host = $3`,
+		WHERE developer_handle = $1 AND entity_name = $2 AND registry_host = $3`,
 		devHandle, agentName, registryHost)
 	return scanZNSName(row)
 }
 
 func (s *PostgresStore) GetZNSNameByAgentID(agentID string) (*models.ZNSName, error) {
 	row := s.pool.QueryRow(context.Background(), `
-		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+		SELECT fqan, entity_name, developer_handle, registry_host, entity_id,
 			developer_id, current_version, capability_tags, registered_at, updated_at, signature
-		FROM zns_names WHERE agent_id = $1`, agentID)
+		FROM zns_names WHERE entity_id = $1`, agentID)
 	return scanZNSName(row)
 }
 
@@ -1305,7 +1305,7 @@ func scanZNSName(row pgx.Row) (*models.ZNSName, error) {
 	n := &models.ZNSName{}
 	var regAt, updAt time.Time
 	err := row.Scan(
-		&n.FQAN, &n.AgentName, &n.DeveloperHandle, &n.RegistryHost, &n.AgentID,
+		&n.FQAN, &n.EntityName, &n.DeveloperHandle, &n.RegistryHost, &n.EntityID,
 		&n.DeveloperID, &n.CurrentVersion, &n.CapabilityTags, &regAt, &updAt, &n.Signature,
 	)
 	if err == pgx.ErrNoRows {
@@ -1324,9 +1324,9 @@ func (s *PostgresStore) GetZNSNamesByAgentIDs(agentIDs []string) (map[string]*mo
 		return map[string]*models.ZNSName{}, nil
 	}
 	rows, err := s.pool.Query(context.Background(), `
-		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+		SELECT fqan, entity_name, developer_handle, registry_host, entity_id,
 			developer_id, current_version, capability_tags, registered_at, updated_at, signature
-		FROM zns_names WHERE agent_id = ANY($1)`, agentIDs)
+		FROM zns_names WHERE entity_id = ANY($1)`, agentIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query ZNS names by agent IDs: %w", err)
 	}
@@ -1337,14 +1337,14 @@ func (s *PostgresStore) GetZNSNamesByAgentIDs(agentIDs []string) (map[string]*mo
 		n := &models.ZNSName{}
 		var regAt, updAt time.Time
 		if err := rows.Scan(
-			&n.FQAN, &n.AgentName, &n.DeveloperHandle, &n.RegistryHost, &n.AgentID,
+			&n.FQAN, &n.EntityName, &n.DeveloperHandle, &n.RegistryHost, &n.EntityID,
 			&n.DeveloperID, &n.CurrentVersion, &n.CapabilityTags, &regAt, &updAt, &n.Signature,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan ZNS name row: %w", err)
 		}
 		n.RegisteredAt = regAt.UTC().Format(time.RFC3339)
 		n.UpdatedAt = updAt.UTC().Format(time.RFC3339)
-		result[n.AgentID] = n
+		result[n.EntityID] = n
 	}
 	return result, nil
 }
@@ -1382,10 +1382,10 @@ func (s *PostgresStore) DeleteZNSName(fqan string) error {
 
 func (s *PostgresStore) ListZNSNamesByDeveloper(devHandle, registryHost string) ([]*models.ZNSName, error) {
 	rows, err := s.pool.Query(context.Background(), `
-		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+		SELECT fqan, entity_name, developer_handle, registry_host, entity_id,
 			developer_id, current_version, capability_tags, registered_at, updated_at, signature
 		FROM zns_names WHERE developer_handle = $1 AND registry_host = $2
-		ORDER BY agent_name`, devHandle, registryHost)
+		ORDER BY entity_name`, devHandle, registryHost)
 	if err != nil {
 		return nil, err
 	}
@@ -1396,7 +1396,7 @@ func (s *PostgresStore) ListZNSNamesByDeveloper(devHandle, registryHost string) 
 		n := &models.ZNSName{}
 		var regAt, updAt time.Time
 		if err := rows.Scan(
-			&n.FQAN, &n.AgentName, &n.DeveloperHandle, &n.RegistryHost, &n.AgentID,
+			&n.FQAN, &n.EntityName, &n.DeveloperHandle, &n.RegistryHost, &n.EntityID,
 			&n.DeveloperID, &n.CurrentVersion, &n.CapabilityTags, &regAt, &updAt, &n.Signature,
 		); err != nil {
 			return nil, err
@@ -1412,9 +1412,9 @@ func (s *PostgresStore) ListZNSNamesByDeveloper(devHandle, registryHost string) 
 
 func (s *PostgresStore) CreateZNSVersion(v *models.ZNSVersion) error {
 	_, err := s.pool.Exec(context.Background(), `
-		INSERT INTO zns_versions (fqan, version, agent_id, build_hash, registered_at, signature)
+		INSERT INTO zns_versions (fqan, version, entity_id, build_hash, registered_at, signature)
 		VALUES ($1, $2, $3, $4, $5, $6)`,
-		v.FQAN, v.Version, v.AgentID, v.BuildHash, v.RegisteredAt, v.Signature,
+		v.FQAN, v.Version, v.EntityID, v.BuildHash, v.RegisteredAt, v.Signature,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create ZNS version: %w", err)
@@ -1424,7 +1424,7 @@ func (s *PostgresStore) CreateZNSVersion(v *models.ZNSVersion) error {
 
 func (s *PostgresStore) GetZNSVersions(fqan string) ([]*models.ZNSVersion, error) {
 	rows, err := s.pool.Query(context.Background(), `
-		SELECT fqan, version, agent_id, build_hash, registered_at, signature
+		SELECT fqan, version, entity_id, build_hash, registered_at, signature
 		FROM zns_versions WHERE fqan = $1 ORDER BY registered_at DESC`, fqan)
 	if err != nil {
 		return nil, err
@@ -1435,7 +1435,7 @@ func (s *PostgresStore) GetZNSVersions(fqan string) ([]*models.ZNSVersion, error
 	for rows.Next() {
 		v := &models.ZNSVersion{}
 		var regAt time.Time
-		if err := rows.Scan(&v.FQAN, &v.Version, &v.AgentID, &v.BuildHash, &regAt, &v.Signature); err != nil {
+		if err := rows.Scan(&v.FQAN, &v.Version, &v.EntityID, &v.BuildHash, &regAt, &v.Signature); err != nil {
 			return nil, err
 		}
 		v.RegisteredAt = regAt.UTC().Format(time.RFC3339)
@@ -1446,12 +1446,12 @@ func (s *PostgresStore) GetZNSVersions(fqan string) ([]*models.ZNSVersion, error
 
 func (s *PostgresStore) GetZNSVersion(fqan, version string) (*models.ZNSVersion, error) {
 	row := s.pool.QueryRow(context.Background(), `
-		SELECT fqan, version, agent_id, build_hash, registered_at, signature
+		SELECT fqan, version, entity_id, build_hash, registered_at, signature
 		FROM zns_versions WHERE fqan = $1 AND version = $2`, fqan, version)
 
 	v := &models.ZNSVersion{}
 	var regAt time.Time
-	err := row.Scan(&v.FQAN, &v.Version, &v.AgentID, &v.BuildHash, &regAt, &v.Signature)
+	err := row.Scan(&v.FQAN, &v.Version, &v.EntityID, &v.BuildHash, &regAt, &v.Signature)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -1470,16 +1470,16 @@ func (s *PostgresStore) UpsertGossipZNSName(entry *models.GossipZNSName) error {
 		capTags = []string{}
 	}
 	_, err := s.pool.Exec(context.Background(), `
-		INSERT INTO gossip_zns_names (fqan, agent_name, developer_handle, registry_host,
-			agent_id, current_version, capability_tags, received_at)
+		INSERT INTO gossip_zns_names (fqan, entity_name, developer_handle, registry_host,
+			entity_id, current_version, capability_tags, received_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT(fqan) DO UPDATE SET
-			agent_name=EXCLUDED.agent_name, developer_handle=EXCLUDED.developer_handle,
-			registry_host=EXCLUDED.registry_host, agent_id=EXCLUDED.agent_id,
+			entity_name=EXCLUDED.entity_name, developer_handle=EXCLUDED.developer_handle,
+			registry_host=EXCLUDED.registry_host, entity_id=EXCLUDED.entity_id,
 			current_version=EXCLUDED.current_version, capability_tags=EXCLUDED.capability_tags,
 			received_at=EXCLUDED.received_at, tombstoned=FALSE`,
-		entry.FQAN, entry.AgentName, entry.DeveloperHandle, entry.RegistryHost,
-		entry.AgentID, entry.CurrentVersion, capTags, entry.ReceivedAt,
+		entry.FQAN, entry.EntityName, entry.DeveloperHandle, entry.RegistryHost,
+		entry.EntityID, entry.CurrentVersion, capTags, entry.ReceivedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to upsert gossip ZNS name: %w", err)
@@ -1489,7 +1489,7 @@ func (s *PostgresStore) UpsertGossipZNSName(entry *models.GossipZNSName) error {
 
 func (s *PostgresStore) GetGossipZNSName(fqan string) (*models.GossipZNSName, error) {
 	row := s.pool.QueryRow(context.Background(), `
-		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+		SELECT fqan, entity_name, developer_handle, registry_host, entity_id,
 			current_version, capability_tags, received_at, tombstoned
 		FROM gossip_zns_names WHERE fqan = $1 AND tombstoned = FALSE`, fqan)
 	return scanGossipZNSName(row)
@@ -1497,10 +1497,10 @@ func (s *PostgresStore) GetGossipZNSName(fqan string) (*models.GossipZNSName, er
 
 func (s *PostgresStore) GetGossipZNSNameByParts(devHandle, agentName string) (*models.GossipZNSName, error) {
 	row := s.pool.QueryRow(context.Background(), `
-		SELECT fqan, agent_name, developer_handle, registry_host, agent_id,
+		SELECT fqan, entity_name, developer_handle, registry_host, entity_id,
 			current_version, capability_tags, received_at, tombstoned
 		FROM gossip_zns_names
-		WHERE developer_handle = $1 AND agent_name = $2 AND tombstoned = FALSE`,
+		WHERE developer_handle = $1 AND entity_name = $2 AND tombstoned = FALSE`,
 		devHandle, agentName)
 	return scanGossipZNSName(row)
 }
@@ -1509,7 +1509,7 @@ func scanGossipZNSName(row pgx.Row) (*models.GossipZNSName, error) {
 	n := &models.GossipZNSName{}
 	var recvAt time.Time
 	err := row.Scan(
-		&n.FQAN, &n.AgentName, &n.DeveloperHandle, &n.RegistryHost, &n.AgentID,
+		&n.FQAN, &n.EntityName, &n.DeveloperHandle, &n.RegistryHost, &n.EntityID,
 		&n.CurrentVersion, &n.CapabilityTags, &recvAt, &n.Tombstoned,
 	)
 	if err == pgx.ErrNoRows {

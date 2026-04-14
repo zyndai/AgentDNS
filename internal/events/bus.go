@@ -11,17 +11,17 @@ import (
 type EventType string
 
 const (
-	EventAgentRegistered   EventType = "agent_registered"
-	EventAgentDeregistered EventType = "agent_deregistered"
+	EventEntityRegistered   EventType = "entity_registered"
+	EventEntityDeregistered EventType = "entity_deregistered"
 	EventGossipOutgoing    EventType = "gossip_outgoing"
 	EventGossipIncoming    EventType = "gossip_incoming"
 	EventSearchOutgoing    EventType = "search_outgoing"
 	EventSearchIncoming    EventType = "search_result_incoming"
 	EventPeerConnected     EventType = "peer_connected"
 	EventPeerDisconnected  EventType = "peer_disconnected"
-	EventAgentHeartbeat      EventType = "agent_heartbeat"
-	EventAgentBecameInactive EventType = "agent_became_inactive"
-	EventAgentBecameActive   EventType = "agent_became_active"
+	EventEntityHeartbeat      EventType = "entity_heartbeat"
+	EventEntityBecameInactive EventType = "entity_became_inactive"
+	EventEntityBecameActive   EventType = "entity_became_active"
 
 	// ZNS events
 	EventHandleClaimed  EventType = "handle_claimed"
@@ -37,9 +37,9 @@ type Event struct {
 	Data      interface{} `json:"data"`
 }
 
-// AgentEventData is the payload for agent_registered / agent_deregistered events.
-type AgentEventData struct {
-	AgentID  string   `json:"agent_id"`
+// EntityEventData is the payload for agent_registered / agent_deregistered events.
+type EntityEventData struct {
+	EntityID string   `json:"entity_id"`
 	Name     string   `json:"name"`
 	Category string   `json:"category"`
 	Tags     []string `json:"tags,omitempty"`
@@ -51,13 +51,13 @@ type ZNSEventData struct {
 	FQAN        string `json:"fqan,omitempty"`
 	Handle      string `json:"handle,omitempty"`
 	DeveloperID string `json:"developer_id"`
-	AgentID     string `json:"agent_id,omitempty"`
+	EntityID    string `json:"entity_id,omitempty"`
 	Action      string `json:"action"` // claim, verify, release, register, resolve
 }
 
 // GossipEventData is the payload for gossip_incoming / gossip_outgoing events.
 type GossipEventData struct {
-	AgentID      string `json:"agent_id"`
+	EntityID     string `json:"entity_id"`
 	Name         string `json:"name"`
 	Action       string `json:"action"` // register | deregister | update
 	HomeRegistry string `json:"home_registry"`
@@ -76,7 +76,7 @@ type SearchEventData struct {
 
 // HeartbeatEventData is the payload for heartbeat and agent status events.
 type HeartbeatEventData struct {
-	AgentID string `json:"agent_id"`
+	EntityID string `json:"entity_id"`
 	Status  string `json:"status"`
 }
 

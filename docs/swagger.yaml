@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  models.AgentCard:
+  models.EntityCard:
     properties:
       agent_id:
         type: string
@@ -134,7 +134,7 @@ definitions:
     type: object
   models.DeveloperProof:
     properties:
-      agent_index:
+      entity_index:
         description: derivation index
         type: integer
       developer_public_key:
@@ -270,7 +270,7 @@ definitions:
     properties:
       agent_id:
         type: string
-      agent_name:
+      entity_name:
         type: string
       capability_tags:
         items:
@@ -284,7 +284,7 @@ definitions:
         type: string
     required:
     - agent_id
-    - agent_name
+    - entity_name
     - developer_handle
     - signature
     type: object
@@ -388,7 +388,7 @@ definitions:
     type: object
   models.RegistrationRequest:
     properties:
-      agent_name:
+      entity_name:
         description: ZNS naming fields (optional — requires developer with claimed
           handle)
         type: string
@@ -444,7 +444,7 @@ definitions:
     properties:
       agent_id:
         type: string
-      agent_index:
+      entity_index:
         type: integer
       capability_summary:
         $ref: '#/definitions/models.CapabilitySummary'
@@ -597,7 +597,7 @@ definitions:
         $ref: '#/definitions/models.CapabilitySummary'
       card:
         allOf:
-        - $ref: '#/definitions/models.AgentCard'
+        - $ref: '#/definitions/models.EntityCard'
         description: included if enrich=true
       category:
         type: string
@@ -699,7 +699,7 @@ definitions:
       agent_id:
         description: agdns:<hash>
         type: string
-      agent_name:
+      entity_name:
         description: e.g., "doc-translator"
         type: string
       capability_tags:
@@ -1313,7 +1313,7 @@ paths:
         "200":
           description: Entity card
           schema:
-            $ref: '#/definitions/models.AgentCard'
+            $ref: '#/definitions/models.EntityCard'
         "400":
           description: Missing ID
           schema:
@@ -1810,7 +1810,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: developer, agent_name, available, and optional reason
+          description: developer, entity_name, available, and optional reason
           schema:
             additionalProperties: true
             type: object

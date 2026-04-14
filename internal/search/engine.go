@@ -76,28 +76,28 @@ func (e *Engine) SetFederatedSearcher(fs FederatedSearcher) {
 func (e *Engine) IndexAgent(agent *models.RegistryRecord) {
 	// Index in keyword search
 	if e.useImprovedKW {
-		e.improvedKeyword.IndexDocument(agent.AgentID, agent.Name, agent.Summary, agent.Category, agent.Tags)
+		e.improvedKeyword.IndexDocument(agent.EntityID, agent.Name, agent.Summary, agent.Category, agent.Tags)
 	} else {
-		e.keyword.IndexDocument(agent.AgentID, agent.Name, agent.Summary, agent.Category, agent.Tags)
+		e.keyword.IndexDocument(agent.EntityID, agent.Name, agent.Summary, agent.Category, agent.Tags)
 	}
 
 	// Index in semantic search
 	text := agent.Name + " " + agent.Summary + " " + strings.Join(agent.Tags, " ")
 	vec := e.embedder.Embed(text)
-	e.semantic.Index(agent.AgentID, vec)
+	e.semantic.Index(agent.EntityID, vec)
 }
 
 // IndexGossipEntry adds a gossip entry to the search indexes.
 func (e *Engine) IndexGossipEntry(entry *models.GossipEntry) {
 	if e.useImprovedKW {
-		e.improvedKeyword.IndexDocument(entry.AgentID, entry.Name, entry.Summary, entry.Category, entry.Tags)
+		e.improvedKeyword.IndexDocument(entry.EntityID, entry.Name, entry.Summary, entry.Category, entry.Tags)
 	} else {
-		e.keyword.IndexDocument(entry.AgentID, entry.Name, entry.Summary, entry.Category, entry.Tags)
+		e.keyword.IndexDocument(entry.EntityID, entry.Name, entry.Summary, entry.Category, entry.Tags)
 	}
 
 	text := entry.Name + " " + entry.Summary + " " + strings.Join(entry.Tags, " ")
 	vec := e.embedder.Embed(text)
-	e.semantic.Index(entry.AgentID, vec)
+	e.semantic.Index(entry.EntityID, vec)
 }
 
 // RemoveAgent removes an agent from all indexes.
@@ -166,7 +166,7 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 		for _, r := range fedResults {
 			mu.Lock()
 			allCandidates = append(allCandidates, &ranking.CandidateResult{
-				AgentID:            r.AgentID,
+				EntityID:            r.EntityID,
 				Name:               r.Name,
 				Summary:            r.Summary,
 				Category:           r.Category,
@@ -282,7 +282,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			normalizedScore = kr.Score / maxKeyword
 		}
 
-		agent, err := e.store.GetAgent(kr.DocID)
+		agent, err := e.store.GetEntity(kr.DocID)
 		if err != nil || agent == nil {
 			continue
 		}
@@ -312,7 +312,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 		}
 
 		candidateMap[kr.DocID] = &ranking.CandidateResult{
-			AgentID:         agent.AgentID,
+			EntityID:         agent.EntityID,
 			Name:            agent.Name,
 			Summary:         agent.Summary,
 			Category:        agent.Category,
@@ -337,7 +337,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 		if c, exists := candidateMap[sr.DocID]; exists {
 			c.SemanticSimilarity = sr.Score
 		} else {
-			agent, err := e.store.GetAgent(sr.DocID)
+			agent, err := e.store.GetEntity(sr.DocID)
 			if err != nil || agent == nil {
 				continue
 			}
@@ -358,7 +358,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			}
 
 			candidateMap[sr.DocID] = &ranking.CandidateResult{
-				AgentID:            agent.AgentID,
+				EntityID:            agent.EntityID,
 				Name:               agent.Name,
 				Summary:            agent.Summary,
 				Category:           agent.Category,
@@ -416,7 +416,7 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 		}
 		textScore := 0.0
 		for _, kr := range keywordResults {
-			if kr.DocID == entry.AgentID {
+			if kr.DocID == entry.EntityID {
 				textScore = kr.Score
 				break
 			}
@@ -429,7 +429,7 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 		semanticScore := cosineSimilarity(queryVec, docVec)
 
 		candidates = append(candidates, &ranking.CandidateResult{
-			AgentID:            entry.AgentID,
+			EntityID:            entry.EntityID,
 			Name:               entry.Name,
 			Summary:            entry.Summary,
 			Category:           entry.Category,
@@ -462,13 +462,13 @@ func (e *Engine) enrichCandidates(candidates []*ranking.CandidateResult) {
 			defer wg.Done()
 
 			// Look up public key from local store first
-			agent, err := e.store.GetAgent(candidate.AgentID)
+			agent, err := e.store.GetEntity(candidate.EntityID)
 			pubKey := ""
 			if err == nil && agent != nil {
 				pubKey = agent.PublicKey
 			}
 
-			card, err := e.fetcher.FetchCard(candidate.AgentID, candidate.EntityURL, pubKey)
+			card, err := e.fetcher.FetchCard(candidate.EntityID, candidate.EntityURL, pubKey)
 			if err == nil && card != nil {
 				candidate.Card = card
 				// Update availability based on card status
@@ -494,7 +494,7 @@ func (e *Engine) enrichWithZNS(candidates []*ranking.CandidateResult) {
 	// Collect agent IDs for batch lookup
 	agentIDs := make([]string, len(candidates))
 	for i, c := range candidates {
-		agentIDs[i] = c.AgentID
+		agentIDs[i] = c.EntityID
 	}
 
 	znsMap, err := e.store.GetZNSNamesByAgentIDs(agentIDs)
@@ -503,7 +503,7 @@ func (e *Engine) enrichWithZNS(candidates []*ranking.CandidateResult) {
 	}
 
 	for _, c := range candidates {
-		if name, ok := znsMap[c.AgentID]; ok {
+		if name, ok := znsMap[c.EntityID]; ok {
 			c.FQAN = name.FQAN
 			c.DeveloperHandle = name.DeveloperHandle
 		}
@@ -513,7 +513,7 @@ func (e *Engine) enrichWithZNS(candidates []*ranking.CandidateResult) {
 // RebuildIndexes rebuilds keyword and semantic indexes from the store.
 func (e *Engine) RebuildIndexes() error {
 	// Index local agents
-	agents, err := e.store.ListAgents("", 100000, 0)
+	agents, err := e.store.ListEntities("", 100000, 0)
 	if err != nil {
 		return err
 	}

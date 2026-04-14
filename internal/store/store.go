@@ -25,27 +25,27 @@ type Store interface {
 	// CreateAgent inserts a new agent registry record.
 	CreateAgent(agent *models.RegistryRecord) error
 
-	// GetAgent retrieves an agent by ID from local storage.
+	// GetEntity retrieves an agent by ID from local storage.
 	// Returns nil, nil if the agent is not found.
-	GetAgent(agentID string) (*models.RegistryRecord, error)
+	GetEntity(agentID string) (*models.RegistryRecord, error)
 
-	// UpdateAgent updates an existing agent's registry record.
-	UpdateAgent(agent *models.RegistryRecord) error
+	// UpdateEntity updates an existing agent's registry record.
+	UpdateEntity(agent *models.RegistryRecord) error
 
-	// DeleteAgent removes an agent from local storage.
-	DeleteAgent(agentID string, owner string) error
+	// DeleteEntity removes an agent from local storage.
+	DeleteEntity(agentID string, owner string) error
 
-	// ListAgents returns all local agents, optionally filtered by category.
-	ListAgents(category string, limit, offset int) ([]*models.RegistryRecord, error)
+	// ListEntities returns all local agents, optionally filtered by category.
+	ListEntities(category string, limit, offset int) ([]*models.RegistryRecord, error)
 
-	// CountAgents returns the number of local agents.
-	CountAgents() (int, error)
+	// CountEntities returns the number of local agents.
+	CountEntities() (int, error)
 
 	// SearchAgentsByKeyword performs a keyword search on local agents.
 	SearchAgentsByKeyword(query string, category string, tags []string, limit int) ([]*models.RegistryRecord, error)
 
-	// ListAgentsByDeveloper returns all agents registered by a specific developer.
-	ListAgentsByDeveloper(developerID string, limit, offset int) ([]*models.RegistryRecord, error)
+	// ListEntitiesByDeveloper returns all agents registered by a specific developer.
+	ListEntitiesByDeveloper(developerID string, limit, offset int) ([]*models.RegistryRecord, error)
 
 	// --- Developer CRUD ---
 
@@ -118,8 +118,8 @@ type Store interface {
 
 	// --- Agent Heartbeat Liveness ---
 
-	// UpdateAgentHeartbeat sets an agent's last_heartbeat to now and status to active.
-	UpdateAgentHeartbeat(agentID string) error
+	// UpdateEntityHeartbeat sets an agent's last_heartbeat to now and status to active.
+	UpdateEntityHeartbeat(agentID string) error
 
 	// MarkInactiveAgents marks agents as inactive whose last heartbeat is older than threshold.
 	// Returns the list of agent IDs that were newly marked inactive.

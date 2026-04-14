@@ -34,8 +34,8 @@ func TestRedisCache_AgentCard(t *testing.T) {
 	rc := newTestRedisCache(t)
 	ctx := context.Background()
 
-	card := &models.AgentCard{
-		AgentID: "zns:redis-test-1",
+	card := &models.EntityCard{
+		EntityID: "zns:redis-test-1",
 		Version: "1.0.0",
 		Status:  "online",
 		Capabilities: []models.Capability{
@@ -60,8 +60,8 @@ func TestRedisCache_AgentCard(t *testing.T) {
 	if got == nil {
 		t.Fatal("agent card not found")
 	}
-	if got.AgentID != card.AgentID {
-		t.Errorf("agent_id mismatch: %s vs %s", got.AgentID, card.AgentID)
+	if got.EntityID != card.EntityID {
+		t.Errorf("entity_id mismatch: %s vs %s", got.EntityID, card.EntityID)
 	}
 	if got.Status != "online" {
 		t.Errorf("status mismatch: %s vs %s", got.Status, card.Status)
@@ -90,7 +90,7 @@ func TestRedisCache_SearchResult(t *testing.T) {
 	resp := &models.SearchResponse{
 		Results: []models.SearchResult{
 			{
-				AgentID:  "zns:test1",
+				EntityID:  "zns:test1",
 				Name:     "TestAgent",
 				Score:    0.95,
 				Category: "tools",

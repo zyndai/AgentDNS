@@ -626,15 +626,15 @@ curl -X POST https://dns01.zynd.ai/v1/agents \
     "developer_id": "agdns:dev:f2a1c3e8...",
     "developer_proof": {
       "developer_public_key": "ed25519:<base64>",
-      "agent_index": 0,
+      "entity_index": 0,
       "developer_signature": "ed25519:<base64>"
     },
-    "agent_name": "code-review-bot",
+    "entity_name": "code-review-bot",
     "version": "1.0.0"
   }'
 ```
 
-If `agent_name` is provided and the developer has a claimed handle, the FQAN is created automatically (e.g., `dns01.zynd.ai/acme-corp/code-review-bot`).
+If `entity_name` is provided and the developer has a claimed handle, the FQAN is created automatically (e.g., `dns01.zynd.ai/acme-corp/code-review-bot`).
 
 ### Agent Card Hosting
 
@@ -824,7 +824,7 @@ This creates the FQAN `dns01.zynd.ai/acme-corp/doc-translator@2.1.0` automatical
 curl -X POST https://dns01.zynd.ai/v1/names \
   -H "Content-Type: application/json" \
   -d '{
-    "agent_name": "doc-translator",
+    "entity_name": "doc-translator",
     "developer_handle": "acme-corp",
     "agent_id": "agdns:7f3a9c2e...",
     "version": "2.1.0",

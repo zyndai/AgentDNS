@@ -18,15 +18,15 @@ import (
 	"github.com/agentdns/agent-dns/internal/identity"
 )
 
-// testAgentEntry holds an agent ID and its private key for deregistration.
-type testAgentEntry struct {
-	AgentID    string `json:"agent_id"`
+// testEntityEntry holds an entity ID and its private key for deregistration.
+type testEntityEntry struct {
+	EntityID   string `json:"entity_id"`
 	PrivateKey string `json:"private_key"` // base64-encoded Ed25519 private key
 }
 
-// testAgentStore persists registered agents (ID + keypair) for deregister.
-type testAgentStore struct {
-	Agents       []testAgentEntry `json:"agents"`
+// testEntityStore persists registered agents (ID + keypair) for deregister.
+type testEntityStore struct {
+	Agents       []testEntityEntry `json:"agents"`
 	RegistryURL  string           `json:"registry_url"`
 	RegisteredAt string           `json:"registered_at"`
 }
@@ -115,7 +115,7 @@ func cmdTestRegister() {
 		successCount int64
 		failCount    int64
 		mu           sync.Mutex
-		agents       []testAgentEntry
+		agents       []testEntityEntry
 		latencies    []float64
 	)
 
@@ -209,7 +209,7 @@ func cmdTestDeregister() {
 	fmt.Printf("  Registry: %s\n", registryURL)
 	fmt.Printf("  Agents:   %d\n\n", total)
 
-	jobs := make(chan testAgentEntry, total)
+	jobs := make(chan testEntityEntry, total)
 	for _, a := range store.Agents {
 		jobs <- a
 	}
@@ -231,9 +231,9 @@ func cmdTestDeregister() {
 					PrivateKey:    ed25519.PrivateKey(privBytes),
 					PrivateKeyB64: entry.PrivateKey,
 				}
-				sig := kp.Sign([]byte(entry.AgentID))
+				sig := kp.Sign([]byte(entry.EntityID))
 
-				req, _ := http.NewRequest(http.MethodDelete, registryURL+"/v1/agents/"+entry.AgentID, nil)
+				req, _ := http.NewRequest(http.MethodDelete, registryURL+"/v1/entities/"+entry.EntityID, nil)
 				req.Header.Set("Authorization", "Bearer "+sig)
 				resp, err := client.Do(req)
 				if err != nil || resp.StatusCode != http.StatusOK {
@@ -295,7 +295,7 @@ var (
 	testNouns      = []string{"Analyzer", "Processor", "Assistant", "Engine", "Bot", "Agent", "Worker", "Resolver", "Optimizer", "Scanner"}
 )
 
-func registerTestAgent(client *http.Client, registryURL string, idx int) (testAgentEntry, error) {
+func registerTestAgent(client *http.Client, registryURL string, idx int) (testEntityEntry, error) {
 	r := rand.New(rand.NewSource(int64(idx)))
 	catIdx := r.Intn(len(testCategories))
 	category := testCategories[catIdx]
@@ -306,12 +306,12 @@ func registerTestAgent(client *http.Client, registryURL string, idx int) (testAg
 
 	kp, err := identity.GenerateKeypair()
 	if err != nil {
-		return testAgentEntry{}, fmt.Errorf("keygen: %w", err)
+		return testEntityEntry{}, fmt.Errorf("keygen: %w", err)
 	}
 
 	payload := map[string]interface{}{
 		"name":       name,
-		"agent_url":  agentURL,
+		"entity_url":  agentURL,
 		"category":   category,
 		"tags":       tags,
 		"summary":    summary,
@@ -321,23 +321,23 @@ func registerTestAgent(client *http.Client, registryURL string, idx int) (testAg
 	payload["signature"] = kp.Sign(signable)
 
 	data, _ := json.Marshal(payload)
-	resp, err := client.Post(registryURL+"/v1/agents", "application/json", bytes.NewReader(data))
+	resp, err := client.Post(registryURL+"/v1/entities", "application/json", bytes.NewReader(data))
 	if err != nil {
-		return testAgentEntry{}, err
+		return testEntityEntry{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		return testAgentEntry{}, fmt.Errorf("status %d", resp.StatusCode)
+		return testEntityEntry{}, fmt.Errorf("status %d", resp.StatusCode)
 	}
 
 	var result map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&result)
-	id, _ := result["agent_id"].(string)
+	id, _ := result["entity_id"].(string)
 	if id == "" {
-		return testAgentEntry{}, fmt.Errorf("no agent_id in response")
+		return testEntityEntry{}, fmt.Errorf("no entity_id in response")
 	}
-	return testAgentEntry{AgentID: id, PrivateKey: kp.PrivateKeyB64}, nil
+	return testEntityEntry{EntityID: id, PrivateKey: kp.PrivateKeyB64}, nil
 }
 
 func printLatencyStats(latencies []float64, elapsed time.Duration, success, fail int64, total int) {
@@ -367,12 +367,12 @@ func percentile(sorted []float64, p float64) float64 {
 	return sorted[idx]
 }
 
-func saveTestAgents(agents []testAgentEntry, registryURL string) error {
+func saveTestAgents(agents []testEntityEntry, registryURL string) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
-	s := testAgentStore{
+	s := testEntityStore{
 		Agents:       agents,
 		RegistryURL:  registryURL,
 		RegisteredAt: time.Now().UTC().Format(time.RFC3339),
@@ -385,7 +385,7 @@ func saveTestAgents(agents []testAgentEntry, registryURL string) error {
 }
 
 
-func loadTestAgents() (*testAgentStore, error) {
+func loadTestAgents() (*testEntityStore, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
@@ -394,7 +394,7 @@ func loadTestAgents() (*testAgentStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	var store testAgentStore
+	var store testEntityStore
 	if err := json.Unmarshal(data, &store); err != nil {
 		return nil, err
 	}

@@ -35,7 +35,7 @@ func NodeIDFromBytes(b []byte) NodeID {
 }
 
 // NodeIDFromPublicKey derives a NodeID from an Ed25519 public key using SHA-256.
-// This produces the same bytes used in agent_id and registry_id derivation.
+// This produces the same bytes used in entity_id and registry_id derivation.
 func NodeIDFromPublicKey(pubKey []byte) NodeID {
 	return sha256.Sum256(pubKey)
 }
@@ -121,9 +121,9 @@ type NodeContact struct {
 	LastSeen int64  `json:"last_seen"` // Unix timestamp
 }
 
-// AgentDHTRecord is the value stored in the DHT for each agent.
-type AgentDHTRecord struct {
-	AgentID       string   `json:"agent_id"`
+// EntityDHTRecord is the value stored in the DHT for each entity.
+type EntityDHTRecord struct {
+	EntityID      string   `json:"entity_id"`
 	Name          string   `json:"name"`
 	Category      string   `json:"category"`
 	Tags          []string `json:"tags,omitempty"`
@@ -164,14 +164,14 @@ type Message struct {
 
 	// Store
 	Key    NodeID          `json:"key,omitempty"`
-	Record *AgentDHTRecord `json:"record,omitempty"`
+	Record *EntityDHTRecord `json:"record,omitempty"`
 
 	// FindNode / FindValue
 	Target NodeID `json:"target,omitempty"`
 
 	// Responses
 	Nodes []NodeContact   `json:"nodes,omitempty"`  // FindNode/FindValue response
-	Value *AgentDHTRecord `json:"value,omitempty"`  // FindValue response (if found)
+	Value *EntityDHTRecord `json:"value,omitempty"`  // FindValue response (if found)
 	OK    bool            `json:"ok,omitempty"`     // Store/Ping ack
 
 	// Timestamp for freshness

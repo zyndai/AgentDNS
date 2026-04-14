@@ -50,12 +50,12 @@ type DeveloperUpdateRequest struct {
 }
 
 // DeveloperProof is a cryptographic proof linking a developer to an agent.
-// It contains the developer's signature over (agent_public_key || agent_index),
+// It contains the developer's signature over (agent_public_key || entity_index),
 // proving the developer authorized this specific agent key.
 // This proof can be verified offline using only the developer's public key.
 type DeveloperProof struct {
 	DeveloperPublicKey string `json:"developer_public_key"` // ed25519:<base64>
-	AgentIndex         int    `json:"agent_index"`          // derivation index
+	EntityIndex         int    `json:"entity_index"`          // derivation index
 	DeveloperSignature string `json:"developer_signature"`  // ed25519:<base64> over (agent_pub || index)
 }
 

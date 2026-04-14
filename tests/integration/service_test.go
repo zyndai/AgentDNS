@@ -13,11 +13,11 @@ import (
 )
 
 // signRegistration produces an Ed25519 signature over the canonical registration
-// fields that handleRegisterAgent expects: {name, agent_url, category, tags, summary, public_key}.
+// fields that handleRegisterEntity expects: {name, entity_url, category, tags, summary, public_key}.
 func signRegistration(kp *identity.Keypair, name, agentURL, category string, tags []string, summary string) string {
 	signable, _ := json.Marshal(map[string]interface{}{
 		"name":       name,
-		"agent_url":  agentURL,
+		"entity_url":  agentURL,
 		"category":   category,
 		"tags":       tags,
 		"summary":    summary,
@@ -34,17 +34,17 @@ func registerAgent(t *testing.T, handler http.Handler, body map[string]interface
 	if err != nil {
 		t.Fatalf("failed to marshal registration body: %v", err)
 	}
-	req := httptest.NewRequest("POST", "/v1/agents", bytes.NewReader(data))
+	req := httptest.NewRequest("POST", "/v1/entities", bytes.NewReader(data))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	return w
 }
 
-// getAgent GETs /v1/agents/{id} and returns the response recorder.
+// getAgent GETs /v1/entities/{id} and returns the response recorder.
 func getAgent(t *testing.T, handler http.Handler, agentID string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest("GET", "/v1/agents/"+agentID, nil)
+	req := httptest.NewRequest("GET", "/v1/entities/"+agentID, nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	return w
@@ -70,16 +70,16 @@ func searchAgents(t *testing.T, handler http.Handler, searchReq models.SearchReq
 	return w, &resp
 }
 
-// extractAgentID parses the agent_id from a 201 registration response.
+// extractAgentID parses the entity_id from a 201 registration response.
 func extractAgentID(t *testing.T, w *httptest.ResponseRecorder) string {
 	t.Helper()
 	var resp map[string]string
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode registration response: %v", err)
 	}
-	id, ok := resp["agent_id"]
+	id, ok := resp["entity_id"]
 	if !ok || id == "" {
-		t.Fatal("registration response missing agent_id")
+		t.Fatal("registration response missing entity_id")
 	}
 	return id
 }
@@ -101,7 +101,7 @@ func TestServiceRegistration(t *testing.T) {
 
 	body := map[string]interface{}{
 		"name":             name,
-		"agent_url":        endpoint,
+		"entity_url":        endpoint,
 		"category":         "api-services",
 		"tags":             []string{"rest", "data"},
 		"summary":          "A test service",
@@ -166,14 +166,14 @@ func TestServiceRegistrationValidation(t *testing.T) {
 	}
 
 	// entity_type="service" without service_endpoint should fail validation.
-	// For services, the handler defaults agent_url to service_endpoint when agent_url is empty,
-	// so we must provide agent_url to pass the required-fields check and reach Validate().
+	// For services, the handler defaults entity_url to service_endpoint when entity_url is empty,
+	// so we must provide entity_url to pass the required-fields check and reach Validate().
 	name := fmt.Sprintf("TestSvc-%s", t.Name())
 	sig := signRegistration(kp, name, "https://placeholder.example.com", "api-services", []string{}, "Missing endpoint")
 
 	body := map[string]interface{}{
 		"name":        name,
-		"agent_url":   "https://placeholder.example.com",
+		"entity_url":   "https://placeholder.example.com",
 		"category":    "api-services",
 		"tags":        []string{},
 		"summary":     "Missing endpoint",
@@ -199,7 +199,7 @@ func TestSearchByEntityType(t *testing.T) {
 	agentSig := signRegistration(agentKP, agentName, "https://agent.example.com/.well-known/agent.json", "developer-tools", []string{"search-test"}, "search test agent")
 	w := registerAgent(t, handler, map[string]interface{}{
 		"name":       agentName,
-		"agent_url":  "https://agent.example.com/.well-known/agent.json",
+		"entity_url":  "https://agent.example.com/.well-known/agent.json",
 		"category":   "developer-tools",
 		"tags":       []string{"search-test"},
 		"summary":    "search test agent",
@@ -217,7 +217,7 @@ func TestSearchByEntityType(t *testing.T) {
 	svcSig := signRegistration(svcKP, svcName, svcEndpoint, "developer-tools", []string{"search-test"}, "search test service")
 	w = registerAgent(t, handler, map[string]interface{}{
 		"name":             svcName,
-		"agent_url":        svcEndpoint,
+		"entity_url":        svcEndpoint,
 		"category":         "developer-tools",
 		"tags":             []string{"search-test"},
 		"summary":          "search test service",
@@ -315,7 +315,7 @@ func TestDefaultEntityType(t *testing.T) {
 
 	w := registerAgent(t, handler, map[string]interface{}{
 		"name":       name,
-		"agent_url":  "https://default.example.com/.well-known/agent.json",
+		"entity_url":  "https://default.example.com/.well-known/agent.json",
 		"category":   "tools",
 		"tags":       []string{},
 		"summary":    "default entity test",
@@ -352,7 +352,7 @@ func TestServiceRouteAlias(t *testing.T) {
 
 	body := map[string]interface{}{
 		"name":             name,
-		"agent_url":        endpoint,
+		"entity_url":        endpoint,
 		"category":         "api-services",
 		"tags":             []string{"alias"},
 		"summary":          "alias route test",

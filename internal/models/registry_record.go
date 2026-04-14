@@ -17,10 +17,10 @@ const CurrentSchemaVersion = "1.0"
 // It acts as a static pointer to the dynamic Agent Card hosted by the agent itself.
 // Supports both agents (autonomous LLM entities) and services (stateless API tools).
 type RegistryRecord struct {
-	AgentID           string             `json:"agent_id" db:"agent_id"`
+	EntityID          string             `json:"entity_id" db:"entity_id"`
 	Name              string             `json:"name" db:"name"`
 	Owner             string             `json:"owner" db:"owner"`
-	EntityURL         string             `json:"entity_url" db:"agent_url"`
+	EntityURL         string             `json:"entity_url" db:"entity_url"`
 	Category          string             `json:"category" db:"category"`
 	Tags              []string           `json:"tags" db:"-"`
 	Summary           string             `json:"summary" db:"summary"`
@@ -35,7 +35,7 @@ type RegistryRecord struct {
 
 	// Developer identity fields
 	DeveloperID    string          `json:"developer_id,omitempty" db:"developer_id"`
-	AgentIndex     *int            `json:"agent_index,omitempty" db:"agent_index"`
+	EntityIndex     *int            `json:"entity_index,omitempty" db:"entity_index"`
 	DeveloperProof *DeveloperProof `json:"developer_proof,omitempty" db:"-"` // stored as JSONB
 
 	// Codebase integrity
@@ -80,7 +80,7 @@ type RegistrationRequest struct {
 	DeveloperProof *DeveloperProof `json:"developer_proof,omitempty"`
 
 	// ZNS naming fields (optional — requires developer with claimed handle)
-	AgentName string `json:"agent_name,omitempty"` // e.g., "doc-translator" or "svc:openai-proxy"
+	EntityName string `json:"entity_name,omitempty"` // e.g., "doc-translator" or "svc:openai-proxy"
 	Version   string `json:"version,omitempty"`    // semver, e.g., "2.1.0"
 
 	// Service directory fields (entity_type discriminates agent vs service)
@@ -103,18 +103,18 @@ type UpdateRequest struct {
 	Signature         string             `json:"signature" validate:"required"`
 }
 
-// GenerateAgentID derives an agent_id from an Ed25519 public key.
-// Format: zns:<first 16 bytes of SHA-256 of public key as hex>
-func GenerateAgentID(publicKey ed25519.PublicKey) string {
+// GenerateEntityID derives an entity_id from an Ed25519 public key.
+// Format: "zns:<hex>" for agents, "zns:svc:<hex>" for services — where
+// <hex> is the first 16 bytes of SHA-256(public_key) hex-encoded.
+// entityType should be "agent" or "service"; anything else (including "")
+// falls back to agent-flavor.
+func GenerateEntityID(publicKey ed25519.PublicKey, entityType string) string {
 	hash := sha256.Sum256(publicKey)
-	return "zns:" + hex.EncodeToString(hash[:16])
-}
-
-// GenerateServiceID derives a service_id from an Ed25519 public key.
-// Format: zns:svc:<first 16 bytes of SHA-256 of public key as hex>
-func GenerateServiceID(publicKey ed25519.PublicKey) string {
-	hash := sha256.Sum256(publicKey)
-	return "zns:svc:" + hex.EncodeToString(hash[:16])
+	suffix := hex.EncodeToString(hash[:16])
+	if entityType == "service" {
+		return "zns:svc:" + suffix
+	}
+	return "zns:" + suffix
 }
 
 // GenerateRegistryID derives a registry_id from an Ed25519 public key.
@@ -137,8 +137,8 @@ func (r *RegistryRecord) SignableBytes() ([]byte, error) {
 
 // Validate performs basic validation of a RegistryRecord.
 func (r *RegistryRecord) Validate() error {
-	if r.AgentID == "" {
-		return fmt.Errorf("agent_id is required")
+	if r.EntityID == "" {
+		return fmt.Errorf("entity_id is required")
 	}
 	if r.Name == "" {
 		return fmt.Errorf("name is required")

@@ -56,14 +56,14 @@ type Server struct {
 
 // dhtNode wraps the DHT for API use.
 type dhtNode struct {
-	FindValueFn func(agentID string) *dhtRecord
+	FindValueFn func(entityID string) *dhtRecord
 }
 
 // DHTRecord represents an agent record from the Kademlia DHT.
 type DHTRecord = dhtRecord
 
 type dhtRecord struct {
-	AgentID      string   `json:"agent_id"`
+	EntityID     string   `json:"entity_id"`
 	Name         string   `json:"name"`
 	Category     string   `json:"category"`
 	Tags         []string `json:"tags,omitempty"`
@@ -76,7 +76,7 @@ type dhtRecord struct {
 }
 
 // SetDHT sets the DHT lookup function for fallback agent resolution.
-func (s *Server) SetDHT(findValue func(agentID string) *dhtRecord) {
+func (s *Server) SetDHT(findValue func(entityID string) *dhtRecord) {
 	s.dht = &dhtNode{FindValueFn: findValue}
 }
 
@@ -122,28 +122,16 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/developers/{developerID}", s.handleGetDeveloper)
 	mux.HandleFunc("PUT /v1/developers/{developerID}", s.handleUpdateDeveloper)
 	mux.HandleFunc("DELETE /v1/developers/{developerID}", s.handleDeleteDeveloper)
-	mux.HandleFunc("GET /v1/developers/{developerID}/entities", s.handleListDeveloperAgents)
-	mux.HandleFunc("GET /v1/developers/{developerID}/agents", s.handleListDeveloperAgents) // alias
+	mux.HandleFunc("GET /v1/developers/{developerID}/entities", s.handleListDeveloperEntities)
 
 	// Entity management (unified API for agents + services)
-	mux.HandleFunc("POST /v1/entities", rateLimited(registerRL, s.handleRegisterAgent))
+	mux.HandleFunc("POST /v1/entities", rateLimited(registerRL, s.handleRegisterEntity))
 	mux.HandleFunc("GET /v1/entities", s.handleListEntities)
-	mux.HandleFunc("GET /v1/entities/{entityID}", s.handleGetAgent)
-	mux.HandleFunc("PUT /v1/entities/{entityID}", s.handleUpdateAgent)
-	mux.HandleFunc("DELETE /v1/entities/{entityID}", s.handleDeleteAgent)
-	mux.HandleFunc("GET /v1/entities/{entityID}/card", s.handleGetAgentCard)
-	mux.HandleFunc("GET /v1/entities/{entityID}/ws", s.handleAgentHeartbeat)
-
-	// Aliases: /v1/agents and /v1/services point to the same entity handlers
-	mux.HandleFunc("POST /v1/agents", rateLimited(registerRL, s.handleRegisterAgent))
-	mux.HandleFunc("GET /v1/agents/{entityID}", s.handleGetAgent)
-	mux.HandleFunc("PUT /v1/agents/{entityID}", s.handleUpdateAgent)
-	mux.HandleFunc("DELETE /v1/agents/{entityID}", s.handleDeleteAgent)
-	mux.HandleFunc("GET /v1/agents/{entityID}/card", s.handleGetAgentCard)
-	mux.HandleFunc("GET /v1/agents/{entityID}/ws", s.handleAgentHeartbeat)
-	// Service registration alias (same handler, entity_type defaults to "agent" if not set)
-	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterAgent))
-	mux.HandleFunc("GET /v1/services/{entityID}", s.handleGetAgent)
+	mux.HandleFunc("GET /v1/entities/{entityID}", s.handleGetEntity)
+	mux.HandleFunc("PUT /v1/entities/{entityID}", s.handleUpdateEntity)
+	mux.HandleFunc("DELETE /v1/entities/{entityID}", s.handleDeleteEntity)
+	mux.HandleFunc("GET /v1/entities/{entityID}/card", s.handleGetEntityCard)
+	mux.HandleFunc("GET /v1/entities/{entityID}/ws", s.handleEntityHeartbeat)
 
 	// Search
 	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))
@@ -156,7 +144,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/handles/{handle}/available", s.handleCheckHandleAvailable)
 	mux.HandleFunc("DELETE /v1/handles/{handle}", s.handleReleaseHandle)
 	mux.HandleFunc("POST /v1/handles/{handle}/verify", s.handleVerifyHandle)
-	mux.HandleFunc("GET /v1/handles/{handle}/entities", s.handleListHandleAgents)
+	mux.HandleFunc("GET /v1/handles/{handle}/entities", s.handleListHandleEntities)
 
 	// ZNS: Name bindings
 	mux.HandleFunc("POST /v1/names", rateLimited(registerRL, s.handleRegisterName))
@@ -572,7 +560,7 @@ func (s *Server) handleDeleteDeveloper(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "developer deregistered"})
 }
 
-// handleListDeveloperAgents lists all entities registered by a developer.
+// handleListDeveloperEntities lists all entities registered by a developer.
 //
 //	@Summary		List entities by developer
 //	@Description	Retrieve all entities registered by a developer. Alias: GET /v1/developers/{id}/agents.
@@ -583,14 +571,14 @@ func (s *Server) handleDeleteDeveloper(w http.ResponseWriter, r *http.Request) {
 //	@Failure		400			{object}	map[string]string		"Missing developer_id"
 //	@Failure		500			{object}	map[string]string		"Internal server error"
 //	@Router			/v1/developers/{developerID}/entities [get]
-func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListDeveloperEntities(w http.ResponseWriter, r *http.Request) {
 	developerID := r.PathValue("developerID")
 	if developerID == "" {
 		writeError(w, http.StatusBadRequest, "developer_id is required")
 		return
 	}
 
-	agents, err := s.store.ListAgentsByDeveloper(developerID, 100, 0)
+	agents, err := s.store.ListEntitiesByDeveloper(developerID, 100, 0)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list agents: "+err.Error())
 		return
@@ -600,11 +588,11 @@ func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Enrich agents with FQAN data
-	agentIDs := make([]string, len(agents))
+	entityIDs := make([]string, len(agents))
 	for i, a := range agents {
-		agentIDs[i] = a.AgentID
+		entityIDs[i] = a.EntityID
 	}
-	znsMap, _ := s.store.GetZNSNamesByAgentIDs(agentIDs)
+	znsMap, _ := s.store.GetZNSNamesByAgentIDs(entityIDs)
 
 	type agentWithFQAN struct {
 		*models.RegistryRecord
@@ -614,7 +602,7 @@ func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Reques
 	enriched := make([]agentWithFQAN, len(agents))
 	for i, a := range agents {
 		enriched[i] = agentWithFQAN{RegistryRecord: a}
-		if name, ok := znsMap[a.AgentID]; ok {
+		if name, ok := znsMap[a.EntityID]; ok {
 			enriched[i].FQAN = name.FQAN
 			enriched[i].DeveloperHandle = name.DeveloperHandle
 		}
@@ -629,21 +617,21 @@ func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Reques
 
 // --- Entity Handlers ---
 
-// handleRegisterAgent registers a new entity on the registry.
+// handleRegisterEntity registers a new entity on the registry.
 //
 //	@Summary		Register a new entity
-//	@Description	Register an entity. Set type to "service" for services (entity_url not required). Alias: POST /v1/agents, POST /v1/services.
+//	@Description	Register an entity. Set type to "service" for services (entity_url not required). Alias: POST /v1/entities, POST /v1/services.
 //	@Tags			Entities
 //	@Accept			json
 //	@Produce		json
 //	@Param			body	body		models.RegistrationRequest	true	"Entity registration payload"
-//	@Success		201		{object}	map[string]string			"agent_id and success message"
+//	@Success		201		{object}	map[string]string			"entity_id and success message"
 //	@Failure		400		{object}	map[string]string			"Validation error"
 //	@Failure		401		{object}	map[string]string			"Invalid signature"
 //	@Failure		409		{object}	map[string]string			"Entity already registered"
 //	@Failure		500		{object}	map[string]string			"Internal server error"
 //	@Router			/v1/entities [post]
-func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleRegisterEntity(w http.ResponseWriter, r *http.Request) {
 	var req models.RegistrationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
@@ -707,18 +695,13 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate agent_id from public key bytes (canonical derivation)
+	// Generate entity_id from public key bytes (canonical derivation)
 	pubKeyBytes, err := base64.StdEncoding.DecodeString(pubKeyStr)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid public key encoding")
 		return
 	}
-	var agentID string
-	if req.EntityType == "service" {
-		agentID = models.GenerateServiceID(ed25519.PublicKey(pubKeyBytes))
-	} else {
-		agentID = models.GenerateAgentID(ed25519.PublicKey(pubKeyBytes))
-	}
+	entityID := models.GenerateEntityID(ed25519.PublicKey(pubKeyBytes), req.EntityType)
 
 	// Determine owner and verify developer proof if provided
 	var developerID string
@@ -757,7 +740,7 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		proofValid, proofErr := identity.VerifyDerivationProof(
 			&identity.DeveloperProof{
 				DeveloperPublicKey: req.DeveloperProof.DeveloperPublicKey,
-				AgentIndex:         req.DeveloperProof.AgentIndex,
+				EntityIndex:         req.DeveloperProof.EntityIndex,
 				DeveloperSignature: req.DeveloperProof.DeveloperSignature,
 			},
 			req.PublicKey,
@@ -768,7 +751,7 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		}
 
 		developerID = req.DeveloperID
-		idx := req.DeveloperProof.AgentIndex
+		idx := req.DeveloperProof.EntityIndex
 		agentIndex = &idx
 		developerProof = req.DeveloperProof
 		owner = developerID
@@ -779,7 +762,7 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 
 	now := models.NowRFC3339()
 	record := &models.RegistryRecord{
-		AgentID:         agentID,
+		EntityID:         entityID,
 		Name:            req.Name,
 		Owner:           owner,
 		EntityURL:       req.EntityURL,
@@ -794,7 +777,7 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		TTL:             86400,
 		Signature:       req.Signature,
 		DeveloperID:     developerID,
-		AgentIndex:      agentIndex,
+		EntityIndex:      agentIndex,
 		DeveloperProof:  developerProof,
 		EntityType:      entityType,
 		ServiceEndpoint: req.ServiceEndpoint,
@@ -829,25 +812,25 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	s.gossip.BroadcastAnnouncement(ann)
 
 	// Publish registration event
-	s.eventBus.Publish(events.EventAgentRegistered, events.AgentEventData{
-		AgentID:  agentID,
+	s.eventBus.Publish(events.EventEntityRegistered, events.EntityEventData{
+		EntityID:  entityID,
 		Name:     record.Name,
 		Category: record.Category,
 		Tags:     record.Tags,
 		Summary:  record.Summary,
 	})
 
-	// ZNS: If agent_name is provided and developer has a handle, create FQAN atomically
+	// ZNS: If entity_name is provided and developer has a handle, create FQAN atomically
 	var fqanResult string
-	if req.AgentName != "" && developerID != "" {
+	if req.EntityName != "" && developerID != "" {
 		registryHost := s.cfg.RegistryHost()
 		if registryHost != "" {
-			fqanResult, _ = s.createZNSNameBinding(record, req.AgentName, req.Version, registryHost)
+			fqanResult, _ = s.createZNSNameBinding(record, req.EntityName, req.Version, registryHost)
 		}
 	}
 
 	resp := map[string]string{
-		"agent_id": agentID,
+		"entity_id": entityID,
 		"message":  "agent registered successfully",
 	}
 	if fqanResult != "" {
@@ -856,10 +839,10 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, resp)
 }
 
-// handleGetAgent retrieves a single entity (agent or service) by ID.
+// handleGetEntity retrieves a single entity (agent or service) by ID.
 //
 //	@Summary		Get entity by ID
-//	@Description	Retrieve a registry record for a specific entity. Alias: GET /v1/agents/{id}, GET /v1/services/{id}.
+//	@Description	Retrieve a registry record for a specific entity. Alias: GET /v1/entities/{id}, GET /v1/entities/{id}.
 //	@Tags			Entities
 //	@Produce		json
 //	@Param			entityID	path		string					true	"Entity ID (e.g. zns:7f3a9c2e... or zns:svc:7f3a9c2e...)"
@@ -868,15 +851,15 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 //	@Failure		404		{object}	map[string]string		"Entity not found"
 //	@Failure		500		{object}	map[string]string		"Internal server error"
 //	@Router			/v1/entities/{entityID} [get]
-func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
-	agentID := r.PathValue("entityID")
-	if agentID == "" {
-		writeError(w, http.StatusBadRequest, "agent_id is required")
+func (s *Server) handleGetEntity(w http.ResponseWriter, r *http.Request) {
+	entityID := r.PathValue("entityID")
+	if entityID == "" {
+		writeError(w, http.StatusBadRequest, "entity_id is required")
 		return
 	}
 
 	// 1. Check local agents table
-	agent, err := s.store.GetAgent(agentID)
+	agent, err := s.store.GetEntity(entityID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get agent: "+err.Error())
 		return
@@ -889,7 +872,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Check gossip entries (remote agents replicated via gossip)
-	gossipEntry, err := s.store.GetGossipEntry(agentID)
+	gossipEntry, err := s.store.GetGossipEntry(entityID)
 	if err == nil && gossipEntry != nil {
 		gossipEntry.EntityURL = ""
 		writeJSON(w, http.StatusOK, gossipEntry)
@@ -898,7 +881,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 
 	// 3. DHT lookup (O(log n) across the network)
 	if s.dht != nil && s.dht.FindValueFn != nil {
-		rec := s.dht.FindValueFn(agentID)
+		rec := s.dht.FindValueFn(entityID)
 		if rec != nil {
 			rec.EntityURL = ""
 			writeJSON(w, http.StatusOK, rec)
@@ -906,12 +889,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeError(w, http.StatusNotFound, "agent not found")
-}
-
-// handleRegisterService is an alias for handleRegisterAgent (POST /v1/services).
-func (s *Server) handleRegisterService(w http.ResponseWriter, r *http.Request) {
-	s.handleRegisterAgent(w, r)
+	writeError(w, http.StatusNotFound, "entity not found")
 }
 
 // handleListEntities returns all registered entities (agents and/or services).
@@ -939,7 +917,7 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 		fmt.Sscanf(o, "%d", &offset)
 	}
 
-	agents, err := s.store.ListAgents(category, limit, offset)
+	agents, err := s.store.ListEntities(category, limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list entities: "+err.Error())
 		return
@@ -966,10 +944,10 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleUpdateAgent updates an existing entity's registry record.
+// handleUpdateEntity updates an existing entity's registry record.
 //
 //	@Summary		Update an entity
-//	@Description	Update fields on an existing entity. Only provided fields are changed. Alias: PUT /v1/agents/{id}.
+//	@Description	Update fields on an existing entity. Only provided fields are changed. Alias: PUT /v1/entities/{id}.
 //	@Tags			Entities
 //	@Accept			json
 //	@Produce		json
@@ -980,21 +958,21 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 //	@Failure		404		{object}	map[string]string		"Entity not found"
 //	@Failure		500		{object}	map[string]string		"Internal server error"
 //	@Router			/v1/entities/{entityID} [put]
-func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
-	agentID := r.PathValue("entityID")
-	if agentID == "" {
-		writeError(w, http.StatusBadRequest, "agent_id is required")
+func (s *Server) handleUpdateEntity(w http.ResponseWriter, r *http.Request) {
+	entityID := r.PathValue("entityID")
+	if entityID == "" {
+		writeError(w, http.StatusBadRequest, "entity_id is required")
 		return
 	}
 
 	// Get existing record
-	existing, err := s.store.GetAgent(agentID)
+	existing, err := s.store.GetEntity(entityID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get agent")
 		return
 	}
 	if existing == nil {
-		writeError(w, http.StatusNotFound, "agent not found")
+		writeError(w, http.StatusNotFound, "entity not found")
 		return
 	}
 
@@ -1043,7 +1021,7 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	existing.UpdatedAt = models.NowRFC3339()
 	existing.Signature = req.Signature
 
-	if err := s.store.UpdateAgent(existing); err != nil {
+	if err := s.store.UpdateEntity(existing); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update agent: "+err.Error())
 		return
 	}
@@ -1058,53 +1036,53 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, existing)
 }
 
-// handleDeleteAgent deregisters an entity from the registry.
+// handleDeleteEntity deregisters an entity from the registry.
 //
 //	@Summary		Delete an entity
-//	@Description	Deregister an entity. Creates a tombstone that propagates via gossip. Alias: DELETE /v1/agents/{id}.
+//	@Description	Deregister an entity. Creates a tombstone that propagates via gossip. Alias: DELETE /v1/entities/{id}.
 //	@Tags			Entities
 //	@Produce		json
-//	@Param			agentID	path		string			true	"Entity ID"
+//	@Param			entityID	path		string			true	"Entity ID"
 //	@Success		200		{object}	map[string]string	"Deregistration confirmation"
 //	@Failure		400		{object}	map[string]string	"Missing ID"
 //	@Failure		404		{object}	map[string]string	"Entity not found"
 //	@Failure		500		{object}	map[string]string	"Internal server error"
-//	@Router			/v1/entities/{agentID} [delete]
-func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
-	agentID := r.PathValue("entityID")
-	if agentID == "" {
+//	@Router			/v1/entities/{entityID} [delete]
+func (s *Server) handleDeleteEntity(w http.ResponseWriter, r *http.Request) {
+	entityID := r.PathValue("entityID")
+	if entityID == "" {
 		writeError(w, http.StatusBadRequest, "entity_id is required")
 		return
 	}
 
 	// Get the agent first to verify it exists
-	agent, err := s.store.GetAgent(agentID)
+	agent, err := s.store.GetEntity(entityID)
 	if err != nil || agent == nil {
-		writeError(w, http.StatusNotFound, "agent not found")
+		writeError(w, http.StatusNotFound, "entity not found")
 		return
 	}
 
 	// Dual-key authorization: accept either agent key OR developer key
-	if authErr := verifyDualKeyOwnership(s.store, agent, []byte(agentID), r.Header.Get("Authorization")); authErr != nil {
+	if authErr := verifyDualKeyOwnership(s.store, agent, []byte(entityID), r.Header.Get("Authorization")); authErr != nil {
 		writeError(w, http.StatusUnauthorized, "ownership verification failed: "+authErr.Error())
 		return
 	}
 
-	if err := s.store.DeleteAgent(agentID, agent.Owner); err != nil {
+	if err := s.store.DeleteEntity(entityID, agent.Owner); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete agent: "+err.Error())
 		return
 	}
 
 	// Remove from search index
-	s.searchEngine.RemoveAgent(agentID)
+	s.searchEngine.RemoveAgent(entityID)
 
 	// Create tombstone
 	tombstone := &models.Tombstone{
-		AgentID:   agentID,
+		EntityID:   entityID,
 		Reason:    "owner-deregistered",
 		CreatedAt: models.NowRFC3339(),
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339),
-		Signature: s.nodeIdentity.Sign([]byte(agentID)),
+		Signature: s.nodeIdentity.Sign([]byte(entityID)),
 	}
 	s.store.CreateTombstone(tombstone)
 
@@ -1113,8 +1091,8 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	s.gossip.BroadcastAnnouncement(ann)
 
 	// Publish deregistration event
-	s.eventBus.Publish(events.EventAgentDeregistered, events.AgentEventData{
-		AgentID:  agentID,
+	s.eventBus.Publish(events.EventEntityDeregistered, events.EntityEventData{
+		EntityID:  entityID,
 		Name:     agent.Name,
 		Category: agent.Category,
 		Tags:     agent.Tags,
@@ -1123,33 +1101,33 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "agent deregistered"})
 }
 
-// handleGetAgentCard fetches an entity's dynamic card.
+// handleGetEntityCard fetches an entity's dynamic card.
 //
 //	@Summary		Get entity card
-//	@Description	Fetch the live card from the entity's endpoint. Contains capabilities, pricing, status, and more. Alias: GET /v1/agents/{id}/card.
+//	@Description	Fetch the live card from the entity's endpoint. Contains capabilities, pricing, status, and more. Alias: GET /v1/entities/{id}/card.
 //	@Tags			Entities
 //	@Produce		json
 //	@Param			entityID	path		string				true	"Entity ID"
-//	@Success		200		{object}	models.AgentCard	"Entity card"
+//	@Success		200		{object}	models.EntityCard	"Entity card"
 //	@Failure		400		{object}	map[string]string	"Missing ID"
 //	@Failure		404		{object}	map[string]string	"Entity not found"
 //	@Failure		502		{object}	map[string]string	"Failed to fetch card from remote"
 //	@Router			/v1/entities/{entityID}/card [get]
-func (s *Server) handleGetAgentCard(w http.ResponseWriter, r *http.Request) {
-	agentID := r.PathValue("entityID")
-	if agentID == "" {
-		writeError(w, http.StatusBadRequest, "agent_id is required")
+func (s *Server) handleGetEntityCard(w http.ResponseWriter, r *http.Request) {
+	entityID := r.PathValue("entityID")
+	if entityID == "" {
+		writeError(w, http.StatusBadRequest, "entity_id is required")
 		return
 	}
 
-	agent, err := s.store.GetAgent(agentID)
+	agent, err := s.store.GetEntity(entityID)
 	if err != nil || agent == nil {
-		writeError(w, http.StatusNotFound, "agent not found")
+		writeError(w, http.StatusNotFound, "entity not found")
 		return
 	}
 
 	// Fetch raw JSON from the agent — preserves all SDK fields
-	rawCard, err := s.cardFetcher.FetchCardRaw(agentID, agent.EntityURL)
+	rawCard, err := s.cardFetcher.FetchCardRaw(entityID, agent.EntityURL)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "failed to fetch agent card: "+err.Error())
 		return
@@ -1190,10 +1168,10 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			if gossipName != nil {
 				name = &models.ZNSName{
 					FQAN:            gossipName.FQAN,
-					AgentName:       gossipName.AgentName,
+					EntityName:       gossipName.EntityName,
 					DeveloperHandle: gossipName.DeveloperHandle,
 					RegistryHost:    gossipName.RegistryHost,
-					AgentID:         gossipName.AgentID,
+					EntityID:         gossipName.EntityID,
 				}
 			}
 		}
@@ -1206,14 +1184,14 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		// Build single result from the resolved agent
 		result := models.SearchResult{
-			AgentID:         name.AgentID,
+			EntityID:         name.EntityID,
 			DeveloperID:     name.DeveloperID,
 			FQAN:            name.FQAN,
 			DeveloperHandle: name.DeveloperHandle,
 			Score:           1.0,
 		}
 		// Enrich with agent details
-		agent, err := s.store.GetAgent(name.AgentID)
+		agent, err := s.store.GetEntity(name.EntityID)
 		if err == nil && agent != nil {
 			result.Name = agent.Name
 			result.Summary = agent.Summary
@@ -1312,7 +1290,7 @@ func (s *Server) handleGetTags(w http.ResponseWriter, r *http.Request) {
 //	@Success		200	{object}	models.NetworkStatus	"Node status"
 //	@Router			/v1/network/status [get]
 func (s *Server) handleNetworkStatus(w http.ResponseWriter, r *http.Request) {
-	agentCount, _ := s.store.CountAgents()
+	agentCount, _ := s.store.CountEntities()
 	gossipCount, _ := s.store.CountGossipEntries()
 
 	status := models.NetworkStatus{
@@ -1382,7 +1360,7 @@ func (s *Server) handleAddPeer(w http.ResponseWriter, r *http.Request) {
 //	@Success		200	{object}	models.NetworkStats	"Network statistics"
 //	@Router			/v1/network/stats [get]
 func (s *Server) handleNetworkStats(w http.ResponseWriter, r *http.Request) {
-	agentCount, _ := s.store.CountAgents()
+	agentCount, _ := s.store.CountEntities()
 	gossipCount, _ := s.store.CountGossipEntries()
 
 	stats := models.NetworkStats{
@@ -1560,7 +1538,7 @@ func (s *Server) agentResponseWithFQAN(agent *models.RegistryRecord) interface{}
 		DeveloperHandle string    `json:"developer_handle,omitempty"`
 	}
 	resp := agentResp{RegistryRecord: agent}
-	if name, _ := s.store.GetZNSNameByAgentID(agent.AgentID); name != nil {
+	if name, _ := s.store.GetZNSNameByAgentID(agent.EntityID); name != nil {
 		resp.FQAN = name.FQAN
 		resp.DeveloperHandle = name.DeveloperHandle
 	}
@@ -1969,7 +1947,7 @@ func (s *Server) handleVerifyHandle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleListHandleAgents lists all ZNS name bindings (entity bindings) for a handle.
+// handleListHandleEntities lists all ZNS name bindings (entity bindings) for a handle.
 //
 //	@Summary		List entities for a handle
 //	@Description	List all ZNS name bindings (entity names) registered under a given developer handle.
@@ -1980,7 +1958,7 @@ func (s *Server) handleVerifyHandle(w http.ResponseWriter, r *http.Request) {
 //	@Failure		400		{object}	map[string]string	"Missing handle"
 //	@Failure		500		{object}	map[string]string	"Internal server error"
 //	@Router			/v1/handles/{handle}/entities [get]
-func (s *Server) handleListHandleAgents(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListHandleEntities(w http.ResponseWriter, r *http.Request) {
 	handle := r.PathValue("handle")
 	if handle == "" {
 		writeError(w, http.StatusBadRequest, "handle is required")
@@ -2009,7 +1987,7 @@ func (s *Server) handleListHandleAgents(w http.ResponseWriter, r *http.Request) 
 //	@Accept			json
 //	@Produce		json
 //	@Param			body	body		models.NameBindingRequest	true	"Name binding payload"
-//	@Success		201		{object}	map[string]string			"fqan, agent_id, and success message"
+//	@Success		201		{object}	map[string]string			"fqan, entity_id, and success message"
 //	@Failure		400		{object}	map[string]string			"Validation error"
 //	@Failure		401		{object}	map[string]string			"Invalid signature"
 //	@Failure		404		{object}	map[string]string			"Developer handle or entity not found"
@@ -2023,12 +2001,12 @@ func (s *Server) handleRegisterName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.AgentName == "" || req.DeveloperHandle == "" || req.AgentID == "" || req.Signature == "" {
-		writeError(w, http.StatusBadRequest, "agent_name, developer_handle, agent_id, and signature are required")
+	if req.EntityName == "" || req.DeveloperHandle == "" || req.EntityID == "" || req.Signature == "" {
+		writeError(w, http.StatusBadRequest, "entity_name, developer_handle, entity_id, and signature are required")
 		return
 	}
 
-	if err := zns.ValidateAgentName(req.AgentName); err != nil {
+	if err := zns.ValidateAgentName(req.EntityName); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -2047,20 +2025,20 @@ func (s *Server) handleRegisterName(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify entity exists
-	agent, err := s.store.GetAgent(req.AgentID)
+	agent, err := s.store.GetEntity(req.EntityID)
 	if err != nil || agent == nil {
 		writeError(w, http.StatusNotFound, "entity not found")
 		return
 	}
 
 	// Check if this entity name already exists under the same developer with a different key
-	existingName, _ := s.store.GetZNSNameByParts(req.DeveloperHandle, req.AgentName, registryHost)
+	existingName, _ := s.store.GetZNSNameByParts(req.DeveloperHandle, req.EntityName, registryHost)
 	if existingName != nil {
-		existingAgent, _ := s.store.GetAgent(existingName.AgentID)
+		existingAgent, _ := s.store.GetEntity(existingName.EntityID)
 		if existingAgent != nil && existingAgent.PublicKey != agent.PublicKey {
 			writeError(w, http.StatusConflict,
 				fmt.Sprintf("entity name %q is already registered under %s with a different key; choose a different name",
-					req.AgentName, req.DeveloperHandle))
+					req.EntityName, req.DeveloperHandle))
 			return
 		}
 	}
@@ -2068,9 +2046,9 @@ func (s *Server) handleRegisterName(w http.ResponseWriter, r *http.Request) {
 	// Verify signature (developer signs the binding)
 	pubKey := strings.TrimPrefix(dev.PublicKey, "ed25519:")
 	signable, _ := json.Marshal(map[string]interface{}{
-		"agent_name":       req.AgentName,
+		"entity_name":       req.EntityName,
 		"developer_handle": req.DeveloperHandle,
-		"agent_id":         req.AgentID,
+		"entity_id":         req.EntityID,
 		"version":          req.Version,
 		"capability_tags":  req.CapabilityTags,
 	})
@@ -2080,15 +2058,15 @@ func (s *Server) handleRegisterName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fqan := zns.BuildFQAN(registryHost, req.DeveloperHandle, req.AgentName)
+	fqan := zns.BuildFQAN(registryHost, req.DeveloperHandle, req.EntityName)
 	now := models.NowRFC3339()
 
 	name := &models.ZNSName{
 		FQAN:            fqan,
-		AgentName:       req.AgentName,
+		EntityName:       req.EntityName,
 		DeveloperHandle: req.DeveloperHandle,
 		RegistryHost:    registryHost,
-		AgentID:         req.AgentID,
+		EntityID:         req.EntityID,
 		DeveloperID:     dev.DeveloperID,
 		CurrentVersion:  req.Version,
 		CapabilityTags:  req.CapabilityTags,
@@ -2111,7 +2089,7 @@ func (s *Server) handleRegisterName(w http.ResponseWriter, r *http.Request) {
 		ver := &models.ZNSVersion{
 			FQAN:         fqan,
 			Version:      req.Version,
-			AgentID:      req.AgentID,
+			EntityID:      req.EntityID,
 			RegisteredAt: now,
 			Signature:    req.Signature,
 		}
@@ -2126,13 +2104,13 @@ func (s *Server) handleRegisterName(w http.ResponseWriter, r *http.Request) {
 	s.eventBus.Publish(events.EventNameRegistered, events.ZNSEventData{
 		FQAN:        fqan,
 		DeveloperID: dev.DeveloperID,
-		AgentID:     req.AgentID,
+		EntityID:     req.EntityID,
 		Action:      "register",
 	})
 
 	writeJSON(w, http.StatusCreated, map[string]string{
 		"fqan":     fqan,
-		"agent_id": req.AgentID,
+		"entity_id": req.EntityID,
 		"message":  "name registered successfully",
 	})
 }
@@ -2180,7 +2158,7 @@ func (s *Server) handleGetName(w http.ResponseWriter, r *http.Request) {
 //	@Produce		json
 //	@Param			developer	path		string				true	"Developer handle"
 //	@Param			entity		path		string				true	"Entity name"
-//	@Success		200			{object}	map[string]interface{}	"developer, agent_name, available, and optional reason"
+//	@Success		200			{object}	map[string]interface{}	"developer, entity_name, available, and optional reason"
 //	@Failure		400			{object}	map[string]string		"Missing path parameters"
 //	@Failure		500			{object}	map[string]string		"Internal server error"
 //	@Router			/v1/names/{developer}/{entity}/available [get]
@@ -2196,7 +2174,7 @@ func (s *Server) handleCheckNameAvailable(w http.ResponseWriter, r *http.Request
 	if err := zns.ValidateAgentName(entityName); err != nil {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"developer":  devHandle,
-			"agent_name": entityName,
+			"entity_name": entityName,
 			"available":  false,
 			"reason":     err.Error(),
 		})
@@ -2213,12 +2191,12 @@ func (s *Server) handleCheckNameAvailable(w http.ResponseWriter, r *http.Request
 	available := existing == nil
 	resp := map[string]interface{}{
 		"developer":  devHandle,
-		"agent_name": entityName,
+		"entity_name": entityName,
 		"available":  available,
 	}
 	if !available {
 		resp["reason"] = "entity name is already registered under this developer"
-		resp["existing_agent_id"] = existing.AgentID
+		resp["existing_entity_id"] = existing.EntityID
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -2279,7 +2257,7 @@ func (s *Server) handleUpdateName(w http.ResponseWriter, r *http.Request) {
 		ver := &models.ZNSVersion{
 			FQAN:         name.FQAN,
 			Version:      req.Version,
-			AgentID:      name.AgentID,
+			EntityID:      name.EntityID,
 			RegisteredAt: now,
 			Signature:    req.Signature,
 		}
@@ -2412,13 +2390,13 @@ func (s *Server) handleResolveName(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if name != nil {
-		agent, _ := s.store.GetAgent(name.AgentID)
+		agent, _ := s.store.GetEntity(name.EntityID)
 		dev, _ := s.store.GetDeveloperByHandle(devHandle, registryHost)
 		resp := s.buildResolveResponse(name, agent, dev)
 
 		s.eventBus.Publish(events.EventNameResolved, events.ZNSEventData{
 			FQAN:    name.FQAN,
-			AgentID: name.AgentID,
+			EntityID: name.EntityID,
 			Action:  "resolve",
 		})
 
@@ -2431,7 +2409,7 @@ func (s *Server) handleResolveName(w http.ResponseWriter, r *http.Request) {
 	if err == nil && gossipName != nil {
 		resp := &models.ZNSResolveResponse{
 			FQAN:            gossipName.FQAN,
-			AgentID:         gossipName.AgentID,
+			EntityID:         gossipName.EntityID,
 			DeveloperHandle: gossipName.DeveloperHandle,
 			RegistryHost:    gossipName.RegistryHost,
 			Version:         gossipName.CurrentVersion,
@@ -2447,7 +2425,7 @@ func (s *Server) handleResolveName(w http.ResponseWriter, r *http.Request) {
 func (s *Server) buildResolveResponse(name *models.ZNSName, agent *models.RegistryRecord, dev *models.DeveloperRecord) *models.ZNSResolveResponse {
 	resp := &models.ZNSResolveResponse{
 		FQAN:            name.FQAN,
-		AgentID:         name.AgentID,
+		EntityID:         name.EntityID,
 		DeveloperID:     name.DeveloperID,
 		DeveloperHandle: name.DeveloperHandle,
 		RegistryHost:    name.RegistryHost,
@@ -2475,7 +2453,7 @@ func (s *Server) buildResolveResponse(name *models.ZNSName, agent *models.Regist
 	return resp
 }
 
-// createZNSNameBinding is a helper used by handleRegisterAgent for atomic entity naming.
+// createZNSNameBinding is a helper used by handleRegisterEntity for atomic entity naming.
 func (s *Server) createZNSNameBinding(record *models.RegistryRecord, agentName, version, registryHost string) (string, error) {
 	if err := zns.ValidateAgentName(agentName); err != nil {
 		return "", err
@@ -2491,12 +2469,12 @@ func (s *Server) createZNSNameBinding(record *models.RegistryRecord, agentName, 
 	existing, _ := s.store.GetZNSNameByParts(dev.DevHandle, agentName, registryHost)
 	if existing != nil {
 		// Same name exists — only allow if it's the same agent (same public key)
-		existingAgent, _ := s.store.GetAgent(existing.AgentID)
+		existingAgent, _ := s.store.GetEntity(existing.EntityID)
 		if existingAgent != nil && existingAgent.PublicKey != record.PublicKey {
 			return "", fmt.Errorf("entity name %q is already registered under %s with a different key; choose a different name", agentName, dev.DevHandle)
 		}
 		// Same agent re-registering with same name — return existing FQAN
-		if existing.AgentID == record.AgentID {
+		if existing.EntityID == record.EntityID {
 			return existing.FQAN, nil
 		}
 	}
@@ -2506,10 +2484,10 @@ func (s *Server) createZNSNameBinding(record *models.RegistryRecord, agentName, 
 
 	name := &models.ZNSName{
 		FQAN:            fqan,
-		AgentName:       agentName,
+		EntityName:       agentName,
 		DeveloperHandle: dev.DevHandle,
 		RegistryHost:    registryHost,
-		AgentID:         record.AgentID,
+		EntityID:         record.EntityID,
 		DeveloperID:     record.DeveloperID,
 		CurrentVersion:  version,
 		RegisteredAt:    now,
@@ -2525,7 +2503,7 @@ func (s *Server) createZNSNameBinding(record *models.RegistryRecord, agentName, 
 		ver := &models.ZNSVersion{
 			FQAN:         fqan,
 			Version:      version,
-			AgentID:      record.AgentID,
+			EntityID:      record.EntityID,
 			RegisteredAt: now,
 			Signature:    record.Signature,
 		}
@@ -2540,7 +2518,7 @@ func (s *Server) createZNSNameBinding(record *models.RegistryRecord, agentName, 
 	s.eventBus.Publish(events.EventNameRegistered, events.ZNSEventData{
 		FQAN:        fqan,
 		DeveloperID: record.DeveloperID,
-		AgentID:     record.AgentID,
+		EntityID:     record.EntityID,
 		Action:      "register",
 	})
 

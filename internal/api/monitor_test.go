@@ -54,7 +54,7 @@ func testMonitorSetup(t *testing.T) (store.Store, *LivenessMonitor) {
 func createMonitorTestAgent(t *testing.T, st store.Store, agentID string) {
 	t.Helper()
 	agent := &models.RegistryRecord{
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "MonitorAgent-" + agentID,
 		Owner:        "did:key:test",
 		EntityURL:     "https://example.com/agent.json",
@@ -81,7 +81,7 @@ func TestMonitor_StaleAgentsMarkedInactive(t *testing.T) {
 	createMonitorTestAgent(t, st, "zns:mon-fresh")
 
 	// Give fresh agent a heartbeat
-	if err := st.UpdateAgentHeartbeat("zns:mon-fresh"); err != nil {
+	if err := st.UpdateEntityHeartbeat("zns:mon-fresh"); err != nil {
 		t.Fatalf("failed to update heartbeat: %v", err)
 	}
 
@@ -94,13 +94,13 @@ func TestMonitor_StaleAgentsMarkedInactive(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// Stale agent should be inactive (NULL last_heartbeat, threshold is 2s)
-	stale, _ := st.GetAgent("zns:mon-stale")
+	stale, _ := st.GetEntity("zns:mon-stale")
 	if stale.Status != "inactive" {
 		t.Errorf("expected stale agent to be 'inactive', got '%s'", stale.Status)
 	}
 
 	// Fresh agent should still be active
-	fresh, _ := st.GetAgent("zns:mon-fresh")
+	fresh, _ := st.GetEntity("zns:mon-fresh")
 	if fresh.Status != "active" {
 		t.Errorf("expected fresh agent to be 'active', got '%s'", fresh.Status)
 	}
@@ -112,7 +112,7 @@ func TestMonitor_RecentHeartbeatsRemainActive(t *testing.T) {
 	createMonitorTestAgent(t, st, "zns:mon-alive")
 
 	// Give it a heartbeat
-	if err := st.UpdateAgentHeartbeat("zns:mon-alive"); err != nil {
+	if err := st.UpdateEntityHeartbeat("zns:mon-alive"); err != nil {
 		t.Fatalf("failed to update heartbeat: %v", err)
 	}
 
@@ -120,7 +120,7 @@ func TestMonitor_RecentHeartbeatsRemainActive(t *testing.T) {
 	monitor.sweep()
 
 	// Should still be active
-	agent, _ := st.GetAgent("zns:mon-alive")
+	agent, _ := st.GetEntity("zns:mon-alive")
 	if agent.Status != "active" {
 		t.Errorf("expected agent to remain 'active', got '%s'", agent.Status)
 	}

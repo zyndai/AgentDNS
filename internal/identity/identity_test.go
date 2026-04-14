@@ -67,7 +67,7 @@ func TestAgentID(t *testing.T) {
 		t.Fatalf("failed to generate keypair: %v", err)
 	}
 
-	agentID := kp.AgentID()
+	agentID := kp.EntityID()
 	if agentID == "" {
 		t.Fatal("agent ID is empty")
 	}
@@ -76,7 +76,7 @@ func TestAgentID(t *testing.T) {
 	}
 
 	// Same keypair should produce the same ID
-	if kp.AgentID() != agentID {
+	if kp.EntityID() != agentID {
 		t.Error("agent ID should be deterministic")
 	}
 }
@@ -149,7 +149,7 @@ func TestDifferentKeypairsDifferentIDs(t *testing.T) {
 	kp1, _ := GenerateKeypair()
 	kp2, _ := GenerateKeypair()
 
-	if kp1.AgentID() == kp2.AgentID() {
+	if kp1.EntityID() == kp2.EntityID() {
 		t.Error("different keypairs should produce different agent IDs")
 	}
 }
@@ -200,8 +200,8 @@ func TestDeriveAgentKeypair(t *testing.T) {
 		t.Error("derived agent key should differ from developer key")
 	}
 
-	// Derived agent should have a different agent_id from developer
-	if agentKP0.AgentID() == devKP.AgentID() {
+	// Derived agent should have a different entity_id from developer
+	if agentKP0.EntityID() == devKP.EntityID() {
 		t.Error("derived agent ID should differ from developer's agent ID")
 	}
 }
@@ -280,8 +280,8 @@ func TestCreateAndVerifyDerivationProof(t *testing.T) {
 	if proof.DeveloperPublicKey != devKP.PublicKeyString() {
 		t.Error("proof should contain developer's public key")
 	}
-	if proof.AgentIndex != 5 {
-		t.Errorf("proof should have index 5, got %d", proof.AgentIndex)
+	if proof.EntityIndex != 5 {
+		t.Errorf("proof should have index 5, got %d", proof.EntityIndex)
 	}
 	if proof.DeveloperSignature == "" {
 		t.Error("proof signature should not be empty")
@@ -320,7 +320,7 @@ func TestVerifyDerivationProofWrongIndex(t *testing.T) {
 
 	// Create proof with wrong index
 	proof := CreateDerivationProof(devKP, agentKP.PublicKey, 0)
-	proof.AgentIndex = 999 // tamper with index
+	proof.EntityIndex = 999 // tamper with index
 
 	valid, err := VerifyDerivationProof(proof, agentKP.PublicKeyString())
 	if err != nil {

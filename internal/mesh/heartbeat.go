@@ -36,7 +36,7 @@ func (t *Transport) HeartbeatLoop() {
 
 // sendHeartbeats sends a heartbeat message to all connected peers.
 func (t *Transport) sendHeartbeats(bloom *BloomFilter) {
-	agentCount, _ := t.store.CountAgents()
+	agentCount, _ := t.store.CountEntities()
 	peerAddrs := t.GetPeerAddresses()
 
 	hb := HeartbeatMessage{
@@ -75,14 +75,14 @@ func (t *Transport) rebuildBloom() *BloomFilter {
 	bloom := NewBloomFilter(t.bloomCfg.ExpectedTokens, t.bloomCfg.FalsePositiveRate)
 
 	// We access the store to get agent metadata for building the bloom filter.
-	// The store interface on the transport only has CountAgents, so we use
+	// The store interface on the transport only has CountEntities, so we use
 	// the PeerManager's bloom config to build from known agent names/tags.
 	// In practice, the bloom filter is populated as agents are registered.
 	//
 	// For now, we build from the gossip handler's store which has the full
 	// Store interface.
 	if gh := t.gossip; gh != nil && gh.store != nil {
-		agents, err := gh.store.ListAgents("", 100000, 0)
+		agents, err := gh.store.ListEntities("", 100000, 0)
 		if err == nil {
 			for _, agent := range agents {
 				// Add name tokens

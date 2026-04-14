@@ -5,7 +5,7 @@ package models
 // Supports both agent_announce and developer_announce types.
 type GossipAnnouncement struct {
 	Type              string             `json:"type"` // agent_announce, developer_announce
-	AgentID           string             `json:"agent_id,omitempty"`
+	EntityID          string             `json:"entity_id,omitempty"`
 	Name              string             `json:"name"`
 	Category          string             `json:"category,omitempty"`
 	Tags              []string           `json:"tags,omitempty"`
@@ -60,14 +60,14 @@ type GossipAnnouncement struct {
 // GossipEntry is stored in the local gossip index -- a lightweight version
 // of remote agent information learned from gossip announcements.
 type GossipEntry struct {
-	AgentID           string             `json:"agent_id" db:"agent_id"`
+	EntityID          string             `json:"entity_id" db:"entity_id"`
 	Name              string             `json:"name" db:"name"`
 	Category          string             `json:"category" db:"category"`
 	Tags              []string           `json:"tags" db:"-"`
 	Summary           string             `json:"summary" db:"summary"`
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty" db:"-"`
 	HomeRegistry      string             `json:"home_registry" db:"home_registry"`
-	EntityURL         string             `json:"entity_url" db:"agent_url"`
+	EntityURL         string             `json:"entity_url" db:"entity_url"`
 	ReceivedAt        string             `json:"received_at" db:"received_at"`
 	Tombstoned        bool               `json:"tombstoned" db:"tombstoned"`
 	TombstoneAt       string             `json:"tombstone_at,omitempty" db:"tombstone_at"`
@@ -104,9 +104,9 @@ type PeerInfo struct {
 	RegistryHost string `json:"registry_host,omitempty"` // ZNS: the peer's domain name (e.g., "dns01.zynd.ai")
 }
 
-// Tombstone marks an agent for deletion across the network.
+// Tombstone marks an entity for deletion across the network.
 type Tombstone struct {
-	AgentID   string `json:"agent_id" db:"agent_id"`
+	EntityID  string `json:"entity_id" db:"entity_id"`
 	Reason    string `json:"reason" db:"reason"`
 	CreatedAt string `json:"created_at" db:"created_at"`
 	ExpiresAt string `json:"expires_at" db:"expires_at"`

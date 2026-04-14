@@ -230,8 +230,8 @@ func TestDHTStoreAndFindValue(t *testing.T) {
 	// Store a record on node 0
 	var key NodeID
 	key[0] = 0x50 // between nodes
-	record := AgentDHTRecord{
-		AgentID:  "zns:test1234",
+	record := EntityDHTRecord{
+		EntityID:  "zns:test1234",
 		Name:     "TestAgent",
 		EntityURL: "http://localhost:5000",
 		StoredAt: time.Now().Format(time.RFC3339),
@@ -247,8 +247,8 @@ func TestDHTStoreAndFindValue(t *testing.T) {
 	if found == nil {
 		t.Fatal("expected to find value")
 	}
-	if found.AgentID != "zns:test1234" {
-		t.Fatalf("expected zns:test1234, got %s", found.AgentID)
+	if found.EntityID != "zns:test1234" {
+		t.Fatalf("expected zns:test1234, got %s", found.EntityID)
 	}
 }
 

@@ -1,10 +1,10 @@
 package models
 
-// AgentCard is the dynamic metadata document hosted by the agent itself.
-// It is fetched on-demand via the agent_url in the RegistryRecord.
-// Size: 2-10KB. Updated freely by the agent without touching the registry.
-type AgentCard struct {
-	AgentID       string       `json:"agent_id"`
+// EntityCard is the dynamic metadata document hosted by the entity itself.
+// It is fetched on-demand via the entity_url in the RegistryRecord.
+// Size: 2-10KB. Updated freely by the entity without touching the registry.
+type EntityCard struct {
+	EntityID      string       `json:"entity_id"`
 	SchemaVersion string       `json:"schema_version"`
 	Version       string       `json:"version"`
 	Status        string       `json:"status"` // online, offline, degraded, maintenance

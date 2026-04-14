@@ -150,7 +150,7 @@ The store is a PostgreSQL-backed persistence layer that holds all registry state
 agent_id        TEXT PRIMARY KEY   -- agdns:<hash>
 name            TEXT NOT NULL
 owner           TEXT NOT NULL
-agent_url       TEXT NOT NULL      -- where to fetch AgentCard
+agent_url       TEXT NOT NULL      -- where to fetch EntityCard
 category        TEXT
 tags            JSONB              -- ["python", "security"]
 summary         TEXT               -- max 200 chars
@@ -163,7 +163,7 @@ signature       TEXT
 status          TEXT DEFAULT 'active'     -- active | inactive
 last_heartbeat  TIMESTAMPTZ
 developer_id    TEXT               -- agdns:dev:<hash>
-agent_index     INTEGER            -- derivation index
+entity_index     INTEGER            -- derivation index
 developer_proof JSONB              -- derivation proof
 codebase_hash   TEXT               -- SHA-256 of agent source
 ```
@@ -193,7 +193,7 @@ verification_proof  TEXT           -- domain or username
 #### `zns_names` — FQAN → Agent mappings
 ```sql
 fqan              TEXT PRIMARY KEY  -- "dns01.zynd.ai/acme-corp/doc-translator"
-agent_name        TEXT
+entity_name        TEXT
 developer_handle  TEXT
 registry_host     TEXT
 agent_id          TEXT REFERENCES agents(agent_id)
@@ -594,10 +594,10 @@ This enables DNS-native discovery without requiring agents to run Zynd software.
 Client: "resolve acme-corp/doc-translator"
     │
     ▼
-Parse FQAN → registry_host, dev_handle, agent_name
+Parse FQAN → registry_host, dev_handle, entity_name
     │
     ▼
-Look up ZNS name in PostgreSQL (handle + agent_name)
+Look up ZNS name in PostgreSQL (handle + entity_name)
     │
     ▼
 Get associated agent_id
@@ -801,7 +801,7 @@ Agent sends: { "timestamp": "2026-03-28T...", "signature": "ed25519:..." }
     │
     ▼ On every valid signature:
     - Update last_heartbeat in PostgreSQL
-    - Publish EventAgentHeartbeat
+    - Publish EventEntityHeartbeat
 ```
 
 **Read deadline:** `inactive_threshold + 60s`. If no message received within this window, the WebSocket connection is closed.
@@ -813,7 +813,7 @@ A background sweep runs every `sweep_interval_seconds` (default 60s):
 1. Query all agents where `status='active'` AND `last_heartbeat < NOW() - threshold`
 2. Mark them as `inactive` in PostgreSQL
 3. For each newly-inactive agent:
-   - Publish `EventAgentBecameInactive`
+   - Publish `EventEntityBecameInactive`
    - Create gossip status announcement
    - Broadcast to mesh peers
 
@@ -918,8 +918,8 @@ The HTTP API serves on port 8080 (configurable) with Swagger docs at `/swagger/`
 5. Create `RegistryRecord`, validate, store in PostgreSQL
 6. Index in search engine (keyword + semantic)
 7. Create gossip announcement, broadcast to mesh
-8. Publish `EventAgentRegistered`
-9. If `agent_name` provided and developer has a handle, create FQAN binding automatically
+8. Publish `EventEntityRegistered`
+9. If `entity_name` provided and developer has a handle, create FQAN binding automatically
 10. Return agent_id
 
 ### Agent Lookup (GET /v1/agents/{agentID})
@@ -991,7 +991,7 @@ Client signs agent payload with Ed25519 key
          │
          ├──► (Optional) Create ZNS name binding
          │
-         └──► Publish EventAgentRegistered
+         └──► Publish EventEntityRegistered
 ```
 
 ### Search
@@ -1087,6 +1087,6 @@ Agent ──WebSocket──► Registry Node
     │         ▼                        │
     │  Mark inactive in PostgreSQL     │
     │  Gossip status to mesh           │
-    │  Publish EventAgentBecameInactive│
+    │  Publish EventEntityBecameInactive│
     └──────────────────────────────────┘
 ```

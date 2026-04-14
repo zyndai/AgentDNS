@@ -55,7 +55,7 @@ func TestOriginAuth_RegisterStoresKey(t *testing.T) {
 
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "TestAgent",
 		Category:     "test",
 		HomeRegistry: "registry-a",
@@ -91,7 +91,7 @@ func TestOriginAuth_StatusFromSameOriginSucceeds(t *testing.T) {
 	// Register
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "TestAgent",
 		Category:     "test",
 		HomeRegistry: "registry-a",
@@ -106,7 +106,7 @@ func TestOriginAuth_StatusFromSameOriginSucceeds(t *testing.T) {
 	// Status update from same key
 	statusAnn := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "TestAgent",
 		HomeRegistry: "registry-a",
 		Action:       "agent_status",
@@ -131,7 +131,7 @@ func TestOriginAuth_StatusFromDifferentOriginRejected(t *testing.T) {
 	// Register with key A
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "TestAgent",
 		Category:     "test",
 		HomeRegistry: "registry-a",
@@ -146,7 +146,7 @@ func TestOriginAuth_StatusFromDifferentOriginRejected(t *testing.T) {
 	// Status update from key B
 	statusAnn := makeSignedAnnouncement(t, kpB, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "TestAgent",
 		HomeRegistry: "registry-b",
 		Action:       "agent_status",
@@ -171,7 +171,7 @@ func TestOriginAuth_UpdateFromDifferentOriginRejected(t *testing.T) {
 	// Register with key A
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "TestAgent",
 		Category:     "test",
 		HomeRegistry: "registry-a",
@@ -186,7 +186,7 @@ func TestOriginAuth_UpdateFromDifferentOriginRejected(t *testing.T) {
 	// Update from key B
 	updateAnn := makeSignedAnnouncement(t, kpB, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "EvilAgent",
 		Category:     "test",
 		HomeRegistry: "registry-b",
@@ -212,7 +212,7 @@ func TestOriginAuth_DeregisterFromDifferentOriginRejected(t *testing.T) {
 	// Register with key A
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "TestAgent",
 		Category:     "test",
 		HomeRegistry: "registry-a",
@@ -227,7 +227,7 @@ func TestOriginAuth_DeregisterFromDifferentOriginRejected(t *testing.T) {
 	// Deregister from key B
 	deregAnn := makeSignedAnnouncement(t, kpB, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		HomeRegistry: "registry-b",
 		Action:       "deregister",
 		Timestamp:    time.Now().Add(time.Second).UTC().Format(time.RFC3339),
@@ -261,7 +261,7 @@ func TestOriginAuth_StatusForUnknownAgentRejected(t *testing.T) {
 	// Send agent_status for an agent that has never been registered via gossip
 	statusAnn := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "UnknownAgent",
 		HomeRegistry: "registry-a",
 		Action:       "agent_status",
@@ -285,7 +285,7 @@ func TestOriginAuth_DeregisterForUnknownAgentRejected(t *testing.T) {
 	// Send deregister for an agent that has never been registered via gossip
 	deregAnn := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		HomeRegistry: "registry-a",
 		Action:       "deregister",
 		Timestamp:    time.Now().UTC().Format(time.RFC3339),
@@ -306,7 +306,7 @@ func TestOriginAuth_BackwardCompat_NullKey(t *testing.T) {
 
 	// Manually insert entry with no origin_public_key (simulates pre-fix data)
 	entry := &models.GossipEntry{
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "LegacyAgent",
 		Category:     "test",
 		Tags:         []string{},
@@ -323,7 +323,7 @@ func TestOriginAuth_BackwardCompat_NullKey(t *testing.T) {
 	// Status update from any key should succeed
 	statusAnn := makeSignedAnnouncement(t, kpB, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "LegacyAgent",
 		HomeRegistry: "registry-old",
 		Action:       "agent_status",
@@ -348,7 +348,7 @@ func TestOriginAuth_ReRegisterDoesNotOverwriteKey(t *testing.T) {
 	// Register with key A
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "TestAgent",
 		Category:     "test",
 		HomeRegistry: "registry-a",
@@ -363,7 +363,7 @@ func TestOriginAuth_ReRegisterDoesNotOverwriteKey(t *testing.T) {
 	// Re-register with key B
 	reregAnn := makeSignedAnnouncement(t, kpB, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "EvilAgent",
 		Category:     "test",
 		HomeRegistry: "registry-b",
@@ -387,7 +387,7 @@ func TestOriginAuth_ReRegisterDoesNotOverwriteKey(t *testing.T) {
 	// Status update from B should be rejected
 	statusAnn := makeSignedAnnouncement(t, kpB, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "EvilAgent",
 		HomeRegistry: "registry-b",
 		Action:       "agent_status",
@@ -410,7 +410,7 @@ func TestOriginAuth_RegisterSetsStatusActive(t *testing.T) {
 
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "TestAgent",
 		Category:     "test",
 		HomeRegistry: "registry-a",
@@ -446,7 +446,7 @@ func TestOriginAuth_DeregisterFromCorrectOriginSucceeds(t *testing.T) {
 	// Register with key A
 	ann := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "TestAgent",
 		Category:     "test",
 		HomeRegistry: "registry-a",
@@ -461,7 +461,7 @@ func TestOriginAuth_DeregisterFromCorrectOriginSucceeds(t *testing.T) {
 	// Deregister from same key A
 	deregAnn := makeSignedAnnouncement(t, kpA, &models.GossipAnnouncement{
 		Type:         "agent_announce",
-		AgentID:      agentID,
+		EntityID:      agentID,
 		HomeRegistry: "registry-a",
 		Action:       "deregister",
 		Timestamp:    time.Now().Add(time.Second).UTC().Format(time.RFC3339),

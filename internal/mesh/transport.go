@@ -40,7 +40,7 @@ type Transport struct {
 	peerMgr  *PeerManager
 	gossip   *GossipHandler
 	kp       *identity.Keypair
-	store    interface{ CountAgents() (int, error) }
+	store    interface{ CountEntities() (int, error) }
 	listener net.Listener
 
 	mu    sync.RWMutex
@@ -68,7 +68,7 @@ func NewTransport(
 	peerMgr *PeerManager,
 	gossipHandler *GossipHandler,
 	kp *identity.Keypair,
-	agentCounter interface{ CountAgents() (int, error) },
+	agentCounter interface{ CountEntities() (int, error) },
 ) *Transport {
 	return &Transport{
 		cfg:      meshCfg,
@@ -210,7 +210,7 @@ func (t *Transport) Stop() {
 
 // makeHello creates a HelloMessage for the local node.
 func (t *Transport) makeHello() HelloMessage {
-	agentCount, _ := t.store.CountAgents()
+	agentCount, _ := t.store.CountEntities()
 	return HelloMessage{
 		RegistryID: t.kp.RegistryID(),
 		Name:       t.nodeName,

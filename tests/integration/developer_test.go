@@ -40,7 +40,7 @@ func TestDeveloperUpdateAgentWithAgentKey(t *testing.T) {
 		t.Skipf("agent-0 key not found (run dev-init + derive-agent first): %v", err)
 	}
 
-	agentID := agentKP.AgentID()
+	agentID := agentKP.EntityID()
 
 	// Create update body
 	newSummary := "Updated via AGENT key test"
@@ -50,7 +50,7 @@ func TestDeveloperUpdateAgentWithAgentKey(t *testing.T) {
 	// Sign with agent key
 	sig := agentKP.Sign(bodyBytes)
 
-	req, _ := http.NewRequest("PUT", "http://localhost:8080/v1/agents/"+agentID, bytes.NewReader(bodyBytes))
+	req, _ := http.NewRequest("PUT", "http://localhost:8080/v1/entities/"+agentID, bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+sig)
 
@@ -94,7 +94,7 @@ func TestDeveloperUpdateAgentWithDeveloperKey(t *testing.T) {
 		t.Skipf("agent-0 key not found: %v", err)
 	}
 
-	agentID := agentKP.AgentID()
+	agentID := agentKP.EntityID()
 
 	// Create update body
 	newSummary := "Updated via DEVELOPER key test"
@@ -104,7 +104,7 @@ func TestDeveloperUpdateAgentWithDeveloperKey(t *testing.T) {
 	// Sign with DEVELOPER key (using Bearer-Dev scheme)
 	sig := devKP.Sign(bodyBytes)
 
-	req, _ := http.NewRequest("PUT", "http://localhost:8080/v1/agents/"+agentID, bytes.NewReader(bodyBytes))
+	req, _ := http.NewRequest("PUT", "http://localhost:8080/v1/entities/"+agentID, bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer-Dev "+sig)
 
@@ -142,7 +142,7 @@ func TestDeveloperUpdateAgentWithWrongKey(t *testing.T) {
 		t.Skipf("agent-0 key not found: %v", err)
 	}
 
-	agentID := agentKP.AgentID()
+	agentID := agentKP.EntityID()
 
 	// Generate a random key -- should NOT be authorized
 	wrongKP, _ := identity.GenerateKeypair()
@@ -151,7 +151,7 @@ func TestDeveloperUpdateAgentWithWrongKey(t *testing.T) {
 	bodyBytes := []byte(body)
 	sig := wrongKP.Sign(bodyBytes)
 
-	req, _ := http.NewRequest("PUT", "http://localhost:8080/v1/agents/"+agentID, bytes.NewReader(bodyBytes))
+	req, _ := http.NewRequest("PUT", "http://localhost:8080/v1/entities/"+agentID, bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+sig)
 
@@ -181,7 +181,7 @@ func TestDeveloperUpdateAgentWithWrongDevKey(t *testing.T) {
 		t.Skipf("agent-0 key not found: %v", err)
 	}
 
-	agentID := agentKP.AgentID()
+	agentID := agentKP.EntityID()
 
 	// Generate a random key and try using it as a developer key
 	wrongDevKP, _ := identity.GenerateKeypair()
@@ -190,7 +190,7 @@ func TestDeveloperUpdateAgentWithWrongDevKey(t *testing.T) {
 	bodyBytes := []byte(body)
 	sig := wrongDevKP.Sign(bodyBytes)
 
-	req, _ := http.NewRequest("PUT", "http://localhost:8080/v1/agents/"+agentID, bytes.NewReader(bodyBytes))
+	req, _ := http.NewRequest("PUT", "http://localhost:8080/v1/entities/"+agentID, bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer-Dev "+sig)
 
@@ -241,14 +241,14 @@ func TestDeveloperKeyDerivationDeterministic(t *testing.T) {
 	}
 
 	// Verify the agent in the registry matches
-	resp, err := http.Get("http://localhost:8080/v1/agents/" + derivedKP.AgentID())
+	resp, err := http.Get("http://localhost:8080/v1/entities/" + derivedKP.EntityID())
 	if err != nil {
 		t.Fatalf("failed to get agent: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		t.Fatalf("agent not found in registry: %d", resp.StatusCode)
+		t.Fatalf("entity not found in registry: %d", resp.StatusCode)
 	}
 
 	var agent models.RegistryRecord

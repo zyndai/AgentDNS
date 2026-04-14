@@ -98,9 +98,9 @@ func testHeartbeatServerWithGossip(t *testing.T) (*Server, store.Store, *identit
 // registerTestAgent creates a test agent in the store and returns its ID.
 func registerTestAgent(t *testing.T, st store.Store, kp *identity.Keypair, suffix string) string {
 	t.Helper()
-	agentID := models.GenerateAgentID(kp.PublicKey)
+	agentID := models.GenerateEntityID(kp.PublicKey, "agent")
 	agent := &models.RegistryRecord{
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "HeartbeatTestAgent-" + suffix,
 		Owner:        "did:key:test",
 		EntityURL:     "https://example.com/agent.json",
@@ -126,12 +126,12 @@ func TestHeartbeat_ValidSignedMessage(t *testing.T) {
 
 	// Set up HTTP test server with the heartbeat handler
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
+	mux.HandleFunc("GET /v1/entities/{agentID}/ws", s.handleEntityHeartbeat)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
 	// Connect via WebSocket
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/agents/" + agentID + "/ws"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/entities/" + agentID + "/ws"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to dial ws: %v", err)
@@ -154,7 +154,7 @@ func TestHeartbeat_ValidSignedMessage(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify agent status is active
-	agent, err := st.GetAgent(agentID)
+	agent, err := st.GetEntity(agentID)
 	if err != nil {
 		t.Fatalf("failed to get agent: %v", err)
 	}
@@ -171,11 +171,11 @@ func TestHeartbeat_InvalidSignature(t *testing.T) {
 	agentID := registerTestAgent(t, st, agentKP, "invalid-sig")
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
+	mux.HandleFunc("GET /v1/entities/{agentID}/ws", s.handleEntityHeartbeat)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/agents/" + agentID + "/ws"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/entities/" + agentID + "/ws"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to dial ws: %v", err)
@@ -209,11 +209,11 @@ func TestHeartbeat_TimestampOutsideClockSkew(t *testing.T) {
 	agentID := registerTestAgent(t, st, agentKP, "skew")
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
+	mux.HandleFunc("GET /v1/entities/{agentID}/ws", s.handleEntityHeartbeat)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/agents/" + agentID + "/ws"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/entities/" + agentID + "/ws"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to dial ws: %v", err)
@@ -248,12 +248,12 @@ func TestHeartbeat_AgentNotFound(t *testing.T) {
 	s, _, _ := testHeartbeatServer(t)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
+	mux.HandleFunc("GET /v1/entities/{agentID}/ws", s.handleEntityHeartbeat)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
 	// Try to connect for a non-existent agent — should get 404
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/agents/zns:nonexistent/ws"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/entities/zns:nonexistent/ws"
 	_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
 		t.Fatal("expected error connecting for non-existent agent")
@@ -278,12 +278,12 @@ func TestHeartbeat_ReconnectBroadcastsActiveGossip(t *testing.T) {
 
 	// Set up HTTP test server
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/agents/{agentID}/ws", s.handleAgentHeartbeat)
+	mux.HandleFunc("GET /v1/entities/{agentID}/ws", s.handleEntityHeartbeat)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
 	// Connect via WebSocket — this should trigger a gossip broadcast
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/agents/" + agentID + "/ws"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/entities/" + agentID + "/ws"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("failed to dial ws: %v", err)
@@ -303,7 +303,7 @@ func TestHeartbeat_ReconnectBroadcastsActiveGossip(t *testing.T) {
 	// Find the agent_status/active announcement
 	found := false
 	for _, ann := range broadcasts {
-		if ann.AgentID == agentID && ann.Action == "agent_status" && ann.Status == "active" {
+		if ann.EntityID == agentID && ann.Action == "agent_status" && ann.Status == "active" {
 			found = true
 			break
 		}

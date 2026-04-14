@@ -19,7 +19,7 @@ type GossipHandler struct {
 	mu          sync.RWMutex
 	store       store.Store
 	cfg         config.GossipConfig
-	seen        map[string]time.Time             // dedup: agent_id+timestamp -> received_at
+	seen        map[string]time.Time             // dedup: entity_id+timestamp -> received_at
 	onAnnounce  func(*models.GossipAnnouncement) // callback for indexing
 	onBroadcast func(*models.GossipAnnouncement) // callback to broadcast to peers
 	eventBus    *events.Bus
@@ -70,7 +70,7 @@ func (gh *GossipHandler) BroadcastAnnouncement(ann *models.GossipAnnouncement) {
 	}
 
 	// Mark as seen locally to prevent processing our own announcement if echoed back
-	dedupKey := ann.AgentID + ":" + ann.Timestamp
+	dedupKey := ann.EntityID + ":" + ann.Timestamp
 	gh.mu.Lock()
 	gh.seen[dedupKey] = time.Now()
 	broadcastFn := gh.onBroadcast
@@ -85,7 +85,7 @@ func (gh *GossipHandler) BroadcastAnnouncement(ann *models.GossipAnnouncement) {
 	gh.mu.RUnlock()
 	if bus != nil {
 		bus.Publish(events.EventGossipOutgoing, events.GossipEventData{
-			AgentID:      ann.AgentID,
+			EntityID:      ann.EntityID,
 			Name:         ann.Name,
 			Action:       ann.Action,
 			HomeRegistry: ann.HomeRegistry,
@@ -105,7 +105,7 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 
 	// Verify signature
 	if ann.Signature == "" || ann.OriginPublicKey == "" {
-		log.Printf("gossip: rejecting unsigned announcement for %s", ann.AgentID)
+		log.Printf("gossip: rejecting unsigned announcement for %s", ann.EntityID)
 		return false
 	}
 	annCopy := *ann
@@ -121,12 +121,12 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 	}
 	valid, err := identity.Verify(pubKey, data, ann.Signature)
 	if err != nil || !valid {
-		log.Printf("gossip: invalid signature on announcement for %s: %v", ann.AgentID, err)
+		log.Printf("gossip: invalid signature on announcement for %s: %v", ann.EntityID, err)
 		return false
 	}
 
 	// Dedup check -- use appropriate key per announcement type
-	dedupID := ann.AgentID
+	dedupID := ann.EntityID
 	switch ann.Type {
 	case "developer_announce", "dev_handle":
 		dedupID = ann.DeveloperID
@@ -210,10 +210,10 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 		case "register", "update", "version":
 			entry := &models.GossipZNSName{
 				FQAN:            ann.FQAN,
-				AgentName:       ann.AgentNameZNS,
+				EntityName:       ann.AgentNameZNS,
 				DeveloperHandle: ann.DevHandle,
 				RegistryHost:    ann.RegistryHost,
-				AgentID:         ann.AgentID,
+				EntityID:         ann.EntityID,
 				CurrentVersion:  ann.Version,
 				CapabilityTags:  ann.CapabilityTags,
 				ReceivedAt:      now,
@@ -271,21 +271,21 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 	default: // agent_announce
 		switch ann.Action {
 		case "agent_status":
-			if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey, true) {
+			if !gh.verifyOriginAuthorization(ann.EntityID, ann.OriginPublicKey, true) {
 				return false
 			}
-			if err := gh.store.UpdateGossipEntryStatus(ann.AgentID, ann.Status); err != nil {
-				log.Printf("gossip: failed to update gossip entry status for %s: %v", ann.AgentID, err)
+			if err := gh.store.UpdateGossipEntryStatus(ann.EntityID, ann.Status); err != nil {
+				log.Printf("gossip: failed to update gossip entry status for %s: %v", ann.EntityID, err)
 			}
 
 		case "register", "update":
 			if ann.Action == "update" {
-				if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey, false) {
+				if !gh.verifyOriginAuthorization(ann.EntityID, ann.OriginPublicKey, false) {
 					return false
 				}
 			}
 			entry := &models.GossipEntry{
-				AgentID:            ann.AgentID,
+				EntityID:            ann.EntityID,
 				Name:               ann.Name,
 				Category:           ann.Category,
 				Tags:               ann.Tags,
@@ -316,10 +316,10 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 			}
 
 		case "deregister":
-			if !gh.verifyOriginAuthorization(ann.AgentID, ann.OriginPublicKey, true) {
+			if !gh.verifyOriginAuthorization(ann.EntityID, ann.OriginPublicKey, true) {
 				return false
 			}
-			if err := gh.store.TombstoneGossipEntry(ann.AgentID); err != nil {
+			if err := gh.store.TombstoneGossipEntry(ann.EntityID); err != nil {
 				log.Printf("failed to tombstone gossip entry: %v", err)
 			}
 		}
@@ -331,7 +331,7 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 	gh.mu.RUnlock()
 	if bus != nil {
 		bus.Publish(events.EventGossipIncoming, events.GossipEventData{
-			AgentID:      ann.AgentID,
+			EntityID:      ann.EntityID,
 			Name:         ann.Name,
 			Action:       ann.Action,
 			HomeRegistry: ann.HomeRegistry,
@@ -358,7 +358,7 @@ func (gh *GossipHandler) CreateAnnouncement(
 ) *models.GossipAnnouncement {
 	ann := &models.GossipAnnouncement{
 		Type:            "agent_announce",
-		AgentID:         agent.AgentID,
+		EntityID:         agent.EntityID,
 		Name:            agent.Name,
 		Category:        agent.Category,
 		Tags:            agent.Tags,
@@ -432,7 +432,7 @@ func (gh *GossipHandler) CreateStatusAnnouncement(
 ) *models.GossipAnnouncement {
 	ann := &models.GossipAnnouncement{
 		Type:            "agent_announce",
-		AgentID:         agentID,
+		EntityID:         agentID,
 		HomeRegistry:    registryID,
 		Action:          "agent_status",
 		Status:          status,
@@ -498,10 +498,10 @@ func (gh *GossipHandler) CreateNameBindingAnnouncement(
 		HopCount:        0,
 		MaxHops:         gh.cfg.MaxHops,
 		FQAN:            name.FQAN,
-		AgentNameZNS:    name.AgentName,
+		AgentNameZNS:    name.EntityName,
 		DevHandle:       name.DeveloperHandle,
 		RegistryHost:    name.RegistryHost,
-		AgentID:         name.AgentID,
+		EntityID:         name.EntityID,
 		DeveloperID:     name.DeveloperID,
 		Version:         name.CurrentVersion,
 		CapabilityTags:  name.CapabilityTags,

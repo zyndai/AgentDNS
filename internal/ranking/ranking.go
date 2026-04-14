@@ -33,7 +33,7 @@ func (r *Ranker) Rank(candidates []*CandidateResult) []*CandidateResult {
 
 // CandidateResult holds intermediate scoring data for a search candidate.
 type CandidateResult struct {
-	AgentID      string
+	EntityID      string
 	Name         string
 	Summary      string
 	Category     string
@@ -54,7 +54,7 @@ type CandidateResult struct {
 	FinalScore float64
 
 	// Optional enriched Agent Card
-	Card *models.AgentCard
+	Card *models.EntityCard
 
 	// ZNS fields (populated when entity has a name binding)
 	FQAN            string
@@ -119,20 +119,20 @@ func (r *Ranker) RankRRF(candidates []*CandidateResult) []*CandidateResult {
 	trustRank := make(map[string]int)
 
 	for i, c := range textRanked {
-		textRank[c.AgentID] = i + 1
+		textRank[c.EntityID] = i + 1
 	}
 	for i, c := range semanticRanked {
-		semanticRank[c.AgentID] = i + 1
+		semanticRank[c.EntityID] = i + 1
 	}
 	for i, c := range trustRanked {
-		trustRank[c.AgentID] = i + 1
+		trustRank[c.EntityID] = i + 1
 	}
 
 	// Compute RRF score
 	for _, c := range candidates {
-		c.FinalScore = 1.0/(k+float64(textRank[c.AgentID])) +
-			1.0/(k+float64(semanticRank[c.AgentID])) +
-			1.0/(k+float64(trustRank[c.AgentID]))
+		c.FinalScore = 1.0/(k+float64(textRank[c.EntityID])) +
+			1.0/(k+float64(semanticRank[c.EntityID])) +
+			1.0/(k+float64(trustRank[c.EntityID]))
 	}
 
 	sort.Slice(candidates, func(i, j int) bool {
@@ -142,13 +142,13 @@ func (r *Ranker) RankRRF(candidates []*CandidateResult) []*CandidateResult {
 	return candidates
 }
 
-// Deduplicate removes duplicate candidates by agent_id, keeping the highest scored.
+// Deduplicate removes duplicate candidates by entity_id, keeping the highest scored.
 func Deduplicate(candidates []*CandidateResult) []*CandidateResult {
 	seen := make(map[string]bool)
 	var result []*CandidateResult
 	for _, c := range candidates {
-		if !seen[c.AgentID] {
-			seen[c.AgentID] = true
+		if !seen[c.EntityID] {
+			seen[c.EntityID] = true
 			result = append(result, c)
 		}
 	}
@@ -160,7 +160,7 @@ func ToSearchResults(candidates []*CandidateResult) []models.SearchResult {
 	results := make([]models.SearchResult, len(candidates))
 	for i, c := range candidates {
 		results[i] = models.SearchResult{
-			AgentID:      c.AgentID,
+			EntityID:      c.EntityID,
 			Name:         c.Name,
 			Summary:      c.Summary,
 			Category:     c.Category,

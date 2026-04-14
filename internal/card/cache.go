@@ -11,7 +11,7 @@ import (
 
 // cacheEntry wraps a cached Agent Card with TTL information.
 type cacheEntry struct {
-	card      *models.AgentCard
+	card      *models.EntityCard
 	expiresAt time.Time
 	key       string
 }
@@ -35,8 +35,8 @@ func NewLRUCache(maxSize int, ttlSeconds int) *LRUCache {
 	}
 }
 
-// Get retrieves a cached Agent Card by agent_id. Returns nil if not found or expired.
-func (c *LRUCache) Get(agentID string) *models.AgentCard {
+// Get retrieves a cached Agent Card by entity_id. Returns nil if not found or expired.
+func (c *LRUCache) Get(agentID string) *models.EntityCard {
 	c.mu.RLock()
 	elem, ok := c.items[agentID]
 	c.mu.RUnlock()
@@ -63,7 +63,7 @@ func (c *LRUCache) Get(agentID string) *models.AgentCard {
 }
 
 // Put stores an Agent Card in the cache. Evicts the least recently used entry if full.
-func (c *LRUCache) Put(agentID string, card *models.AgentCard) {
+func (c *LRUCache) Put(agentID string, card *models.EntityCard) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

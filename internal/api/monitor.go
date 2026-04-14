@@ -69,8 +69,8 @@ func (m *LivenessMonitor) sweep() {
 
 	for _, agentID := range ids {
 		// Publish event
-		m.eventBus.Publish(events.EventAgentBecameInactive, events.HeartbeatEventData{
-			AgentID: agentID,
+		m.eventBus.Publish(events.EventEntityBecameInactive, events.HeartbeatEventData{
+			EntityID: agentID,
 			Status:  "inactive",
 		})
 

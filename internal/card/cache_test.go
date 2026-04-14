@@ -10,8 +10,8 @@ import (
 func TestLRUCache_PutAndGet(t *testing.T) {
 	cache := NewLRUCache(10, 3600)
 
-	card := &models.AgentCard{
-		AgentID: "zns:test1",
+	card := &models.EntityCard{
+		EntityID: "zns:test1",
 		Version: "1.0",
 		Status:  "online",
 	}
@@ -22,8 +22,8 @@ func TestLRUCache_PutAndGet(t *testing.T) {
 	if got == nil {
 		t.Fatal("expected card from cache")
 	}
-	if got.AgentID != "zns:test1" {
-		t.Errorf("expected zns:test1, got %s", got.AgentID)
+	if got.EntityID != "zns:test1" {
+		t.Errorf("expected zns:test1, got %s", got.EntityID)
 	}
 }
 
@@ -39,9 +39,9 @@ func TestLRUCache_Miss(t *testing.T) {
 func TestLRUCache_Eviction(t *testing.T) {
 	cache := NewLRUCache(2, 3600) // max 2 entries
 
-	cache.Put("a", &models.AgentCard{AgentID: "a"})
-	cache.Put("b", &models.AgentCard{AgentID: "b"})
-	cache.Put("c", &models.AgentCard{AgentID: "c"}) // should evict "a"
+	cache.Put("a", &models.EntityCard{EntityID: "a"})
+	cache.Put("b", &models.EntityCard{EntityID: "b"})
+	cache.Put("c", &models.EntityCard{EntityID: "c"}) // should evict "a"
 
 	if cache.Get("a") != nil {
 		t.Error("'a' should have been evicted")
@@ -57,7 +57,7 @@ func TestLRUCache_Eviction(t *testing.T) {
 func TestLRUCache_TTLExpiry(t *testing.T) {
 	cache := NewLRUCache(10, 1) // 1 second TTL
 
-	cache.Put("test", &models.AgentCard{AgentID: "test"})
+	cache.Put("test", &models.EntityCard{EntityID: "test"})
 
 	// Should be available immediately
 	if cache.Get("test") == nil {
@@ -76,7 +76,7 @@ func TestLRUCache_TTLExpiry(t *testing.T) {
 func TestLRUCache_Remove(t *testing.T) {
 	cache := NewLRUCache(10, 3600)
 
-	cache.Put("test", &models.AgentCard{AgentID: "test"})
+	cache.Put("test", &models.EntityCard{EntityID: "test"})
 	cache.Remove("test")
 
 	if cache.Get("test") != nil {
@@ -90,8 +90,8 @@ func TestLRUCache_Remove(t *testing.T) {
 func TestLRUCache_Update(t *testing.T) {
 	cache := NewLRUCache(10, 3600)
 
-	cache.Put("test", &models.AgentCard{AgentID: "test", Version: "1.0"})
-	cache.Put("test", &models.AgentCard{AgentID: "test", Version: "2.0"})
+	cache.Put("test", &models.EntityCard{EntityID: "test", Version: "1.0"})
+	cache.Put("test", &models.EntityCard{EntityID: "test", Version: "2.0"})
 
 	got := cache.Get("test")
 	if got == nil {
@@ -108,8 +108,8 @@ func TestLRUCache_Update(t *testing.T) {
 func TestLRUCache_Clear(t *testing.T) {
 	cache := NewLRUCache(10, 3600)
 
-	cache.Put("a", &models.AgentCard{AgentID: "a"})
-	cache.Put("b", &models.AgentCard{AgentID: "b"})
+	cache.Put("a", &models.EntityCard{EntityID: "a"})
+	cache.Put("b", &models.EntityCard{EntityID: "b"})
 	cache.Clear()
 
 	if cache.Len() != 0 {

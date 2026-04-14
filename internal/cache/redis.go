@@ -89,11 +89,11 @@ func (rc *RedisCache) Close() error {
 }
 
 // --- Agent Card Cache ---
-// Keys: agdns:card:{agent_id}
+// Keys: agdns:card:{entity_id}
 
 // GetAgentCard retrieves a cached Agent Card.
 // Returns nil if not found or expired.
-func (rc *RedisCache) GetAgentCard(ctx context.Context, agentID string) (*models.AgentCard, error) {
+func (rc *RedisCache) GetAgentCard(ctx context.Context, agentID string) (*models.EntityCard, error) {
 	key := rc.prefix + "card:" + agentID
 	data, err := rc.client.Get(ctx, key).Bytes()
 	if err == redis.Nil {
@@ -103,7 +103,7 @@ func (rc *RedisCache) GetAgentCard(ctx context.Context, agentID string) (*models
 		return nil, fmt.Errorf("redis get agent card: %w", err)
 	}
 
-	card := &models.AgentCard{}
+	card := &models.EntityCard{}
 	if err := json.Unmarshal(data, card); err != nil {
 		// Corrupt cache entry — delete it
 		rc.client.Del(ctx, key)
@@ -113,7 +113,7 @@ func (rc *RedisCache) GetAgentCard(ctx context.Context, agentID string) (*models
 }
 
 // SetAgentCard caches an Agent Card with TTL.
-func (rc *RedisCache) SetAgentCard(ctx context.Context, agentID string, card *models.AgentCard, ttl time.Duration) error {
+func (rc *RedisCache) SetAgentCard(ctx context.Context, agentID string, card *models.EntityCard, ttl time.Duration) error {
 	key := rc.prefix + "card:" + agentID
 	data, err := json.Marshal(card)
 	if err != nil {

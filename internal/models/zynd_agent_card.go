@@ -14,7 +14,7 @@ type ZyndAgentCard struct {
 type ZyndCardSection struct {
 	Version         string `json:"version"`                    // "1.0"
 	FQAN            string `json:"fqan,omitempty"`             // e.g., "dns01.zynd.ai/acme-corp/doc-translator"
-	AgentID         string `json:"agent_id"`                   // agdns:<hash>
+	EntityID        string `json:"entity_id"`                  // zns:<hash> or zns:svc:<hash>
 	DeveloperID     string `json:"developer_id,omitempty"`     // agdns:dev:<hash>
 	DeveloperHandle string `json:"developer_handle,omitempty"` // e.g., "acme-corp"
 	PublicKey       string `json:"public_key"`                 // ed25519:<base64>

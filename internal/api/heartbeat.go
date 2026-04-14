@@ -12,9 +12,9 @@ import (
 	"github.com/agentdns/agent-dns/internal/models"
 )
 
-// handleAgentHeartbeat upgrades to a WebSocket and accepts signed heartbeat
+// handleEntityHeartbeat upgrades to a WebSocket and accepts signed heartbeat
 // messages from an agent to prove liveness.
-func (s *Server) handleAgentHeartbeat(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleEntityHeartbeat(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("entityID")
 	if agentID == "" {
 		writeError(w, http.StatusBadRequest, "entity_id is required")
@@ -22,13 +22,13 @@ func (s *Server) handleAgentHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Look up agent to get public key
-	agent, err := s.store.GetAgent(agentID)
+	agent, err := s.store.GetEntity(agentID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to look up agent")
 		return
 	}
 	if agent == nil {
-		writeError(w, http.StatusNotFound, "agent not found")
+		writeError(w, http.StatusNotFound, "entity not found")
 		return
 	}
 
@@ -84,8 +84,8 @@ func (s *Server) handleAgentHeartbeat(w http.ResponseWriter, r *http.Request) {
 		// First valid signature — mark agent active and broadcast
 		if !authenticated {
 			authenticated = true
-			s.eventBus.Publish(events.EventAgentBecameActive, events.HeartbeatEventData{
-				AgentID: agentID,
+			s.eventBus.Publish(events.EventEntityBecameActive, events.HeartbeatEventData{
+				EntityID: agentID,
 				Status:  "active",
 			})
 			if s.gossip != nil && s.nodeIdentity != nil {
@@ -100,13 +100,13 @@ func (s *Server) handleAgentHeartbeat(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Valid heartbeat — update store
-		if err := s.store.UpdateAgentHeartbeat(agentID); err != nil {
+		if err := s.store.UpdateEntityHeartbeat(agentID); err != nil {
 			log.Printf("heartbeat ws: failed to update heartbeat for %s: %v", agentID, err)
 			continue
 		}
 
-		s.eventBus.Publish(events.EventAgentHeartbeat, events.HeartbeatEventData{
-			AgentID: agentID,
+		s.eventBus.Publish(events.EventEntityHeartbeat, events.HeartbeatEventData{
+			EntityID: agentID,
 			Status:  "active",
 		})
 	}

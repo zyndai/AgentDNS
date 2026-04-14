@@ -38,7 +38,7 @@ func DefaultConfig() Config {
 
 // storedRecord wraps a record with metadata for expiration.
 type storedRecord struct {
-	Record   AgentDHTRecord
+	Record   EntityDHTRecord
 	StoredAt time.Time
 }
 
@@ -133,7 +133,7 @@ func (d *DHT) Ping(contact NodeContact) bool {
 }
 
 // Store stores a record at the k closest nodes to the key.
-func (d *DHT) Store(key NodeID, record AgentDHTRecord) error {
+func (d *DHT) Store(key NodeID, record EntityDHTRecord) error {
 	// Store locally
 	d.storeLocal(key, record)
 
@@ -165,7 +165,7 @@ func (d *DHT) Store(key NodeID, record AgentDHTRecord) error {
 }
 
 // FindValue looks up a record by key. Returns nil if not found.
-func (d *DHT) FindValue(key NodeID) *AgentDHTRecord {
+func (d *DHT) FindValue(key NodeID) *EntityDHTRecord {
 	// Check local store first
 	if rec := d.getLocal(key); rec != nil {
 		return rec
@@ -375,7 +375,7 @@ done:
 	return deduped
 }
 
-func (d *DHT) iterativeFindValue(key NodeID) *AgentDHTRecord {
+func (d *DHT) iterativeFindValue(key NodeID) *EntityDHTRecord {
 	ctx, cancel := context.WithTimeout(context.Background(), d.config.LookupTimeout)
 	defer cancel()
 
@@ -405,7 +405,7 @@ func (d *DHT) iterativeFindValue(key NodeID) *AgentDHTRecord {
 		}
 
 		type queryResult struct {
-			value *AgentDHTRecord
+			value *EntityDHTRecord
 			nodes []NodeContact
 		}
 		ch := make(chan queryResult, len(toQuery))
@@ -471,7 +471,7 @@ func (d *DHT) iterativeFindValue(key NodeID) *AgentDHTRecord {
 
 // --- Local Store ---
 
-func (d *DHT) storeLocal(key NodeID, record AgentDHTRecord) {
+func (d *DHT) storeLocal(key NodeID, record EntityDHTRecord) {
 	d.storeMu.Lock()
 	defer d.storeMu.Unlock()
 	d.store[key.Hex()] = storedRecord{
@@ -480,7 +480,7 @@ func (d *DHT) storeLocal(key NodeID, record AgentDHTRecord) {
 	}
 }
 
-func (d *DHT) getLocal(key NodeID) *AgentDHTRecord {
+func (d *DHT) getLocal(key NodeID) *EntityDHTRecord {
 	d.storeMu.RLock()
 	defer d.storeMu.RUnlock()
 	if sr, ok := d.store[key.Hex()]; ok {

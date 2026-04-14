@@ -10,7 +10,7 @@ import (
 // validBase returns a minimal valid RegistryRecord for agents.
 func validBase() RegistryRecord {
 	return RegistryRecord{
-		AgentID:   "zns:abc123",
+		EntityID:   "zns:abc123",
 		Name:      "test-agent",
 		Owner:     "owner-1",
 		EntityURL: "https://example.com/.well-known/agent.json",
@@ -35,7 +35,7 @@ func TestValidate_RequiredFields(t *testing.T) {
 		modify func(*RegistryRecord)
 		errMsg string
 	}{
-		{"missing agent_id", func(r *RegistryRecord) { r.AgentID = "" }, "agent_id is required"},
+		{"missing entity_id", func(r *RegistryRecord) { r.EntityID = "" }, "entity_id is required"},
 		{"missing name", func(r *RegistryRecord) { r.Name = "" }, "name is required"},
 		{"missing owner", func(r *RegistryRecord) { r.Owner = "" }, "owner is required"},
 		{"missing entity_url for agent", func(r *RegistryRecord) { r.EntityURL = "" }, "entity_url is required"},
@@ -330,8 +330,8 @@ func TestRegistryRecord_JSONFieldNames(t *testing.T) {
 		}
 	}
 
-	// Should NOT have old naming
-	badKeys := []string{"service_pricing", "agent_url", "pricing_model", "type"}
+	// Should NOT have old naming (pre-rename legacy keys).
+	badKeys := []string{"service_pricing", "agent_url", "agent_id", "pricing_model", "type"}
 	for _, key := range badKeys {
 		if _, ok := raw[key]; ok {
 			t.Errorf("unexpected legacy key %q in JSON output", key)
@@ -355,9 +355,9 @@ func TestRegistryRecord_NilEntityPricingOmitted(t *testing.T) {
 
 // --- ID generation ---------------------------------------------------------
 
-func TestGenerateServiceID(t *testing.T) {
+func TestGenerateEntityID_Service(t *testing.T) {
 	pub, _, _ := ed25519.GenerateKey(nil)
-	id := GenerateServiceID(pub)
+	id := GenerateEntityID(pub, "service")
 	if !strings.HasPrefix(id, "zns:svc:") {
 		t.Errorf("service ID should start with 'zns:svc:', got %q", id)
 	}
@@ -366,9 +366,9 @@ func TestGenerateServiceID(t *testing.T) {
 	}
 }
 
-func TestGenerateAgentID(t *testing.T) {
+func TestGenerateEntityID_Agent(t *testing.T) {
 	pub, _, _ := ed25519.GenerateKey(nil)
-	id := GenerateAgentID(pub)
+	id := GenerateEntityID(pub, "agent")
 	if !strings.HasPrefix(id, "zns:") {
 		t.Errorf("agent ID should start with 'zns:', got %q", id)
 	}
@@ -378,19 +378,19 @@ func TestGenerateAgentID(t *testing.T) {
 	}
 }
 
-func TestGenerateServiceID_Deterministic(t *testing.T) {
+func TestGenerateEntityID_Deterministic_Service(t *testing.T) {
 	pub, _, _ := ed25519.GenerateKey(nil)
-	id1 := GenerateServiceID(pub)
-	id2 := GenerateServiceID(pub)
+	id1 := GenerateEntityID(pub, "service")
+	id2 := GenerateEntityID(pub, "service")
 	if id1 != id2 {
 		t.Errorf("service ID not deterministic: %q != %q", id1, id2)
 	}
 }
 
-func TestGenerateServiceID_DifferentFromAgentID(t *testing.T) {
+func TestGenerateEntityID_AgentVsService(t *testing.T) {
 	pub, _, _ := ed25519.GenerateKey(nil)
-	agentID := GenerateAgentID(pub)
-	serviceID := GenerateServiceID(pub)
+	agentID := GenerateEntityID(pub, "agent")
+	serviceID := GenerateEntityID(pub, "service")
 	if agentID == serviceID {
 		t.Error("agent ID and service ID should differ for the same key")
 	}
@@ -428,7 +428,7 @@ func TestSearchRequest_EntityTypeJSON(t *testing.T) {
 func TestGossipAnnouncement_EntityFields(t *testing.T) {
 	ann := GossipAnnouncement{
 		Type:            "agent_announce",
-		AgentID:         "zns:svc:abc",
+		EntityID:         "zns:svc:abc",
 		Name:            "test-service",
 		HomeRegistry:    "zns:registry:xyz",
 		Action:          "register",
@@ -470,7 +470,7 @@ func TestGossipAnnouncement_EntityFields(t *testing.T) {
 
 func TestGossipEntry_EntityFields(t *testing.T) {
 	entry := GossipEntry{
-		AgentID:         "zns:svc:abc",
+		EntityID:         "zns:svc:abc",
 		Name:            "test-service",
 		Category:        "translation",
 		HomeRegistry:    "zns:registry:xyz",

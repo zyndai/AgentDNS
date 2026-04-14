@@ -98,7 +98,7 @@ func TestRegistrationRequest_Validation(t *testing.T) {
 		t.Error("name should be set")
 	}
 	if req.EntityURL == "" {
-		t.Error("agent_url should be set")
+		t.Error("entity_url should be set")
 	}
 	if req.Category == "" {
 		t.Error("category should be set")
@@ -139,7 +139,7 @@ func TestSearchResponse_Serialization(t *testing.T) {
 	resp := models.SearchResponse{
 		Results: []models.SearchResult{
 			{
-				AgentID:  "zns:test1",
+				EntityID:  "zns:test1",
 				Name:     "TestAgent",
 				Summary:  "A test agent",
 				Category: "tools",

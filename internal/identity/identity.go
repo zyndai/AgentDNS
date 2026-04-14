@@ -123,9 +123,9 @@ func Verify(publicKeyB64 string, message []byte, signature string) (bool, error)
 	return ed25519.Verify(pubKey, message, sigBytes), nil
 }
 
-// AgentID returns the agent_id derived from this keypair's public key.
-func (kp *Keypair) AgentID() string {
-	return models.GenerateAgentID(kp.PublicKey)
+// EntityID returns the agent-flavor entity_id derived from this keypair's public key.
+func (kp *Keypair) EntityID() string {
+	return models.GenerateEntityID(kp.PublicKey, "agent")
 }
 
 // RegistryID returns the registry_id derived from this keypair's public key.
@@ -189,7 +189,7 @@ func DeriveAgentKeypair(developerPrivateKey ed25519.PrivateKey, index uint32) (*
 // connectivity needed.
 type DeveloperProof struct {
 	DeveloperPublicKey string `json:"developer_public_key"` // ed25519:<base64>
-	AgentIndex         int    `json:"agent_index"`
+	EntityIndex         int    `json:"entity_index"`
 	DeveloperSignature string `json:"developer_signature"` // ed25519:<base64>
 }
 
@@ -201,14 +201,14 @@ func CreateDerivationProof(developerKP *Keypair, agentPubKey ed25519.PublicKey, 
 
 	return &DeveloperProof{
 		DeveloperPublicKey: developerKP.PublicKeyString(),
-		AgentIndex:         int(index),
+		EntityIndex:         int(index),
 		DeveloperSignature: developerKP.Sign(proofMsg),
 	}
 }
 
 // VerifyDerivationProof verifies a developer-agent chain of trust.
 // Returns true if the developer_signature is a valid Ed25519 signature
-// over (agent_public_key_bytes || big_endian_uint32(agent_index))
+// over (agent_public_key_bytes || big_endian_uint32(entity_index))
 // using the developer_public_key.
 func VerifyDerivationProof(proof *DeveloperProof, agentPubKeyB64 string) (bool, error) {
 	if proof == nil {
@@ -225,11 +225,11 @@ func VerifyDerivationProof(proof *DeveloperProof, agentPubKeyB64 string) (bool, 
 		return false, fmt.Errorf("failed to decode agent public key: %w", err)
 	}
 
-	if proof.AgentIndex < 0 {
-		return false, fmt.Errorf("agent_index must be non-negative")
+	if proof.EntityIndex < 0 {
+		return false, fmt.Errorf("entity_index must be non-negative")
 	}
 
-	proofMsg := buildProofMessage(ed25519.PublicKey(agentPubBytes), uint32(proof.AgentIndex))
+	proofMsg := buildProofMessage(ed25519.PublicKey(agentPubBytes), uint32(proof.EntityIndex))
 
 	// Verify using developer's public key
 	devPubKey := proof.DeveloperPublicKey

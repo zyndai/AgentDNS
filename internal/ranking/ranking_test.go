@@ -28,7 +28,7 @@ func TestToSearchResults_EntityFieldsPropagated(t *testing.T) {
 	}
 	candidates := []*CandidateResult{
 		{
-			AgentID:         "zns:svc:001",
+			EntityID:         "zns:svc:001",
 			Name:            "translate-svc",
 			EntityType:      "service",
 			ServiceEndpoint: "https://api.translate.com/v1",
@@ -75,7 +75,7 @@ func TestToSearchResults_EntityFieldsPropagated(t *testing.T) {
 func TestToSearchResults_AgentWithPricing(t *testing.T) {
 	candidates := []*CandidateResult{
 		{
-			AgentID:    "zns:abc",
+			EntityID:    "zns:abc",
 			Name:       "code-reviewer",
 			EntityType: "agent",
 			EntityPricing: &models.EntityPricing{
@@ -101,7 +101,7 @@ func TestToSearchResults_AgentWithPricing(t *testing.T) {
 func TestToSearchResults_NilPricing(t *testing.T) {
 	candidates := []*CandidateResult{
 		{
-			AgentID:       "zns:abc",
+			EntityID:       "zns:abc",
 			Name:          "free-agent",
 			EntityType:    "agent",
 			EntityPricing: nil,
@@ -116,7 +116,7 @@ func TestToSearchResults_NilPricing(t *testing.T) {
 
 func TestToSearchResults_EmptyEntityType(t *testing.T) {
 	candidates := []*CandidateResult{
-		{AgentID: "zns:abc", Name: "legacy-agent"},
+		{EntityID: "zns:abc", Name: "legacy-agent"},
 	}
 
 	results := ToSearchResults(candidates)
@@ -130,14 +130,14 @@ func TestToSearchResults_EmptyEntityType(t *testing.T) {
 func TestDeduplicate_PreservesEntityFields(t *testing.T) {
 	candidates := []*CandidateResult{
 		{
-			AgentID:         "zns:svc:001",
+			EntityID:         "zns:svc:001",
 			Name:            "svc-first",
 			EntityType:      "service",
 			ServiceEndpoint: "https://first.com",
 			EntityPricing:   &models.EntityPricing{Model: "free"},
 		},
 		{
-			AgentID:         "zns:svc:001",
+			EntityID:         "zns:svc:001",
 			Name:            "svc-duplicate",
 			EntityType:      "service",
 			ServiceEndpoint: "https://second.com",
@@ -163,7 +163,7 @@ func TestRankWeighted_MixedEntityTypes(t *testing.T) {
 
 	candidates := []*CandidateResult{
 		{
-			AgentID:       "zns:agent1",
+			EntityID:       "zns:agent1",
 			EntityType:    "agent",
 			TextRelevance: 0.5,
 			TrustScore:    0.8,
@@ -171,7 +171,7 @@ func TestRankWeighted_MixedEntityTypes(t *testing.T) {
 			UpdatedAt:     models.NowRFC3339(),
 		},
 		{
-			AgentID:         "zns:svc:001",
+			EntityID:         "zns:svc:001",
 			EntityType:      "service",
 			ServiceEndpoint: "https://api.example.com",
 			EntityPricing:   &models.EntityPricing{Model: "per_request"},
@@ -188,8 +188,8 @@ func TestRankWeighted_MixedEntityTypes(t *testing.T) {
 	}
 
 	// Higher scoring service should be first
-	if ranked[0].AgentID != "zns:svc:001" {
-		t.Errorf("expected service ranked first, got %q", ranked[0].AgentID)
+	if ranked[0].EntityID != "zns:svc:001" {
+		t.Errorf("expected service ranked first, got %q", ranked[0].EntityID)
 	}
 	if ranked[0].EntityType != "service" {
 		t.Errorf("first result EntityType: got %q, want service", ranked[0].EntityType)
@@ -209,7 +209,7 @@ func TestRankRRF_PreservesEntityFields(t *testing.T) {
 
 	candidates := []*CandidateResult{
 		{
-			AgentID:         "zns:svc:001",
+			EntityID:         "zns:svc:001",
 			EntityType:      "service",
 			ServiceEndpoint: "https://api.example.com",
 			OpenAPIURL:      "https://api.example.com/openapi.json",
@@ -218,7 +218,7 @@ func TestRankRRF_PreservesEntityFields(t *testing.T) {
 			TrustScore:      0.7,
 		},
 		{
-			AgentID:       "zns:agent1",
+			EntityID:       "zns:agent1",
 			EntityType:    "agent",
 			TextRelevance: 0.5,
 			TrustScore:    0.6,
@@ -230,7 +230,7 @@ func TestRankRRF_PreservesEntityFields(t *testing.T) {
 	// Find the service in results
 	var svc *CandidateResult
 	for _, c := range ranked {
-		if c.AgentID == "zns:svc:001" {
+		if c.EntityID == "zns:svc:001" {
 			svc = c
 			break
 		}
@@ -261,7 +261,7 @@ func TestRankRRF_PreservesEntityFields(t *testing.T) {
 func TestToSearchResults_ScoreBreakdown(t *testing.T) {
 	candidates := []*CandidateResult{
 		{
-			AgentID:            "zns:svc:001",
+			EntityID:            "zns:svc:001",
 			EntityType:         "service",
 			TextRelevance:      0.85,
 			SemanticSimilarity: 0.72,
@@ -310,8 +310,8 @@ func TestDeduplicate_Empty(t *testing.T) {
 
 func TestDeduplicate_NoDuplicates(t *testing.T) {
 	candidates := []*CandidateResult{
-		{AgentID: "a", EntityType: "agent"},
-		{AgentID: "b", EntityType: "service"},
+		{EntityID: "a", EntityType: "agent"},
+		{EntityID: "b", EntityType: "service"},
 	}
 	result := Deduplicate(candidates)
 	if len(result) != 2 {

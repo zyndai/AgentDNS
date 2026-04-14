@@ -43,7 +43,7 @@ func NewFetcher(lruCache *LRUCache, redis *cache.RedisCache, cardTTLSeconds int)
 // FetchCard retrieves an Agent Card from the given URL.
 // Cache check order: in-process LRU -> Redis -> HTTP fetch.
 // On cache miss, fetches from the URL, verifies signature, and populates both caches.
-func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.AgentCard, error) {
+func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.EntityCard, error) {
 	// Tier 1: Check in-process LRU cache
 	if card := f.lruCache.Get(agentID); card != nil {
 		return card, nil
@@ -97,14 +97,14 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.AgentC
 		return nil, fmt.Errorf("failed to read agent card: %w", err)
 	}
 
-	card := &models.AgentCard{}
+	card := &models.EntityCard{}
 	if err := json.Unmarshal(body, card); err != nil {
 		return nil, fmt.Errorf("failed to parse agent card: %w", err)
 	}
 
-	// Verify agent_id matches
-	if card.AgentID != "" && card.AgentID != agentID {
-		return nil, fmt.Errorf("agent card agent_id mismatch: expected %s, got %s", agentID, card.AgentID)
+	// Verify entity_id matches
+	if card.EntityID != "" && card.EntityID != agentID {
+		return nil, fmt.Errorf("agent card entity_id mismatch: expected %s, got %s", agentID, card.EntityID)
 	}
 
 	// Note: Signature verification is skipped here. The card is fetched directly
@@ -126,7 +126,7 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.AgentC
 
 // FetchCardRaw fetches the agent card and returns the raw JSON bytes as-is.
 // This preserves all fields from the SDK (name, description, tags, etc.)
-// that may not be in the Go AgentCard struct.
+// that may not be in the Go EntityCard struct.
 func (f *Fetcher) FetchCardRaw(agentID, agentURL string) ([]byte, error) {
 	cardURL := agentURL
 	if !strings.HasSuffix(cardURL, ".json") && !strings.Contains(cardURL, ".well-known") {
@@ -153,7 +153,7 @@ func (f *Fetcher) FetchCardRaw(agentID, agentURL string) ([]byte, error) {
 
 // verifyCardSignatureRaw verifies the Agent Card signature against the original
 // JSON bytes from the HTTP response. This is necessary because the SDK may include
-// fields not present in the Go AgentCard struct (name, description, tags, etc.).
+// fields not present in the Go EntityCard struct (name, description, tags, etc.).
 // The signature is computed over canonical JSON (sorted keys) with the signature field removed.
 func (f *Fetcher) verifyCardSignatureRaw(rawBody []byte, signature, publicKeyStr string) error {
 	pubKey := publicKeyStr

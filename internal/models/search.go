@@ -34,7 +34,7 @@ type SearchResponse struct {
 
 // SearchResult is a single result in the search response.
 type SearchResult struct {
-	AgentID           string             `json:"agent_id"`
+	EntityID          string             `json:"entity_id"`
 	Name              string             `json:"name"`
 	Summary           string             `json:"summary"`
 	Category          string             `json:"category"`
@@ -45,7 +45,7 @@ type SearchResult struct {
 	DeveloperID       string             `json:"developer_id,omitempty"`
 	Score             float64            `json:"score"`
 	ScoreBreakdown    *ScoreBreakdown    `json:"score_breakdown,omitempty"`
-	Card              *AgentCard         `json:"card,omitempty"` // included if enrich=true
+	Card              *EntityCard         `json:"card,omitempty"` // included if enrich=true
 
 	// ZNS fields (populated when entity has a name binding)
 	FQAN            string `json:"fqan,omitempty"`

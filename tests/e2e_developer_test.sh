@@ -40,10 +40,10 @@ echo ""
 echo "Test 3: Get agent with developer fields"
 AGENT=$(curl -s http://localhost:8080/v1/agents/$AGENT_ID)
 AGENT_DEV_ID=$(echo "$AGENT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("developer_id",""))')
-AGENT_INDEX=$(echo "$AGENT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("agent_index",""))')
+AGENT_INDEX=$(echo "$AGENT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("entity_index",""))')
 HAS_PROOF=$(echo "$AGENT" | python3 -c 'import json,sys; print("developer_proof" in json.load(sys.stdin))')
 echo "  developer_id: $AGENT_DEV_ID"
-echo "  agent_index: $AGENT_INDEX"
+echo "  entity_index: $AGENT_INDEX"
 echo "  has_proof: $HAS_PROOF"
 if [ "$AGENT_DEV_ID" = "$DEV_ID" ] && [ "$AGENT_INDEX" = "0" ] && [ "$HAS_PROOF" = "True" ]; then
     echo "  PASS"
@@ -151,7 +151,7 @@ BAD_PROOF_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localho
     "developer_id":"'"$DEV_ID"'",
     "developer_proof":{
       "developer_public_key":"ed25519:hJBuB79vGqg5Mj1Iv2A/MmC+PpficWzRR3ETBssJnf4=",
-      "agent_index":99,
+      "entity_index":99,
       "developer_signature":"ed25519:FAKE_SIGNATURE"
     }
   }')
@@ -177,7 +177,7 @@ NO_DEV_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:
     "developer_id":"agdns:dev:nonexistent",
     "developer_proof":{
       "developer_public_key":"ed25519:FAKE",
-      "agent_index":0,
+      "entity_index":0,
       "developer_signature":"ed25519:FAKE"
     }
   }')

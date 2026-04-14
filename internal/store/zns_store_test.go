@@ -49,7 +49,7 @@ func createTestAgent(t *testing.T, s *PostgresStore, agentID string) {
 	t.Helper()
 	now := time.Now().UTC().Format(time.RFC3339)
 	agent := &models.RegistryRecord{
-		AgentID:      agentID,
+		EntityID:      agentID,
 		Name:         "TestAgent",
 		Owner:        "did:key:testowner",
 		EntityURL:     "https://example.com/.well-known/agent.json",
@@ -212,10 +212,10 @@ func TestStore_CreateAndGetZNSName(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	name := &models.ZNSName{
 		FQAN:            "test.example.com/name-dev/my-agent",
-		AgentName:       "my-agent",
+		EntityName:       "my-agent",
 		DeveloperHandle: "name-dev",
 		RegistryHost:    "test.example.com",
-		AgentID:         "zns:nameagent1",
+		EntityID:         "zns:nameagent1",
 		DeveloperID:     "zns:dev:name1",
 		CurrentVersion:  "1.0.0",
 		CapabilityTags:  []string{"nlp"},
@@ -233,8 +233,8 @@ func TestStore_CreateAndGetZNSName(t *testing.T) {
 	if err != nil || got == nil {
 		t.Fatalf("GetZNSName() error: %v, got: %v", err, got)
 	}
-	if got.AgentName != "my-agent" {
-		t.Errorf("expected agent_name 'my-agent', got %q", got.AgentName)
+	if got.EntityName != "my-agent" {
+		t.Errorf("expected entity_name 'my-agent', got %q", got.EntityName)
 	}
 
 	// Get by parts
@@ -258,10 +258,10 @@ func TestStore_CreateZNSName_Duplicate(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	name := &models.ZNSName{
 		FQAN:            "test.example.com/dup-dev/same-name",
-		AgentName:       "same-name",
+		EntityName:       "same-name",
 		DeveloperHandle: "dup-dev",
 		RegistryHost:    "test.example.com",
-		AgentID:         "zns:dupnameagent",
+		EntityID:         "zns:dupnameagent",
 		DeveloperID:     "zns:dev:dupname",
 		RegisteredAt:    now,
 		UpdatedAt:       now,
@@ -283,10 +283,10 @@ func TestStore_UpdateZNSName(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	name := &models.ZNSName{
 		FQAN:            "test.example.com/upd-dev/upd-agent",
-		AgentName:       "upd-agent",
+		EntityName:       "upd-agent",
 		DeveloperHandle: "upd-dev",
 		RegistryHost:    "test.example.com",
-		AgentID:         "zns:updagent",
+		EntityID:         "zns:updagent",
 		DeveloperID:     "zns:dev:upd",
 		CurrentVersion:  "1.0.0",
 		RegisteredAt:    now,
@@ -316,10 +316,10 @@ func TestStore_DeleteZNSName(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	name := &models.ZNSName{
 		FQAN:            "test.example.com/del-dev/del-agent",
-		AgentName:       "del-agent",
+		EntityName:       "del-agent",
 		DeveloperHandle: "del-dev",
 		RegistryHost:    "test.example.com",
-		AgentID:         "zns:delagent",
+		EntityID:         "zns:delagent",
 		DeveloperID:     "zns:dev:del",
 		RegisteredAt:    now,
 		UpdatedAt:       now,
@@ -351,10 +351,10 @@ func TestStore_ListZNSNamesByDeveloper(t *testing.T) {
 		}
 		s.CreateZNSName(&models.ZNSName{
 			FQAN:            "test.example.com/list-dev/" + an,
-			AgentName:       an,
+			EntityName:       an,
 			DeveloperHandle: "list-dev",
 			RegistryHost:    "test.example.com",
-			AgentID:         aid,
+			EntityID:         aid,
 			DeveloperID:     "zns:dev:list",
 			RegisteredAt:    now,
 			UpdatedAt:       now,
@@ -369,8 +369,8 @@ func TestStore_ListZNSNamesByDeveloper(t *testing.T) {
 	if len(names) != 2 {
 		t.Fatalf("expected 2 names, got %d", len(names))
 	}
-	if names[0].AgentName != "alpha-agent" {
-		t.Errorf("expected first name 'alpha-agent', got %q", names[0].AgentName)
+	if names[0].EntityName != "alpha-agent" {
+		t.Errorf("expected first name 'alpha-agent', got %q", names[0].EntityName)
 	}
 }
 
@@ -383,15 +383,15 @@ func TestStore_CreateAndGetZNSVersion(t *testing.T) {
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	s.CreateZNSName(&models.ZNSName{
-		FQAN: "test.example.com/ver-dev/ver-agent", AgentName: "ver-agent",
+		FQAN: "test.example.com/ver-dev/ver-agent", EntityName: "ver-agent",
 		DeveloperHandle: "ver-dev", RegistryHost: "test.example.com",
-		AgentID: "zns:veragent", DeveloperID: "zns:dev:ver",
+		EntityID: "zns:veragent", DeveloperID: "zns:dev:ver",
 		RegisteredAt: now, UpdatedAt: now, Signature: "ed25519:sig",
 	})
 
 	v := &models.ZNSVersion{
 		FQAN: "test.example.com/ver-dev/ver-agent", Version: "1.0.0",
-		AgentID: "zns:veragent", RegisteredAt: now, Signature: "ed25519:sig",
+		EntityID: "zns:veragent", RegisteredAt: now, Signature: "ed25519:sig",
 	}
 	if err := s.CreateZNSVersion(v); err != nil {
 		t.Fatalf("CreateZNSVersion() error: %v", err)
@@ -414,14 +414,14 @@ func TestStore_GetZNSVersions_Ordering(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	fqan := "test.example.com/vord-dev/vord-agent"
 	s.CreateZNSName(&models.ZNSName{
-		FQAN: fqan, AgentName: "vord-agent", DeveloperHandle: "vord-dev",
-		RegistryHost: "test.example.com", AgentID: "zns:vordagent",
+		FQAN: fqan, EntityName: "vord-agent", DeveloperHandle: "vord-dev",
+		RegistryHost: "test.example.com", EntityID: "zns:vordagent",
 		DeveloperID: "zns:dev:vord", RegisteredAt: now, UpdatedAt: now, Signature: "ed25519:sig",
 	})
 
 	for _, ver := range []string{"1.0.0", "2.0.0"} {
 		s.CreateZNSVersion(&models.ZNSVersion{
-			FQAN: fqan, Version: ver, AgentID: "zns:vordagent",
+			FQAN: fqan, Version: ver, EntityID: "zns:vordagent",
 			RegisteredAt: now, Signature: "ed25519:sig",
 		})
 	}
@@ -439,9 +439,9 @@ func TestStore_UpsertGossipZNSName(t *testing.T) {
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	entry := &models.GossipZNSName{
-		FQAN: "remote.example.com/remote-dev/remote-agent", AgentName: "remote-agent",
+		FQAN: "remote.example.com/remote-dev/remote-agent", EntityName: "remote-agent",
 		DeveloperHandle: "remote-dev", RegistryHost: "remote.example.com",
-		AgentID: "zns:remoteagent", CurrentVersion: "1.0.0", ReceivedAt: now,
+		EntityID: "zns:remoteagent", CurrentVersion: "1.0.0", ReceivedAt: now,
 	}
 
 	if err := s.UpsertGossipZNSName(entry); err != nil {
@@ -470,9 +470,9 @@ func TestStore_GetGossipZNSNameByParts(t *testing.T) {
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	s.UpsertGossipZNSName(&models.GossipZNSName{
-		FQAN: "r.example.com/parts-dev/parts-agent", AgentName: "parts-agent",
+		FQAN: "r.example.com/parts-dev/parts-agent", EntityName: "parts-agent",
 		DeveloperHandle: "parts-dev", RegistryHost: "r.example.com",
-		AgentID: "zns:partsagent", ReceivedAt: now,
+		EntityID: "zns:partsagent", ReceivedAt: now,
 	})
 
 	got, _ := s.GetGossipZNSNameByParts("parts-dev", "parts-agent")
@@ -487,8 +487,8 @@ func TestStore_TombstoneGossipZNSName(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	fqan := "r.example.com/tomb-dev/tomb-agent"
 	s.UpsertGossipZNSName(&models.GossipZNSName{
-		FQAN: fqan, AgentName: "tomb-agent", DeveloperHandle: "tomb-dev",
-		RegistryHost: "r.example.com", AgentID: "zns:tombagent", ReceivedAt: now,
+		FQAN: fqan, EntityName: "tomb-agent", DeveloperHandle: "tomb-dev",
+		RegistryHost: "r.example.com", EntityID: "zns:tombagent", ReceivedAt: now,
 	})
 
 	s.TombstoneGossipZNSName(fqan)

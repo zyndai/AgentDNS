@@ -527,7 +527,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Register an entity. Set type to \"service\" for services (entity_url not required). Alias: POST /v1/agents, POST /v1/services.",
+                "description": "Register an entity. Set type to \"service\" for services (entity_url not required). Alias: POST /v1/entities, POST /v1/services.",
                 "consumes": [
                     "application/json"
                 ],
@@ -551,7 +551,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "agent_id and success message",
+                        "description": "entity_id and success message",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -600,7 +600,7 @@ const docTemplate = `{
         },
         "/v1/entities/{entityID}": {
             "get": {
-                "description": "Retrieve a registry record for a specific entity. Alias: GET /v1/agents/{id}, GET /v1/services/{id}.",
+                "description": "Retrieve a registry record for a specific entity. Alias: GET /v1/entities/{id}, GET /v1/entities/{id}.",
                 "produces": [
                     "application/json"
                 ],
@@ -654,7 +654,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Update fields on an existing entity. Only provided fields are changed. Alias: PUT /v1/agents/{id}.",
+                "description": "Update fields on an existing entity. Only provided fields are changed. Alias: PUT /v1/entities/{id}.",
                 "consumes": [
                     "application/json"
                 ],
@@ -720,7 +720,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Deregister an entity. Creates a tombstone that propagates via gossip. Alias: DELETE /v1/agents/{id}.",
+                "description": "Deregister an entity. Creates a tombstone that propagates via gossip. Alias: DELETE /v1/entities/{id}.",
                 "produces": [
                     "application/json"
                 ],
@@ -779,7 +779,7 @@ const docTemplate = `{
         },
         "/v1/entities/{entityID}/card": {
             "get": {
-                "description": "Fetch the live card from the entity's endpoint. Contains capabilities, pricing, status, and more. Alias: GET /v1/agents/{id}/card.",
+                "description": "Fetch the live card from the entity's endpoint. Contains capabilities, pricing, status, and more. Alias: GET /v1/entities/{id}/card.",
                 "produces": [
                     "application/json"
                 ],
@@ -800,7 +800,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Entity card",
                         "schema": {
-                            "$ref": "#/definitions/models.AgentCard"
+                            "$ref": "#/definitions/models.EntityCard"
                         }
                     },
                     "400": {
@@ -1240,7 +1240,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "fqan, agent_id, and success message",
+                        "description": "fqan, entity_id, and success message",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1531,7 +1531,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "developer, agent_name, available, and optional reason",
+                        "description": "developer, entity_name, available, and optional reason",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1877,10 +1877,10 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "models.AgentCard": {
+        "models.EntityCard": {
             "type": "object",
             "properties": {
-                "agent_id": {
+                "entity_id": {
                     "type": "string"
                 },
                 "capabilities": {
@@ -2073,7 +2073,7 @@ const docTemplate = `{
         "models.DeveloperProof": {
             "type": "object",
             "properties": {
-                "agent_index": {
+                "entity_index": {
                     "description": "derivation index",
                     "type": "integer"
                 },
@@ -2265,16 +2265,16 @@ const docTemplate = `{
         "models.NameBindingRequest": {
             "type": "object",
             "required": [
-                "agent_id",
-                "agent_name",
+                "entity_id",
+                "entity_name",
                 "developer_handle",
                 "signature"
             ],
             "properties": {
-                "agent_id": {
+                "entity_id": {
                     "type": "string"
                 },
-                "agent_name": {
+                "entity_name": {
                     "type": "string"
                 },
                 "capability_tags": {
@@ -2448,7 +2448,7 @@ const docTemplate = `{
                 "summary"
             ],
             "properties": {
-                "agent_name": {
+                "entity_name": {
                     "description": "ZNS naming fields (optional — requires developer with claimed handle)",
                     "type": "string"
                 },
@@ -2514,10 +2514,10 @@ const docTemplate = `{
         "models.RegistryRecord": {
             "type": "object",
             "properties": {
-                "agent_id": {
+                "entity_id": {
                     "type": "string"
                 },
-                "agent_index": {
+                "entity_index": {
                     "type": "integer"
                 },
                 "capability_summary": {
@@ -2737,7 +2737,7 @@ const docTemplate = `{
         "models.SearchResult": {
             "type": "object",
             "properties": {
-                "agent_id": {
+                "entity_id": {
                     "type": "string"
                 },
                 "capability_summary": {
@@ -2747,7 +2747,7 @@ const docTemplate = `{
                     "description": "included if enrich=true",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/models.AgentCard"
+                            "$ref": "#/definitions/models.EntityCard"
                         }
                     ]
                 },
@@ -2898,11 +2898,11 @@ const docTemplate = `{
         "models.ZNSName": {
             "type": "object",
             "properties": {
-                "agent_id": {
+                "entity_id": {
                     "description": "agdns:\u003chash\u003e",
                     "type": "string"
                 },
-                "agent_name": {
+                "entity_name": {
                     "description": "e.g., \"doc-translator\"",
                     "type": "string"
                 },
@@ -2946,7 +2946,7 @@ const docTemplate = `{
         "models.ZNSResolveResponse": {
             "type": "object",
             "properties": {
-                "agent_id": {
+                "entity_id": {
                     "type": "string"
                 },
                 "developer_handle": {
@@ -2990,8 +2990,8 @@ const docTemplate = `{
         "models.ZNSVersion": {
             "type": "object",
             "properties": {
-                "agent_id": {
-                    "description": "agent_id at this version",
+                "entity_id": {
+                    "description": "entity_id at this version",
                     "type": "string"
                 },
                 "build_hash": {
