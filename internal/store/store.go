@@ -118,12 +118,13 @@ type Store interface {
 
 	// --- Agent Heartbeat Liveness ---
 
-	// UpdateEntityHeartbeat sets an agent's last_heartbeat to now and status to active.
-	UpdateEntityHeartbeat(agentID string) error
+	// UpdateEntityHeartbeat sets an entity's last_heartbeat to now and status to active.
+	UpdateEntityHeartbeat(entityID string) error
 
-	// MarkInactiveAgents marks agents as inactive whose last heartbeat is older than threshold.
-	// Returns the list of agent IDs that were newly marked inactive.
-	MarkInactiveAgents(threshold time.Duration) ([]string, error)
+	// MarkInactiveEntities marks any active entity (agent or service) as
+	// inactive when its last_heartbeat is older than the threshold.
+	// Returns the list of entity IDs that were newly marked inactive.
+	MarkInactiveEntities(threshold time.Duration) ([]string, error)
 
 	// UpdateGossipEntryStatus updates the status field on a gossip entry.
 	UpdateGossipEntryStatus(agentID, status string) error

@@ -365,7 +365,7 @@ func TestStore_UpdateAgentHeartbeat(t *testing.T) {
 	}
 }
 
-func TestStore_MarkInactiveAgents(t *testing.T) {
+func TestStore_MarkInactiveEntities(t *testing.T) {
 	s := newTestStore(t)
 
 	// Create two agents
@@ -397,9 +397,9 @@ func TestStore_MarkInactiveAgents(t *testing.T) {
 
 	// stale1 has no heartbeat (NULL last_heartbeat) — should be marked inactive
 	// with a threshold of 1 second (active1 just got a heartbeat, so it's safe)
-	ids, err := s.MarkInactiveAgents(1 * time.Second)
+	ids, err := s.MarkInactiveEntities(1 * time.Second)
 	if err != nil {
-		t.Fatalf("failed to mark inactive agents: %v", err)
+		t.Fatalf("failed to mark inactive entities: %v", err)
 	}
 
 	// stale1 should be in the list (NULL last_heartbeat)

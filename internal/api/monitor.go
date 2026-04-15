@@ -58,25 +58,25 @@ func (m *LivenessMonitor) Run(ctx context.Context) {
 	}
 }
 
-// sweep marks stale agents as inactive and propagates status via gossip.
+// sweep marks stale entities as inactive and propagates status via gossip.
 func (m *LivenessMonitor) sweep() {
 	threshold := time.Duration(m.cfg.InactiveThresholdS) * time.Second
-	ids, err := m.store.MarkInactiveAgents(threshold)
+	ids, err := m.store.MarkInactiveEntities(threshold)
 	if err != nil {
 		log.Printf("liveness sweep error: %v", err)
 		return
 	}
 
-	for _, agentID := range ids {
+	for _, entityID := range ids {
 		// Publish event
 		m.eventBus.Publish(events.EventEntityBecameInactive, events.HeartbeatEventData{
-			EntityID: agentID,
-			Status:  "inactive",
+			EntityID: entityID,
+			Status:   "inactive",
 		})
 
 		// Propagate via gossip
 		ann := m.gossip.CreateStatusAnnouncement(
-			agentID,
+			entityID,
 			"inactive",
 			m.kp.RegistryID(),
 			m.kp.PublicKeyString(),
@@ -86,6 +86,6 @@ func (m *LivenessMonitor) sweep() {
 	}
 
 	if len(ids) > 0 {
-		log.Printf("liveness sweep: marked %d agents inactive", len(ids))
+		log.Printf("liveness sweep: marked %d entities inactive", len(ids))
 	}
 }

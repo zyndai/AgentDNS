@@ -1022,15 +1022,25 @@ func (s *PostgresStore) UpdateEntityHeartbeat(agentID string) error {
 	return nil
 }
 
-func (s *PostgresStore) MarkInactiveAgents(threshold time.Duration) ([]string, error) {
+// MarkInactiveEntities flips any active entity (agent or service) to
+// 'inactive' when its last_heartbeat is older than the threshold, and
+// returns the list of entity_ids that transitioned.
+//
+// Both flavors are included. The Python SDK's ZyndBase.__init__ starts a
+// WebSocket heartbeat thread for every instance regardless of entity_type,
+// and handleEntityHeartbeat on the server side updates last_heartbeat
+// uniformly, so "entity hasn't heartbeated in N seconds" is a valid
+// liveness signal for services as much as agents. Excluding services
+// would leave stale processes showing as 'active' indefinitely.
+func (s *PostgresStore) MarkInactiveEntities(threshold time.Duration) ([]string, error) {
 	cutoff := time.Now().UTC().Add(-threshold)
 	rows, err := s.pool.Query(context.Background(), `
 		UPDATE entities SET status = 'inactive'
-		WHERE status = 'active' AND entity_type != 'service'
+		WHERE status = 'active'
 		AND (last_heartbeat IS NULL OR last_heartbeat < $1)
 		RETURNING entity_id`, cutoff)
 	if err != nil {
-		return nil, fmt.Errorf("failed to mark inactive agents: %w", err)
+		return nil, fmt.Errorf("failed to mark inactive entities: %w", err)
 	}
 	defer rows.Close()
 
