@@ -7,8 +7,8 @@ version: "3.8"
 #   1. Hash embedder (default, no dependencies):
 #      docker compose up --build
 #
-#   2. ONNX embedder (requires building with Dockerfile.onnx):
-#      docker compose -f docker-compose.onnx.yml up --build
+#   2. ONNX embedder (requires building with infrastructure/Dockerfile.onnx):
+#      docker compose -f infrastructure/docker-compose.onnx.yml up --build
 #
 #   3. HTTP embedder (external service):
 #      Update config files with embedding_endpoint, then:

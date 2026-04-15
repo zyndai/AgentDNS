@@ -105,7 +105,7 @@ echo ""
 if [[ $REPLY =~ ^[Yy]es$ ]]; then
     echo "Stopping Docker Compose services..."
     docker-compose down -v 2>/dev/null || echo "  No standard docker-compose services running"
-    docker-compose -f docker-compose.onnx.yml down -v 2>/dev/null || echo "  No ONNX docker-compose services running"
+    docker-compose -f infrastructure/docker-compose.onnx.yml down -v 2>/dev/null || echo "  No ONNX docker-compose services running"
     
     echo "Removing Agent DNS Docker containers..."
     docker ps -a | grep agentdns | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || echo "  No containers found"

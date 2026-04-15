@@ -145,7 +145,7 @@ docker run -p 8080:8080 -p 4001:4001 agentdns
 
 #### ONNX Embedder (Best Quality)
 ```bash
-docker build -f Dockerfile.onnx -t agentdns:onnx .
+docker build -f infrastructure/Dockerfile.onnx -t agentdns:onnx .
 docker run -p 8080:8080 -p 4001:4001 \
   -e LD_LIBRARY_PATH=/usr/local/lib \
   agentdns:onnx
@@ -157,7 +157,7 @@ docker run -p 8080:8080 -p 4001:4001 \
 docker compose up -d
 
 # ONNX embedder
-docker compose -f docker-compose.onnx.yml up -d
+docker compose -f infrastructure/docker-compose.onnx.yml up -d
 ```
 
 See [DOCKER.md](DOCKER.md) for complete Docker deployment guide.

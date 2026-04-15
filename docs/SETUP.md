@@ -315,7 +315,7 @@ docker compose up --build
 **ONNX (ML embedder — better search quality):**
 
 ```bash
-docker compose -f docker-compose.onnx.yml up --build
+docker compose -f infrastructure/docker-compose.onnx.yml up --build
 ```
 
 **Services started:**
