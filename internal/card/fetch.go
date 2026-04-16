@@ -69,11 +69,12 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.Entity
 	if !strings.HasSuffix(cardURL, ".json") && !strings.Contains(cardURL, ".well-known") {
 		// Try new Zynd format first
 		zyndURL := baseURL + "/.well-known/zynd-agent.json"
-		zResp, zErr := f.client.Get(zyndURL)
+		zReq, _ := http.NewRequest("GET", zyndURL, nil)
+		zReq.Header.Set("User-Agent", "ZyndDNS/1.0 (Card Fetcher)")
+		zReq.Header.Set("Accept", "application/json")
+		zResp, zErr := f.client.Do(zReq)
 		if zErr == nil && zResp.StatusCode == http.StatusOK {
-			// Use the Zynd card — close and proceed with this response
-			resp := zResp
-			_ = resp // proceed below
+			zResp.Body.Close()
 			cardURL = zyndURL
 		} else {
 			if zResp != nil {
@@ -82,9 +83,15 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.Entity
 			cardURL = baseURL + "/.well-known/agent.json"
 		}
 	}
-	resp, err := f.client.Get(cardURL)
+	req, err := http.NewRequest("GET", cardURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch agent card from %s: %w", agentURL, err)
+		return nil, fmt.Errorf("failed to build request for %s: %w", cardURL, err)
+	}
+	req.Header.Set("User-Agent", "ZyndDNS/1.0 (Card Fetcher)")
+	req.Header.Set("Accept", "application/json")
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch agent card from %s: %w", cardURL, err)
 	}
 	defer resp.Body.Close()
 
@@ -133,7 +140,14 @@ func (f *Fetcher) FetchCardRaw(agentID, agentURL string) ([]byte, error) {
 		cardURL = strings.TrimRight(cardURL, "/") + "/.well-known/agent.json"
 	}
 
-	resp, err := f.client.Get(cardURL)
+	req, err := http.NewRequest("GET", cardURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build request for %s: %w", cardURL, err)
+	}
+	req.Header.Set("User-Agent", "ZyndDNS/1.0 (Card Fetcher)")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := f.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch agent card from %s: %w", cardURL, err)
 	}
