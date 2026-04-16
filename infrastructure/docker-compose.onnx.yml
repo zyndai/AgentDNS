@@ -1,7 +1,10 @@
 version: "3.8"
 
 # Agent DNS with ONNX Embedder Support
-# This compose file uses Dockerfile.onnx which includes tokenizers library
+# Uses infrastructure/Dockerfile.onnx which builds the tokenizers library.
+#
+# Run from the repo root:
+#   docker compose -f infrastructure/docker-compose.onnx.yml up --build
 
 services:
   # PostgreSQL for durable storage
@@ -15,7 +18,7 @@ services:
       POSTGRES_DB: agentdns
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+      - ../scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agentdns"]
       interval: 5s
@@ -39,14 +42,14 @@ services:
   # Registry Node A (primary seed node) with ONNX
   registry-a:
     build:
-      context: .
-      dockerfile: Dockerfile.onnx
+      context: ..
+      dockerfile: infrastructure/Dockerfile.onnx
     ports:
       - "8080:8080"
       - "4001:4001"
     volumes:
       - registry-a-data:/data
-      - ./config/default.toml:/config/config.toml:ro
+      - ../config/default.toml:/config/config.toml:ro
     environment:
       - AGENTDNS_NODE_NAME=registry-a
       - LD_LIBRARY_PATH=/usr/local/lib
@@ -64,14 +67,14 @@ services:
   # Registry Node B with ONNX
   registry-b:
     build:
-      context: .
-      dockerfile: Dockerfile.onnx
+      context: ..
+      dockerfile: infrastructure/Dockerfile.onnx
     ports:
       - "8081:8080"
       - "4002:4001"
     volumes:
       - registry-b-data:/data
-      - ./config/default.toml:/config/config.toml:ro
+      - ../config/default.toml:/config/config.toml:ro
     environment:
       - AGENTDNS_NODE_NAME=registry-b
       - LD_LIBRARY_PATH=/usr/local/lib
@@ -91,14 +94,14 @@ services:
   # Registry Node C with ONNX
   registry-c:
     build:
-      context: .
-      dockerfile: Dockerfile.onnx
+      context: ..
+      dockerfile: infrastructure/Dockerfile.onnx
     ports:
       - "8082:8080"
       - "4003:4001"
     volumes:
       - registry-c-data:/data
-      - ./config/default.toml:/config/config.toml:ro
+      - ../config/default.toml:/config/config.toml:ro
     environment:
       - AGENTDNS_NODE_NAME=registry-c
       - LD_LIBRARY_PATH=/usr/local/lib

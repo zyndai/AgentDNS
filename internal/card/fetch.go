@@ -89,7 +89,7 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.Entity
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("agent card URL returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("agent card at %s returned status %d", cardURL, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 50*1024)) // 50KB max
@@ -140,12 +140,12 @@ func (f *Fetcher) FetchCardRaw(agentID, agentURL string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("agent card URL returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("agent card at %s returned status %d", cardURL, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 50*1024))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read agent card: %w", err)
+		return nil, fmt.Errorf("failed to read agent card from %s: %w", cardURL, err)
 	}
 
 	return body, nil
