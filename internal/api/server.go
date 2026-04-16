@@ -762,8 +762,8 @@ func (s *Server) handleRegisterEntity(w http.ResponseWriter, r *http.Request) {
 		developerProof = req.DeveloperProof
 		owner = developerID
 	} else {
-		// No developer -- agent is self-sovereign
-		owner = "did:key:" + pubKeyStr[:20]
+		writeError(w, http.StatusBadRequest, "developer_id and developer_proof are required")
+		return
 	}
 
 	now := models.NowRFC3339()
