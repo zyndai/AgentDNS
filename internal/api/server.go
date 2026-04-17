@@ -723,7 +723,7 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 	var developerID string
 	var agentIndex *int
 	var developerProof *models.DeveloperProof
-	owner := developerID // will be set below
+	var owner string
 
 	if req.DeveloperID != "" && req.DeveloperProof != nil {
 		// Verify developer exists (locally or via gossip)

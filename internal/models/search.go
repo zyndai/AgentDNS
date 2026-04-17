@@ -34,6 +34,8 @@ type SearchResponse struct {
 
 // SearchResult is a single result in the search response.
 type SearchResult struct {
+	// AgentID — kept as "agent_id" in search results for backward compatibility.
+	// RegistryRecord uses "entity_id" but search results predate the entity rename.
 	AgentID           string             `json:"agent_id"`
 	Name              string             `json:"name"`
 	Summary           string             `json:"summary"`
