@@ -144,9 +144,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterAgent))
 	mux.HandleFunc("GET /v1/services/{agentID}", s.handleGetAgent)
 
-	// Service registration alias (same handler, entity_type defaults to "agent" if not set)
-	mux.HandleFunc("POST /v1/services", rateLimited(registerRL, s.handleRegisterAgent))
-
 	// Search
 	mux.HandleFunc("POST /v1/search", rateLimited(searchRL, s.handleSearch))
 	mux.HandleFunc("GET /v1/categories", s.handleGetCategories)
@@ -873,6 +870,9 @@ func (s *Server) handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("entityID")
 	if agentID == "" {
+		agentID = r.PathValue("agentID")
+	}
+	if agentID == "" {
 		writeError(w, http.StatusBadRequest, "agent_id is required")
 		return
 	}
@@ -985,6 +985,9 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("entityID")
 	if agentID == "" {
+		agentID = r.PathValue("agentID")
+	}
+	if agentID == "" {
 		writeError(w, http.StatusBadRequest, "agent_id is required")
 		return
 	}
@@ -1073,7 +1076,10 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 //	@Failure		500		{object}	map[string]string	"Internal server error"
 //	@Router			/v1/entities/{agentID} [delete]
 func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
-	agentID := r.PathValue("agentID")
+	agentID := r.PathValue("entityID")
+	if agentID == "" {
+		agentID = r.PathValue("agentID")
+	}
 	if agentID == "" {
 		writeError(w, http.StatusBadRequest, "agent_id is required")
 		return
@@ -1139,6 +1145,9 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 //	@Router			/v1/entities/{entityID}/card [get]
 func (s *Server) handleGetAgentCard(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("entityID")
+	if agentID == "" {
+		agentID = r.PathValue("agentID")
+	}
 	if agentID == "" {
 		writeError(w, http.StatusBadRequest, "agent_id is required")
 		return
