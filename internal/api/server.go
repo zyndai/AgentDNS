@@ -621,7 +621,7 @@ func (s *Server) handleListDeveloperAgents(w http.ResponseWriter, r *http.Reques
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"developer_id": developerID,
-		"agents":       enriched,
+		"entities":     enriched,
 		"count":        len(enriched),
 	})
 }
@@ -911,11 +911,6 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusNotFound, "agent not found")
 }
 
-// handleRegisterService is an alias for handleRegisterAgent (POST /v1/services).
-func (s *Server) handleRegisterService(w http.ResponseWriter, r *http.Request) {
-	s.handleRegisterAgent(w, r)
-}
-
 // handleListEntities returns all registered entities (agents and/or services).
 //
 //	@Summary		List entities
@@ -941,22 +936,10 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 		fmt.Sscanf(o, "%d", &offset)
 	}
 
-	agents, err := s.store.ListAgents(category, limit, offset)
+	results, err := s.store.ListAgents(category, typeFilter, limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list entities: "+err.Error())
 		return
-	}
-
-	// Apply type filter if provided
-	var results []*models.RegistryRecord
-	if typeFilter != "" {
-		for _, a := range agents {
-			if a.EntityType == typeFilter {
-				results = append(results, a)
-			}
-		}
-	} else {
-		results = agents
 	}
 	if results == nil {
 		results = []*models.RegistryRecord{}

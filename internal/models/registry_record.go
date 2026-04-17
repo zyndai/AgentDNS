@@ -20,7 +20,9 @@ type RegistryRecord struct {
 	AgentID           string             `json:"agent_id" db:"agent_id"`
 	Name              string             `json:"name" db:"name"`
 	Owner             string             `json:"owner" db:"owner"`
-	EntityURL         string             `json:"entity_url" db:"agent_url"`
+	// EntityURL — JSON API uses "entity_url" but DB column is still "agent_url"
+	// (renamed at API layer only; DB migration pending)
+	EntityURL string `json:"entity_url" db:"agent_url"`
 	Category          string             `json:"category" db:"category"`
 	Tags              []string           `json:"tags" db:"-"`
 	Summary           string             `json:"summary" db:"summary"`

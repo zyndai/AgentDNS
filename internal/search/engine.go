@@ -513,7 +513,7 @@ func (e *Engine) enrichWithZNS(candidates []*ranking.CandidateResult) {
 // RebuildIndexes rebuilds keyword and semantic indexes from the store.
 func (e *Engine) RebuildIndexes() error {
 	// Index local agents
-	agents, err := e.store.ListAgents("", 100000, 0)
+	agents, err := e.store.ListAgents("", "", 100000, 0)
 	if err != nil {
 		return err
 	}

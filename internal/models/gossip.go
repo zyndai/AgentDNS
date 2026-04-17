@@ -67,7 +67,9 @@ type GossipEntry struct {
 	Summary           string             `json:"summary" db:"summary"`
 	CapabilitySummary *CapabilitySummary `json:"capability_summary,omitempty" db:"-"`
 	HomeRegistry      string             `json:"home_registry" db:"home_registry"`
-	EntityURL         string             `json:"entity_url" db:"agent_url"`
+	// EntityURL — JSON API uses "entity_url" but DB column is still "agent_url"
+	// (renamed at API layer only; DB migration pending)
+	EntityURL string `json:"entity_url" db:"agent_url"`
 	ReceivedAt        string             `json:"received_at" db:"received_at"`
 	Tombstoned        bool               `json:"tombstoned" db:"tombstoned"`
 	TombstoneAt       string             `json:"tombstone_at,omitempty" db:"tombstone_at"`

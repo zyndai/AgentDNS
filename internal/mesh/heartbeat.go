@@ -82,7 +82,7 @@ func (t *Transport) rebuildBloom() *BloomFilter {
 	// For now, we build from the gossip handler's store which has the full
 	// Store interface.
 	if gh := t.gossip; gh != nil && gh.store != nil {
-		agents, err := gh.store.ListAgents("", 100000, 0)
+		agents, err := gh.store.ListAgents("", "", 100000, 0)
 		if err == nil {
 			for _, agent := range agents {
 				// Add name tokens

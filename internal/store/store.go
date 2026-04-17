@@ -35,8 +35,8 @@ type Store interface {
 	// DeleteAgent removes an agent from local storage.
 	DeleteAgent(agentID string, owner string) error
 
-	// ListAgents returns all local agents, optionally filtered by category.
-	ListAgents(category string, limit, offset int) ([]*models.RegistryRecord, error)
+	// ListAgents returns all local agents, optionally filtered by category and entity type.
+	ListAgents(category string, entityType string, limit, offset int) ([]*models.RegistryRecord, error)
 
 	// CountAgents returns the number of local agents.
 	CountAgents() (int, error)

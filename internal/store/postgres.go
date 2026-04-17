@@ -459,29 +459,31 @@ func (s *PostgresStore) DeleteAgent(agentID string, owner string) error {
 	return nil
 }
 
-func (s *PostgresStore) ListAgents(category string, limit, offset int) ([]*models.RegistryRecord, error) {
-	var query string
+func (s *PostgresStore) ListAgents(category string, entityType string, limit, offset int) ([]*models.RegistryRecord, error) {
+	query := `
+		SELECT agent_id, name, owner, agent_url, category, tags, summary,
+			public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
+			developer_id, agent_index, developer_proof,
+			status, last_heartbeat,
+			entity_type, service_endpoint, openapi_url, entity_pricing
+		FROM agents WHERE 1=1`
+
 	var args []interface{}
+	paramIdx := 1
 
 	if category != "" {
-		query = `
-			SELECT agent_id, name, owner, agent_url, category, tags, summary,
-				public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-				developer_id, agent_index, developer_proof,
-				status, last_heartbeat,
-				entity_type, service_endpoint, openapi_url, entity_pricing
-			FROM agents WHERE category = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3`
-		args = []interface{}{category, limit, offset}
-	} else {
-		query = `
-			SELECT agent_id, name, owner, agent_url, category, tags, summary,
-				public_key, home_registry, schema_version, registered_at, updated_at, ttl, signature,
-				developer_id, agent_index, developer_proof,
-				status, last_heartbeat,
-				entity_type, service_endpoint, openapi_url, entity_pricing
-			FROM agents ORDER BY updated_at DESC LIMIT $1 OFFSET $2`
-		args = []interface{}{limit, offset}
+		query += fmt.Sprintf(" AND category = $%d", paramIdx)
+		args = append(args, category)
+		paramIdx++
 	}
+	if entityType != "" {
+		query += fmt.Sprintf(" AND entity_type = $%d", paramIdx)
+		args = append(args, entityType)
+		paramIdx++
+	}
+
+	query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d OFFSET $%d", paramIdx, paramIdx+1)
+	args = append(args, limit, offset)
 
 	rows, err := s.pool.Query(context.Background(), query, args...)
 	if err != nil {
