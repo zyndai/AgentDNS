@@ -86,9 +86,11 @@ BEGIN
     EXCEPTION WHEN undefined_column OR undefined_table THEN NULL;
     END;
 
-    -- Index rename (ALTER INDEX raises undefined_object for missing indexes)
+    -- Index rename. ALTER INDEX on a missing index raises undefined_table
+    -- (42P01) in PostgreSQL, not undefined_object (42704) — catch both so
+    -- fresh installs no-op cleanly.
     BEGIN
         ALTER INDEX idx_zns_agent_id RENAME TO idx_zns_entity_id;
-    EXCEPTION WHEN undefined_object THEN NULL;
+    EXCEPTION WHEN undefined_object OR undefined_table THEN NULL;
     END;
 END $$;

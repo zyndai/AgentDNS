@@ -45,3 +45,13 @@ docker-compose.override.yml
 .repowise
 .mcp.json
 .claude
+# Added by code-review-graph
+.code-review-graph/
+
+# Terraform secrets and state
+*.tfvars
+!*.tfvars.example
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
