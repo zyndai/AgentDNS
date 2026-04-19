@@ -1,0 +1,8 @@
+aws_region        = "us-east-1"
+environment       = "prod"
+ec2_instance_type = "t3.large"
+db_instance_class = "db.t4g.small"
+db_username       = "agentdns"
+db_password       = "CHANGE_ME"
+ssh_public_key    = "ssh-rsa AAAA... your-key-here"
+ssh_allowed_cidrs = ["YOUR_IP/32"]
