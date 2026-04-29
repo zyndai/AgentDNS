@@ -871,7 +871,7 @@ func (s *Server) handleGetEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if agent != nil {
-		agent.EntityURL = "" // entity_url is private — only accessible via /card
+		stripPrivateURLs(agent)
 		resp := s.agentResponseWithFQAN(agent)
 		writeJSON(w, http.StatusOK, resp)
 		return
@@ -881,6 +881,7 @@ func (s *Server) handleGetEntity(w http.ResponseWriter, r *http.Request) {
 	gossipEntry, err := s.store.GetGossipEntry(entityID)
 	if err == nil && gossipEntry != nil {
 		gossipEntry.EntityURL = ""
+		gossipEntry.ServiceEndpoint = ""
 		writeJSON(w, http.StatusOK, gossipEntry)
 		return
 	}
@@ -948,6 +949,18 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 		"entities": results,
 		"count":    len(results),
 	})
+}
+
+// stripPrivateURLs blanks the URL fields that should not leak through
+// the public GET /v1/entities/{id} response. The real values stay in
+// the DB and are served only via /v1/entities/{id}/card, which proxies
+// the live card from the entity itself.
+func stripPrivateURLs(r *models.RegistryRecord) {
+	if r == nil {
+		return
+	}
+	r.EntityURL = ""
+	r.ServiceEndpoint = ""
 }
 
 // handleUpdateEntity updates an existing entity's registry record.
