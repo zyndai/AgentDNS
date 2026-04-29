@@ -1190,9 +1190,9 @@ func (s *PostgresStore) GetAllCategories() ([]string, error) {
 
 func (s *PostgresStore) ClaimHandle(developerID, handle, homeRegistry string) error {
 	ct, err := s.pool.Exec(context.Background(), `
-		UPDATE developers SET dev_handle=$1, updated_at=$2
-		WHERE developer_id = $3 AND (dev_handle IS NULL OR dev_handle = '')`,
-		handle, time.Now().UTC(), developerID)
+		UPDATE developers SET dev_handle=$1, home_registry=$2, updated_at=$3
+		WHERE developer_id = $4 AND (dev_handle IS NULL OR dev_handle = '')`,
+		handle, homeRegistry, time.Now().UTC(), developerID)
 	if err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
 			return fmt.Errorf("handle %q is already taken on this registry", handle)
