@@ -35,11 +35,21 @@ jobs:
             echo "==> Restarting service via systemd..."
             sudo systemctl restart agentdns
 
-            echo "==> Waiting for service..."
-            sleep 3
-
-            echo "==> Health check..."
-            curl -f http://localhost:8080/health || exit 1
+            echo "==> Waiting for service to become healthy..."
+            for i in {1..10}; do
+              if curl -fsS http://localhost:8080/health > /dev/null; then
+                echo "✅ Service is up (attempt $i)"
+                break
+              fi
+              if [ "$i" -eq 10 ]; then
+                echo "❌ Service failed to start after 10 attempts (~20s)"
+                echo "==> Last 50 lines of journalctl for agentdns:"
+                sudo journalctl -u agentdns -n 50 --no-pager || true
+                exit 1
+              fi
+              echo "Attempt $i — retrying in 2s..."
+              sleep 2
+            done
 
             echo "✅ Server 1 deployed successfully"
 
@@ -74,10 +84,20 @@ jobs:
             echo "==> Restarting service via systemd..."
             sudo systemctl restart agentdns
 
-            echo "==> Waiting for service..."
-            sleep 3
-
-            echo "==> Health check..."
-            curl -f http://localhost:8080/health || exit 1
+            echo "==> Waiting for service to become healthy..."
+            for i in {1..10}; do
+              if curl -fsS http://localhost:8080/health > /dev/null; then
+                echo "✅ Service is up (attempt $i)"
+                break
+              fi
+              if [ "$i" -eq 10 ]; then
+                echo "❌ Service failed to start after 10 attempts (~20s)"
+                echo "==> Last 50 lines of journalctl for agentdns:"
+                sudo journalctl -u agentdns -n 50 --no-pager || true
+                exit 1
+              fi
+              echo "Attempt $i — retrying in 2s..."
+              sleep 2
+            done
 
             echo "✅ Server 2 deployed successfully"
