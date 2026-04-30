@@ -62,56 +62,24 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.Entity
 		// On Redis error, fall through to HTTP fetch (fail open)
 	}
 
-	// Tier 3: Fetch from URL
-	// Try zynd-agent.json first (new format), fall back to agent.json (legacy)
-	baseURL := strings.TrimRight(agentURL, "/")
-	cardURL := agentURL
-	if !strings.HasSuffix(cardURL, ".json") && !strings.Contains(cardURL, ".well-known") {
-		// Try new Zynd format first
-		zyndURL := baseURL + "/.well-known/zynd-agent.json"
-		zReq, _ := http.NewRequest("GET", zyndURL, nil)
-		zReq.Header.Set("User-Agent", "ZyndDNS/1.0 (Card Fetcher)")
-		zReq.Header.Set("Accept", "application/json")
-		zResp, zErr := f.client.Do(zReq)
-		if zErr == nil && zResp.StatusCode == http.StatusOK {
-			zResp.Body.Close()
-			cardURL = zyndURL
-		} else {
-			if zResp != nil {
-				zResp.Body.Close()
-			}
-			cardURL = baseURL + "/.well-known/agent.json"
-		}
-	}
-	req, err := http.NewRequest("GET", cardURL, nil)
+	// Tier 3: Fetch from URL.
+	// Try the well-known paths in order of preference:
+	//   1. /.well-known/agent-card.json   — A2A v0.3 spec (new TS SDK 0.3+)
+	//   2. /.well-known/zynd-agent.json   — legacy Zynd-native format
+	//   3. /.well-known/agent.json        — original A2A draft + legacy SDK
+	cardURL, body, err := f.tryWellKnownPaths(agentURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build request for %s: %w", cardURL, err)
-	}
-	req.Header.Set("User-Agent", "ZyndDNS/1.0 (Card Fetcher)")
-	req.Header.Set("Accept", "application/json")
-	resp, err := f.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch agent card from %s: %w", cardURL, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("agent card at %s returned status %d", cardURL, resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 50*1024)) // 50KB max
-	if err != nil {
-		return nil, fmt.Errorf("failed to read agent card: %w", err)
+		return nil, err
 	}
 
 	card := &models.EntityCard{}
 	if err := json.Unmarshal(body, card); err != nil {
-		return nil, fmt.Errorf("failed to parse agent card: %w", err)
+		return nil, fmt.Errorf("failed to parse agent card from %s: %w", cardURL, err)
 	}
 
 	// Verify entity_id matches
 	if card.EntityID != "" && card.EntityID != agentID {
-		return nil, fmt.Errorf("agent card entity_id mismatch: expected %s, got %s", agentID, card.EntityID)
+		return nil, fmt.Errorf("agent card at %s entity_id mismatch: expected %s, got %s", cardURL, agentID, card.EntityID)
 	}
 
 	// Note: Signature verification is skipped here. The card is fetched directly
@@ -135,34 +103,67 @@ func (f *Fetcher) FetchCard(agentID, agentURL, publicKey string) (*models.Entity
 // This preserves all fields from the SDK (name, description, tags, etc.)
 // that may not be in the Go EntityCard struct.
 func (f *Fetcher) FetchCardRaw(agentID, agentURL string) ([]byte, error) {
-	cardURL := agentURL
-	if !strings.HasSuffix(cardURL, ".json") && !strings.Contains(cardURL, ".well-known") {
-		cardURL = strings.TrimRight(cardURL, "/") + "/.well-known/agent.json"
+	_, body, err := f.tryWellKnownPaths(agentURL)
+	return body, err
+}
+
+// wellKnownCardPaths are the paths the fetcher attempts in order. The first
+// HTTP 200 wins. The list is structured so the most-current format is tried
+// first; older paths stay as fallbacks for agents that haven't migrated yet.
+var wellKnownCardPaths = []string{
+	"/.well-known/agent-card.json", // A2A v0.3 (TS SDK 0.3+)
+	"/.well-known/zynd-agent.json", // legacy Zynd-native format
+	"/.well-known/agent.json",      // original A2A draft + legacy SDK
+}
+
+// tryWellKnownPaths attempts each well-known card path until one returns 200,
+// then reads and returns its body (≤50 KB) along with the URL that worked.
+// When the caller already passed a fully-qualified card URL (ends in .json or
+// already contains /.well-known/), no fallback is attempted — that URL is
+// fetched verbatim.
+func (f *Fetcher) tryWellKnownPaths(agentURL string) (string, []byte, error) {
+	candidates := []string{agentURL}
+	if !strings.HasSuffix(agentURL, ".json") && !strings.Contains(agentURL, ".well-known") {
+		base := strings.TrimRight(agentURL, "/")
+		candidates = candidates[:0]
+		for _, p := range wellKnownCardPaths {
+			candidates = append(candidates, base+p)
+		}
 	}
 
-	req, err := http.NewRequest("GET", cardURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build request for %s: %w", cardURL, err)
-	}
-	req.Header.Set("User-Agent", "ZyndDNS/1.0 (Card Fetcher)")
-	req.Header.Set("Accept", "application/json")
+	var lastErr error
+	for _, cardURL := range candidates {
+		req, err := http.NewRequest("GET", cardURL, nil)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to build request for %s: %w", cardURL, err)
+			continue
+		}
+		req.Header.Set("User-Agent", "ZyndDNS/1.0 (Card Fetcher)")
+		req.Header.Set("Accept", "application/json")
 
-	resp, err := f.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch agent card from %s: %w", cardURL, err)
+		resp, err := f.client.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to fetch agent card from %s: %w", cardURL, err)
+			continue
+		}
+		// Read & close inside the loop so we can fall through on non-200.
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			lastErr = fmt.Errorf("agent card at %s returned status %d", cardURL, resp.StatusCode)
+			continue
+		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 50*1024))
+		resp.Body.Close()
+		if err != nil {
+			lastErr = fmt.Errorf("failed to read agent card from %s: %w", cardURL, err)
+			continue
+		}
+		return cardURL, body, nil
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("agent card at %s returned status %d", cardURL, resp.StatusCode)
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no well-known card path returned a card for %s", agentURL)
 	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 50*1024))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read agent card from %s: %w", cardURL, err)
-	}
-
-	return body, nil
+	return "", nil, lastErr
 }
 
 // verifyCardSignatureRaw verifies the Agent Card signature against the original
