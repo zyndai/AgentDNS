@@ -1,5 +1,7 @@
 # ZyndAI: 500 Services & 200 Agents — Complete Catalog
 
+> **Legend:** ✅ next to a row indicates the entity is already deployed and live on the Zynd network (registered on `zns01.zynd.ai`). 145 services + 1 agent currently shipped.
+
 ---
 
 ## Definitions
@@ -42,91 +44,91 @@
 
 | # | Service | Input | Output | $/Call |
 |---|---------|-------|--------|--------|
-| 1 | URL to Clean Text | URL | Clean extracted text | 0.001 |
-| 2 | URL to Structured JSON | URL, extraction schema | Structured JSON data | 0.002 |
-| 3 | Full-Page Screenshot | URL, viewport size | PNG image | 0.002 |
-| 4 | PDF to Text | PDF file | Extracted text + structure | 0.002 |
-| 5 | PDF to Tables | PDF file | CSV/JSON tables | 0.003 |
+| 1 | ✅ URL to Clean Text | URL | Clean extracted text | 0.001 |
+| 2 | ✅ URL to Structured JSON | URL, extraction schema | Structured JSON data | 0.002 |
+| 3 | ✅ Full-Page Screenshot | URL, viewport size | PNG image | 0.002 |
+| 4 | ✅ PDF to Text | PDF file | Extracted text + structure | 0.002 |
+| 5 | ✅ PDF to Tables | PDF file | CSV/JSON tables | 0.003 |
 | 6 | Image OCR | Image file | Extracted text + bounding boxes | 0.002 |
-| 7 | HTML to Markdown | HTML content | Clean markdown | 0.0005 |
-| 8 | DOCX to Text | DOCX file | Plain text + structure | 0.001 |
-| 9 | XLSX to JSON | Spreadsheet file | Structured JSON per sheet | 0.001 |
-| 10 | Audio to Transcript | Audio file | Timestamped text (Whisper) | 0.01 |
-| 11 | Video to Transcript | Video file/URL | Timestamped text + speakers | 0.015 |
-| 12 | YouTube Transcript Extractor | Video URL | Timestamped transcript | 0.002 |
-| 13 | RSS/Atom Feed Parser | Feed URL | Parsed article list (title, date, body) | 0.0005 |
-| 14 | Sitemap Parser | Domain/sitemap URL | All URLs with metadata | 0.001 |
-| 15 | Email (.eml) Parser | EML file | Structured email fields + attachments | 0.001 |
-| 16 | Receipt/Invoice OCR | Image/PDF | Structured line items, totals, vendor | 0.005 |
+| 7 | ✅ HTML to Markdown | HTML content | Clean markdown | 0.0005 |
+| 8 | ✅ DOCX to Text | DOCX file | Plain text + structure | 0.001 |
+| 9 | ✅ XLSX to JSON | Spreadsheet file | Structured JSON per sheet | 0.001 |
+| 10 | ✅ Audio to Transcript | Audio file | Timestamped text (Whisper) | 0.01 |
+| 11 | ✅ Video to Transcript | Video file/URL | Timestamped text + speakers | 0.015 |
+| 12 | ✅ YouTube Transcript Extractor | Video URL | Timestamped transcript | 0.002 |
+| 13 | ✅ RSS/Atom Feed Parser | Feed URL | Parsed article list (title, date, body) | 0.0005 |
+| 14 | ✅ Sitemap Parser | Domain/sitemap URL | All URLs with metadata | 0.001 |
+| 15 | ✅ Email (.eml) Parser | EML file | Structured email fields + attachments | 0.001 |
+| 16 | ✅ Receipt/Invoice OCR | Image/PDF | Structured line items, totals, vendor | 0.005 |
 | 17 | Business Card OCR | Image | Name, title, company, phone, email | 0.003 |
 | 18 | Table Image to CSV | Image of a table | CSV data | 0.005 |
 | 19 | Handwriting OCR | Handwritten image | Extracted text | 0.008 |
-| 20 | Barcode/QR Reader | Image | Decoded data string | 0.001 |
+| 20 | ✅ Barcode/QR Reader | Image | Decoded data string | 0.001 |
 
 ### 1.2 Search & Lookup (20 services)
 
 | # | Service | Input | Output | $/Call |
 |---|---------|-------|--------|--------|
-| 21 | Web Search | Query, num results | Ranked results with snippets + URLs | 0.001 |
-| 22 | News Search | Query, date range, language | News articles with source + date | 0.001 |
-| 23 | Academic Paper Search | Query, filters (year, field) | Paper metadata + abstracts | 0.002 |
-| 24 | Patent Search | Keywords, classification codes | Patent summaries + claims | 0.003 |
-| 25 | Image Search | Query or image (reverse) | Matching images with source URLs | 0.002 |
-| 26 | Domain WHOIS Lookup | Domain name | Registrar, dates, contacts, nameservers | 0.001 |
-| 27 | IP Geolocation | IP address | Country, city, ISP, lat/lng, timezone | 0.001 |
-| 28 | Company Lookup | Company name or domain | Revenue, employees, industry, HQ, founded | 0.005 |
-| 29 | Stock Price Lookup | Ticker, date range | OHLCV candles + basic indicators | 0.001 |
-| 30 | Crypto Price Lookup | Token symbol, exchange | Price, 24h volume, market cap, supply | 0.001 |
-| 31 | Exchange Rate Lookup | Base currency, targets | Current conversion rates (170+ currencies) | 0.0005 |
-| 32 | Weather Lookup | Location (city/lat,lng) | Current conditions + 7-day forecast | 0.001 |
-| 33 | Wikipedia Entity Lookup | Topic/entity name | Summary, infobox data, links | 0.0005 |
-| 34 | GitHub Repo Stats | Repo URL | Stars, forks, issues, languages, activity | 0.002 |
-| 35 | NPM Package Info | Package name | Version, downloads, dependencies, size | 0.001 |
-| 36 | DNS Lookup | Domain | A, AAAA, MX, TXT, CNAME records | 0.0005 |
-| 37 | SSL Certificate Info | Domain | Issuer, expiry, chain, grade | 0.001 |
-| 38 | Social Profile Finder | Person name + company | Public social URLs (LinkedIn, Twitter, GitHub) | 0.005 |
-| 39 | Job Posting Search | Title, location, skills | Matching job postings with salary data | 0.003 |
-| 40 | Product Price Search | Product name/UPC | Prices across retailers | 0.003 |
+| 21 | ✅ Web Search | Query, num results | Ranked results with snippets + URLs | 0.001 |
+| 22 | ✅ News Search | Query, date range, language | News articles with source + date | 0.001 |
+| 23 | ✅ Academic Paper Search | Query, filters (year, field) | Paper metadata + abstracts | 0.002 |
+| 24 | ✅ Patent Search | Keywords, classification codes | Patent summaries + claims | 0.003 |
+| 25 | ✅ Image Search | Query or image (reverse) | Matching images with source URLs | 0.002 |
+| 26 | ✅ Domain WHOIS Lookup | Domain name | Registrar, dates, contacts, nameservers | 0.001 |
+| 27 | ✅ IP Geolocation | IP address | Country, city, ISP, lat/lng, timezone | 0.001 |
+| 28 | ✅ Company Lookup | Company name or domain | Revenue, employees, industry, HQ, founded | 0.005 |
+| 29 | ✅ Stock Price Lookup | Ticker, date range | OHLCV candles + basic indicators | 0.001 |
+| 30 | ✅ Crypto Price Lookup | Token symbol, exchange | Price, 24h volume, market cap, supply | 0.001 |
+| 31 | ✅ Exchange Rate Lookup | Base currency, targets | Current conversion rates (170+ currencies) | 0.0005 |
+| 32 | ✅ Weather Lookup | Location (city/lat,lng) | Current conditions + 7-day forecast | 0.001 |
+| 33 | ✅ Wikipedia Entity Lookup | Topic/entity name | Summary, infobox data, links | 0.0005 |
+| 34 | ✅ GitHub Repo Stats | Repo URL | Stars, forks, issues, languages, activity | 0.002 |
+| 35 | ✅ NPM Package Info | Package name | Version, downloads, dependencies, size | 0.001 |
+| 36 | ✅ DNS Lookup | Domain | A, AAAA, MX, TXT, CNAME records | 0.0005 |
+| 37 | ✅ SSL Certificate Info | Domain | Issuer, expiry, chain, grade | 0.001 |
+| 38 | ✅ Social Profile Finder | Person name + company | Public social URLs (LinkedIn, Twitter, GitHub) | 0.005 |
+| 39 | ✅ Job Posting Search | Title, location, skills | Matching job postings with salary data | 0.003 |
+| 40 | ✅ Product Price Search | Product name/UPC | Prices across retailers | 0.003 |
 
 ### 1.3 Data Conversion & Formatting (15 services)
 
 | # | Service | Input | Output | $/Call |
 |---|---------|-------|--------|--------|
-| 41 | CSV to JSON | CSV file | JSON array | 0.0005 |
-| 42 | JSON to CSV | JSON array | CSV file | 0.0005 |
-| 43 | XML to JSON | XML file | JSON | 0.0005 |
-| 44 | Markdown to HTML | Markdown text | Rendered HTML | 0.0005 |
-| 45 | Markdown to PDF | Markdown text, styling | Styled PDF file | 0.002 |
-| 46 | HTML to PDF | HTML content | PDF file | 0.002 |
-| 47 | JSON Schema Validator | JSON data + schema | Valid/invalid + error details | 0.0005 |
-| 48 | Data Format Detector | Raw data file | Detected format, encoding, delimiter | 0.0005 |
-| 49 | Character Encoding Converter | Text, source enc, target enc | Re-encoded text | 0.0005 |
-| 50 | YAML to JSON | YAML | JSON | 0.0005 |
-| 51 | Protobuf to JSON | Protobuf binary + schema | JSON | 0.001 |
-| 52 | Base64 Encode/Decode | Data, direction | Encoded/decoded output | 0.0005 |
-| 53 | Cron Expression Parser | Cron string | Human-readable schedule + next 10 runs | 0.0005 |
-| 54 | Regex Tester | Pattern, test strings | Matches, groups, explanation | 0.001 |
-| 55 | Diff Generator | Text A, Text B | Unified diff output | 0.001 |
+| 41 | ✅ CSV to JSON | CSV file | JSON array | 0.0005 |
+| 42 | ✅ JSON to CSV | JSON array | CSV file | 0.0005 |
+| 43 | ✅ XML to JSON | XML file | JSON | 0.0005 |
+| 44 | ✅ Markdown to HTML | Markdown text | Rendered HTML | 0.0005 |
+| 45 | ✅ Markdown to PDF | Markdown text, styling | Styled PDF file | 0.002 |
+| 46 | ✅ HTML to PDF | HTML content | PDF file | 0.002 |
+| 47 | ✅ JSON Schema Validator | JSON data + schema | Valid/invalid + error details | 0.0005 |
+| 48 | ✅ Data Format Detector | Raw data file | Detected format, encoding, delimiter | 0.0005 |
+| 49 | ✅ Character Encoding Converter | Text, source enc, target enc | Re-encoded text | 0.0005 |
+| 50 | ✅ YAML to JSON | YAML | JSON | 0.0005 |
+| 51 | ✅ Protobuf to JSON | Protobuf binary + schema | JSON | 0.001 |
+| 52 | ✅ Base64 Encode/Decode | Data, direction | Encoded/decoded output | 0.0005 |
+| 53 | ✅ Cron Expression Parser | Cron string | Human-readable schedule + next 10 runs | 0.0005 |
+| 54 | ✅ Regex Tester | Pattern, test strings | Matches, groups, explanation | 0.001 |
+| 55 | ✅ Diff Generator | Text A, Text B | Unified diff output | 0.001 |
 
 ### 1.4 Computation & Math (15 services)
 
 | # | Service | Input | Output | $/Call |
 |---|---------|-------|--------|--------|
-| 56 | Python Code Executor | Python code, dependencies | Stdout + return value + artifacts | 0.005 |
-| 57 | JavaScript Code Executor | JS/Node code, npm packages | Stdout + return value | 0.005 |
-| 58 | SQL Query Executor | SQL query, database URL | Result set (rows + columns) | 0.003 |
-| 59 | R Code Executor | R code, packages | Output + plots | 0.005 |
-| 60 | Math Expression Evaluator | Math expression (LaTeX or text) | Numeric result + steps | 0.001 |
-| 61 | Statistical Calculator | Dataset, operations (mean, std, etc.) | Computed statistics | 0.002 |
-| 62 | Regression Calculator | X/Y data, model type | Coefficients, R-squared, residuals | 0.003 |
-| 63 | Matrix Operations | Matrices, operation | Result matrix | 0.002 |
-| 64 | Financial Calculator | Inputs (rate, periods, PV, PMT) | FV, NPV, IRR, amortization schedule | 0.002 |
-| 65 | Unit Converter | Value, from unit, to unit | Converted value | 0.0005 |
-| 66 | Currency Converter | Amount, from, to | Converted amount + rate + timestamp | 0.0005 |
-| 67 | Date/Time Calculator | Dates, operation, timezone | Computed result | 0.0005 |
-| 68 | Geo Distance Calculator | Point A (lat,lng), Point B | Distance (km/mi), bearing | 0.0005 |
-| 69 | Hash Generator | Data, algorithm (SHA256, MD5, etc.) | Hash string | 0.0005 |
-| 70 | UUID Generator | Format, quantity | UUID list | 0.0005 |
+| 56 | ✅ Python Code Executor | Python code, dependencies | Stdout + return value + artifacts | 0.005 |
+| 57 | ✅ JavaScript Code Executor | JS/Node code, npm packages | Stdout + return value | 0.005 |
+| 58 | ✅ SQL Query Executor | SQL query, database URL | Result set (rows + columns) | 0.003 |
+| 59 | ✅ R Code Executor | R code, packages | Output + plots | 0.005 |
+| 60 | ✅ Math Expression Evaluator | Math expression (LaTeX or text) | Numeric result + steps | 0.001 |
+| 61 | ✅ Statistical Calculator | Dataset, operations (mean, std, etc.) | Computed statistics | 0.002 |
+| 62 | ✅ Regression Calculator | X/Y data, model type | Coefficients, R-squared, residuals | 0.003 |
+| 63 | ✅ Matrix Operations | Matrices, operation | Result matrix | 0.002 |
+| 64 | ✅ Financial Calculator | Inputs (rate, periods, PV, PMT) | FV, NPV, IRR, amortization schedule | 0.002 |
+| 65 | ✅ Unit Converter | Value, from unit, to unit | Converted value | 0.0005 |
+| 66 | ✅ Currency Converter | Amount, from, to | Converted amount + rate + timestamp | 0.0005 |
+| 67 | ✅ Date/Time Calculator | Dates, operation, timezone | Computed result | 0.0005 |
+| 68 | ✅ Geo Distance Calculator | Point A (lat,lng), Point B | Distance (km/mi), bearing | 0.0005 |
+| 69 | ✅ Hash Generator | Data, algorithm (SHA256, MD5, etc.) | Hash string | 0.0005 |
+| 70 | ✅ UUID Generator | Format, quantity | UUID list | 0.0005 |
 
 ### 1.5 AI Model Access (20 services)
 
@@ -134,16 +136,16 @@ These are pure API wrappers — no decision-making, just standardized access to 
 
 | # | Service | Input | Output | $/Call |
 |---|---------|-------|--------|--------|
-| 71 | GPT-4o Completion | Prompt, system msg, params | Raw completion text | 0.01 |
-| 72 | Claude Completion | Prompt, system msg, params | Raw completion text | 0.01 |
-| 73 | Gemini Completion | Prompt, system msg, params | Raw completion text | 0.008 |
-| 74 | Llama Completion (open-source) | Prompt, params | Raw completion text | 0.003 |
-| 75 | Mistral Completion | Prompt, params | Raw completion text | 0.005 |
-| 76 | Text Embedding Generator | Text, model choice | Float vector (1536/3072 dims) | 0.001 |
-| 77 | Image Embedding Generator | Image | Float vector (CLIP) | 0.002 |
-| 78 | Text-to-Image (DALL-E) | Prompt, size, style | Generated image | 0.04 |
-| 79 | Text-to-Image (Stable Diffusion) | Prompt, neg prompt, params | Generated image | 0.02 |
-| 80 | Text-to-Image (Flux) | Prompt, aspect, style | Generated image | 0.03 |
+| 71 | ✅ GPT-4o Completion | Prompt, system msg, params | Raw completion text | 0.01 |
+| 72 | ✅ Claude Completion | Prompt, system msg, params | Raw completion text | 0.01 |
+| 73 | ✅ Gemini Completion | Prompt, system msg, params | Raw completion text | 0.008 |
+| 74 | ✅ Llama Completion (open-source) | Prompt, params | Raw completion text | 0.003 |
+| 75 | ✅ Mistral Completion | Prompt, params | Raw completion text | 0.005 |
+| 76 | ✅ Text Embedding Generator | Text, model choice | Float vector (1536/3072 dims) | 0.001 |
+| 77 | ✅ Image Embedding Generator | Image | Float vector (CLIP) | 0.002 |
+| 78 | ✅ Text-to-Image (DALL-E) | Prompt, size, style | Generated image | 0.04 |
+| 79 | ✅ Text-to-Image (Stable Diffusion) | Prompt, neg prompt, params | Generated image | 0.02 |
+| 80 | ✅ Text-to-Image (Flux) | Prompt, aspect, style | Generated image | 0.03 |
 | 81 | Image-to-Image (Style Transfer) | Source image, style reference | Styled image | 0.03 |
 | 82 | Background Removal | Image | Transparent PNG | 0.005 |
 | 83 | Image Upscaler | Image, scale factor | Upscaled image | 0.01 |
@@ -182,55 +184,55 @@ No LLM reasoning — these are fine-tuned classifiers, extractors, and processor
 
 | # | Service | Input | Output | $/Call |
 |---|---------|-------|--------|--------|
-| 101 | Sentiment Classifier | Text | Positive/negative/neutral + confidence | 0.001 |
-| 102 | Named Entity Extractor | Text | People, orgs, places, dates, money | 0.002 |
-| 103 | Text Classifier | Text, category list | Category + confidence score | 0.001 |
-| 104 | Language Detector | Text | Language code + confidence | 0.0005 |
-| 105 | Keyword Extractor | Text | Keywords ranked by relevance | 0.001 |
-| 106 | Topic Extractor | Document set | Topics + distributions (LDA) | 0.005 |
-| 107 | Toxicity Scorer | Text | Toxicity score + categories | 0.001 |
-| 108 | Readability Scorer | Text | Flesch-Kincaid grade + metrics | 0.001 |
-| 109 | Grammar Checker | Text | Errors with corrections + positions | 0.002 |
-| 110 | Spell Checker | Text, language | Misspellings with suggestions | 0.001 |
-| 111 | Plagiarism Detector | Text | Similarity % + matching sources | 0.01 |
-| 112 | Text Similarity Scorer | Text A, Text B | Cosine similarity + overlap metrics | 0.001 |
-| 113 | PII Detector | Text | PII locations (SSN, email, phone, etc.) | 0.002 |
-| 114 | PII Redactor | Text | Redacted text with PII masked | 0.002 |
-| 115 | Text Summarizer (extractive) | Long text, max length | Key sentences extracted (no LLM) | 0.002 |
-| 116 | Citation Parser | Citation string | Structured fields (author, year, title) | 0.001 |
+| 101 | ✅ Sentiment Classifier | Text | Positive/negative/neutral + confidence | 0.001 |
+| 102 | ✅ Named Entity Extractor | Text | People, orgs, places, dates, money | 0.002 |
+| 103 | ✅ Text Classifier | Text, category list | Category + confidence score | 0.001 |
+| 104 | ✅ Language Detector | Text | Language code + confidence | 0.0005 |
+| 105 | ✅ Keyword Extractor | Text | Keywords ranked by relevance | 0.001 |
+| 106 | ✅ Topic Extractor | Document set | Topics + distributions (LDA) | 0.005 |
+| 107 | ✅ Toxicity Scorer | Text | Toxicity score + categories | 0.001 |
+| 108 | ✅ Readability Scorer | Text | Flesch-Kincaid grade + metrics | 0.001 |
+| 109 | ✅ Grammar Checker | Text | Errors with corrections + positions | 0.002 |
+| 110 | ✅ Spell Checker | Text, language | Misspellings with suggestions | 0.001 |
+| 111 | ✅ Plagiarism Detector | Text | Similarity % + matching sources | 0.01 |
+| 112 | ✅ Text Similarity Scorer | Text A, Text B | Cosine similarity + overlap metrics | 0.001 |
+| 113 | ✅ PII Detector | Text | PII locations (SSN, email, phone, etc.) | 0.002 |
+| 114 | ✅ PII Redactor | Text | Redacted text with PII masked | 0.002 |
+| 115 | ✅ Text Summarizer (extractive) | Long text, max length | Key sentences extracted (no LLM) | 0.002 |
+| 116 | ✅ Citation Parser | Citation string | Structured fields (author, year, title) | 0.001 |
 | 117 | Address Parser | Address string | Street, city, state, zip, country | 0.001 |
 | 118 | Phone Number Parser | Phone string | Country code, national number, type | 0.0005 |
 | 119 | Email Address Validator | Email | Valid/invalid, MX check, disposable check | 0.002 |
 | 120 | URL Parser | URL string | Protocol, domain, path, params, fragments | 0.0005 |
 | 121 | Date Parser (NL) | "next tuesday", "3 days ago" | ISO 8601 datetime | 0.001 |
-| 122 | JSON Extractor from Text | Unstructured text, schema | Structured JSON (rule-based + NER) | 0.003 |
-| 123 | Translation Service | Text, source lang, target lang | Translated text | 0.003 |
-| 124 | Text Diff Highlighter | Original, modified | HTML diff with highlights | 0.001 |
-| 125 | Word Frequency Counter | Text | Word counts sorted by frequency | 0.0005 |
+| 122 | ✅ JSON Extractor from Text | Unstructured text, schema | Structured JSON (rule-based + NER) | 0.003 |
+| 123 | ✅ Translation Service | Text, source lang, target lang | Translated text | 0.003 |
+| 124 | ✅ Text Diff Highlighter | Original, modified | HTML diff with highlights | 0.001 |
+| 125 | ✅ Word Frequency Counter | Text | Word counts sorted by frequency | 0.0005 |
 
 ### 2.2 SEO & Web Analysis (20 services)
 
 | # | Service | Input | Output | $/Call |
 |---|---------|-------|--------|--------|
-| 126 | On-Page SEO Auditor | URL | SEO score, meta tags, headings, issues | 0.005 |
+| 126 | ✅ On-Page SEO Auditor | URL | SEO score, meta tags, headings, issues | 0.005 |
 | 127 | Keyword Volume Lookup | Keyword, country | Monthly volume, difficulty, CPC | 0.005 |
-| 128 | Related Keywords Finder | Seed keyword | Related keywords + volumes | 0.005 |
+| 128 | ✅ Related Keywords Finder | Seed keyword | Related keywords + volumes | 0.005 |
 | 129 | SERP Position Checker | Keyword, domain | Ranking position + featured snippets | 0.003 |
 | 130 | Backlink Counter | Domain | Backlink count, referring domains, top links | 0.005 |
 | 131 | Domain Authority Checker | Domain | DA/DR score, trust flow, citation flow | 0.003 |
-| 132 | Page Speed Analyzer | URL | Load time, Core Web Vitals, recommendations | 0.005 |
-| 133 | Broken Link Checker | URL/sitemap | List of broken links (404s, 500s) | 0.005 |
-| 134 | Robots.txt Parser | Domain | Allowed/blocked paths per user-agent | 0.001 |
-| 135 | Schema.org Validator | URL | Structured data found + validation errors | 0.002 |
-| 136 | Open Graph Extractor | URL | OG title, description, image, type | 0.001 |
-| 137 | Mobile Friendly Tester | URL | Pass/fail + issues found | 0.003 |
-| 138 | Heading Structure Analyzer | URL | H1-H6 hierarchy + issues | 0.002 |
-| 139 | Internal Link Mapper | Domain/sitemap | Internal link graph + orphan pages | 0.01 |
+| 132 | ✅ Page Speed Analyzer | URL | Load time, Core Web Vitals, recommendations | 0.005 |
+| 133 | ✅ Broken Link Checker | URL/sitemap | List of broken links (404s, 500s) | 0.005 |
+| 134 | ✅ Robots.txt Parser | Domain | Allowed/blocked paths per user-agent | 0.001 |
+| 135 | ✅ Schema.org Validator | URL | Structured data found + validation errors | 0.002 |
+| 136 | ✅ Open Graph Extractor | URL | OG title, description, image, type | 0.001 |
+| 137 | ✅ Mobile Friendly Tester | URL | Pass/fail + issues found | 0.003 |
+| 138 | ✅ Heading Structure Analyzer | URL | H1-H6 hierarchy + issues | 0.002 |
+| 139 | ✅ Internal Link Mapper | Domain/sitemap | Internal link graph + orphan pages | 0.01 |
 | 140 | Competitor Keyword Overlap | Domain A, Domain B | Shared/unique keywords with volumes | 0.01 |
-| 141 | Content Word Count & Density | URL | Word count, keyword density, reading time | 0.001 |
-| 142 | Redirect Chain Checker | URL | Redirect hops, final URL, status codes | 0.002 |
+| 141 | ✅ Content Word Count & Density | URL | Word count, keyword density, reading time | 0.001 |
+| 142 | ✅ Redirect Chain Checker | URL | Redirect hops, final URL, status codes | 0.002 |
 | 143 | Hashtag Volume Lookup | Hashtag, platform | Usage count, trend direction | 0.002 |
-| 144 | Google Trends Lookup | Keyword, region, period | Interest over time data | 0.002 |
+| 144 | ✅ Google Trends Lookup | Keyword, region, period | Interest over time data | 0.002 |
 | 145 | Alexa/Traffic Rank Lookup | Domain | Rank, estimated traffic, traffic sources | 0.003 |
 
 ### 2.3 Financial Calculations (25 services)
@@ -246,7 +248,7 @@ Pure math — no LLM, no reasoning, just accurate financial computations.
 | 150 | Sales Tax Calculator | Amount, jurisdiction (state/country) | Tax amount, rate, total | 0.002 |
 | 151 | Payroll Calculator | Salary, country, state | Net pay, tax withholdings, deductions | 0.003 |
 | 152 | Invoice Generator | Line items, tax, client info, terms | PDF invoice | 0.005 |
-| 153 | Financial Ratio Calculator | Balance sheet + income statement data | 20+ ratios (P/E, D/E, ROE, etc.) | 0.003 |
+| 153 | ✅ Financial Ratio Calculator | Balance sheet + income statement data | 20+ ratios (P/E, D/E, ROE, etc.) | 0.003 |
 | 154 | DCF Calculator | Cash flows, discount rate, terminal growth | Present value + sensitivity table | 0.005 |
 | 155 | Break-Even Calculator | Fixed costs, variable cost, price | Break-even units + revenue | 0.001 |
 | 156 | ROI Calculator | Investment, returns, time period | ROI %, annualized return, payback period | 0.001 |
@@ -378,10 +380,10 @@ Pure math — no LLM, no reasoning, just accurate financial computations.
 | 253 | CPT Code Lookup | Procedure description | Matching CPT codes + fee ranges | 0.003 |
 | 254 | FDA Drug Label Lookup | Drug name/NDC | Label info, warnings, dosage, interactions | 0.003 |
 | 255 | Clinical Trial Search | Condition, location, phase | Matching trials from clinicaltrials.gov | 0.005 |
-| 256 | Medical Abbreviation Expander | Abbreviation | Full term + context | 0.001 |
-| 257 | BMI Calculator | Height, weight, unit system | BMI, category, healthy range | 0.0005 |
+| 256 | ✅ Medical Abbreviation Expander | Abbreviation | Full term + context | 0.001 |
+| 257 | ✅ BMI Calculator | Height, weight, unit system | BMI, category, healthy range | 0.0005 |
 | 258 | Dosage Calculator | Drug, weight, age, indication | Dosage range + warnings | 0.003 |
-| 259 | Lab Value Reference Checker | Lab test, value, units | Normal/abnormal + reference range | 0.002 |
+| 259 | ✅ Lab Value Reference Checker | Lab test, value, units | Normal/abnormal + reference range | 0.002 |
 | 260 | Insurance CPT Fee Lookup | CPT code, region | Medicare fee, avg private fee | 0.003 |
 | 261 | PHI Detector (HIPAA) | Text | PHI locations (names, MRN, dates, etc.) | 0.003 |
 | 262 | PHI Redactor (HIPAA) | Text with PHI | De-identified text (Safe Harbor method) | 0.003 |
@@ -397,14 +399,14 @@ Pure math — no LLM, no reasoning, just accurate financial computations.
 | 267 | Statute Lookup | Jurisdiction, topic/section | Statute text + effective date | 0.005 |
 | 268 | SEC Filing Retriever | Company, filing type (10-K, etc.) | Filing document + key data | 0.005 |
 | 269 | Trademark Search (USPTO) | Mark text, class | Similar marks + status + owners | 0.005 |
-| 270 | Patent Search (USPTO) | Keywords, classification | Matching patents + claims | 0.005 |
+| 270 | ✅ Patent Search (USPTO) | Keywords, classification | Matching patents + claims | 0.005 |
 | 271 | Corporate Registry Search | Company name, state/country | Registration status, officers, filings | 0.005 |
 | 272 | UCC Lien Search | Entity name, state | Active liens + secured parties | 0.01 |
-| 273 | GDPR Article Lookup | Topic/keyword | Relevant GDPR articles + recitals | 0.002 |
-| 274 | SOC2 Control Mapper | Control description | Matching SOC2 criteria (CC/PI/etc.) | 0.003 |
+| 273 | ✅ GDPR Article Lookup | Topic/keyword | Relevant GDPR articles + recitals | 0.002 |
+| 274 | ✅ SOC2 Control Mapper | Control description | Matching SOC2 criteria (CC/PI/etc.) | 0.003 |
 | 275 | OSHA Regulation Lookup | Industry, topic | Applicable OSHA standards | 0.003 |
 | 276 | Contract Clause Extractor | Contract PDF/text | Extracted clauses by type (term, IP, etc.) | 0.01 |
-| 277 | Legal Citation Parser | Citation string | Case name, reporter, volume, page, court | 0.001 |
+| 277 | ✅ Legal Citation Parser | Citation string | Case name, reporter, volume, page, court | 0.001 |
 | 278 | Sanctions List Checker | Person/entity name | Match/no-match against OFAC, EU, UN lists | 0.005 |
 | 279 | AML Risk Scorer | Entity name, country, industry | Risk score + factors | 0.01 |
 | 280 | Privacy Policy Scanner | URL | Data collected, third parties, cookies found | 0.005 |
@@ -415,7 +417,7 @@ Pure math — no LLM, no reasoning, just accurate financial computations.
 |---|---------|-------|--------|--------|
 | 281 | Property Value Estimator (AVM) | Address | Estimated value + confidence + comps | 0.02 |
 | 282 | Comparable Sales Finder | Address, radius, date range | Recent sales with prices + details | 0.01 |
-| 283 | Rental Yield Calculator | Purchase price, monthly rent, expenses | Cap rate, cash-on-cash, ROI | 0.003 |
+| 283 | ✅ Rental Yield Calculator | Purchase price, monthly rent, expenses | Cap rate, cash-on-cash, ROI | 0.003 |
 | 284 | Neighborhood Demographics | Location (zip/lat,lng) | Population, income, age, education stats | 0.005 |
 | 285 | Walk Score Lookup | Address | Walk/transit/bike scores + nearby amenities | 0.003 |
 | 286 | School District Lookup | Address | Schools, ratings, distance | 0.003 |
@@ -432,16 +434,16 @@ Pure math — no LLM, no reasoning, just accurate financial computations.
 | 292 | Product Category Classifier | Product title + description | Category hierarchy | 0.002 |
 | 293 | Shipping Rate Calculator | Weight, dimensions, origin, destination | Rates across carriers (UPS, FedEx, USPS) | 0.003 |
 | 294 | Shipping Time Estimator | Origin, destination, service level | Estimated delivery date | 0.002 |
-| 295 | HS Code Lookup | Product description | Harmonized System tariff code | 0.003 |
+| 295 | ✅ HS Code Lookup | Product description | Harmonized System tariff code | 0.003 |
 | 296 | Import Duty Calculator | HS code, origin, destination, value | Duty rate + estimated cost | 0.005 |
-| 297 | VAT/GST Calculator | Amount, country | Tax amount, rate, rules | 0.002 |
-| 298 | SKU Generator | Product attributes (size, color, etc.) | Formatted SKU code | 0.001 |
-| 299 | Size Chart Generator | Measurements by size | Formatted size chart table/image | 0.003 |
+| 297 | ✅ VAT/GST Calculator | Amount, country | Tax amount, rate, rules | 0.002 |
+| 298 | ✅ SKU Generator | Product attributes (size, color, etc.) | Formatted SKU code | 0.001 |
+| 299 | ✅ Size Chart Generator | Measurements by size | Formatted size chart table/image | 0.003 |
 | 300 | Review Sentiment Aggregator | List of review texts | Avg sentiment, themes, pros, cons | 0.005 |
 | 301 | Price Comparison Aggregator | Product name/UPC | Prices across retailers + URLs | 0.005 |
 | 302 | Product Image Background Remover | Product photo | Clean product on transparent/white BG | 0.005 |
 | 303 | Amazon ASIN Lookup | ASIN | Product title, price, category, BSR | 0.003 |
-| 304 | Inventory Reorder Calculator | Sales rate, lead time, safety stock | Reorder point + EOQ | 0.002 |
+| 304 | ✅ Inventory Reorder Calculator | Sales rate, lead time, safety stock | Reorder point + EOQ | 0.002 |
 | 305 | Demand Seasonality Detector | Monthly sales data (24+ months) | Seasonal patterns + peak months | 0.005 |
 
 ### 3.5 Education (10 services)
@@ -450,10 +452,10 @@ Pure math — no LLM, no reasoning, just accurate financial computations.
 |---|---------|-------|--------|--------|
 | 306 | Reading Level Analyzer | Text | Flesch-Kincaid, ARI, grade level | 0.001 |
 | 307 | Math Problem Solver | Math problem (text/LaTeX) | Step-by-step solution | 0.005 |
-| 308 | Citation Formatter | Source details, style (APA/MLA/Chicago) | Formatted citation + bibliography entry | 0.002 |
+| 308 | ✅ Citation Formatter | Source details, style (APA/MLA/Chicago) | Formatted citation + bibliography entry | 0.002 |
 | 309 | Flashcard Set Generator | Topic text | Q&A pairs in Anki-compatible format | 0.005 |
 | 310 | Multiple Choice Generator | Text passage, num questions | Questions + options + answer key | 0.005 |
-| 311 | Rubric Template Builder | Assignment type, criteria list | Scoring rubric table | 0.003 |
+| 311 | ✅ Rubric Template Builder | Assignment type, criteria list | Scoring rubric table | 0.003 |
 | 312 | Vocabulary Extractor | Text, target difficulty | Vocabulary list with definitions | 0.003 |
 | 313 | Sentence Diagrammer | English sentence | Grammatical structure diagram | 0.005 |
 | 314 | Learning Objective Mapper | Topic, Bloom's level | Mapped learning objectives | 0.003 |
@@ -469,8 +471,8 @@ Pure math — no LLM, no reasoning, just accurate financial computations.
 | 319 | Skill Taxonomy Mapper | Skill names | Mapped to O*NET/ESCO taxonomy | 0.002 |
 | 320 | Employment Eligibility Checker | Country, visa type, role | Work authorization requirements | 0.003 |
 | 321 | Benefits Cost Calculator | Plan options, employee count | Total cost + per-employee breakdown | 0.003 |
-| 322 | Time Zone Overlap Finder | Locations of team members | Overlapping work hours + suggestions | 0.001 |
-| 323 | PTO Balance Calculator | Accrual rate, used days, start date | Remaining PTO + accrual forecast | 0.001 |
+| 322 | ✅ Time Zone Overlap Finder | Locations of team members | Overlapping work hours + suggestions | 0.001 |
+| 323 | ✅ PTO Balance Calculator | Accrual rate, used days, start date | Remaining PTO + accrual forecast | 0.001 |
 | 324 | Org Chart Builder | CSV of name, title, reports-to | Org chart image | 0.005 |
 | 325 | Interview Question Bank | Role, level, competency | Categorized questions + rubric | 0.005 |
 
@@ -482,12 +484,12 @@ Pure math — no LLM, no reasoning, just accurate financial computations.
 | 327 | Shipment Tracking Normalizer | Carrier, tracking number | Normalized status + location + ETA | 0.003 |
 | 328 | Container Load Calculator | Item dimensions + quantities, container type | Load plan + utilization % | 0.005 |
 | 329 | Freight Rate Estimator | Weight, dims, origin, destination, mode | Estimated rates by carrier/mode | 0.005 |
-| 330 | Incoterms Lookup | Incoterm code | Responsibilities (buyer/seller), risk transfer point | 0.001 |
+| 330 | ✅ Incoterms Lookup | Incoterm code | Responsibilities (buyer/seller), risk transfer point | 0.001 |
 | 331 | Customs Duty Calculator | HS code, origin, destination, value | Duty + taxes + total landed cost | 0.005 |
-| 332 | Safety Stock Calculator | Demand variability, lead time, service level | Safety stock quantity | 0.002 |
-| 333 | EOQ Calculator | Annual demand, order cost, holding cost | Economic order quantity + total cost | 0.002 |
+| 332 | ✅ Safety Stock Calculator | Demand variability, lead time, service level | Safety stock quantity | 0.002 |
+| 333 | ✅ EOQ Calculator | Annual demand, order cost, holding cost | Economic order quantity + total cost | 0.002 |
 | 334 | Carbon Emission Estimator | Weight, distance, transport mode | CO2 equivalent in kg | 0.002 |
-| 335 | Lead Time Estimator | Origin country, destination, mode | Estimated lead time in days | 0.003 |
+| 335 | ✅ Lead Time Estimator | Origin country, destination, mode | Estimated lead time in days | 0.003 |
 
 ### 3.8 Media & Entertainment (5 services)
 
@@ -505,7 +507,7 @@ Pure math — no LLM, no reasoning, just accurate financial computations.
 |---|---------|-------|--------|--------|
 | 341 | Phishing URL Detector | URL | Safe/suspicious/phishing + reasons | 0.003 |
 | 342 | Malware Hash Checker | File hash (SHA256/MD5) | Known malware match + threat info | 0.002 |
-| 343 | Password Strength Scorer | Password | Score, crack time estimate, suggestions | 0.001 |
+| 343 | ✅ Password Strength Scorer | Password | Score, crack time estimate, suggestions | 0.001 |
 | 344 | Blockchain Transaction Lookup | Chain, tx hash | From, to, value, gas, status, block | 0.002 |
 | 345 | Wallet Balance Checker | Chain, address | Token balances + USD values | 0.002 |
 | 346 | Token Holder Lookup | Chain, contract address | Top holders + distribution | 0.005 |
@@ -618,10 +620,10 @@ We need 100 more to reach 500. Here's the expansion:
 | 403 | Image EXIF Extractor | Image | Camera, GPS, date, settings | 0.001 |
 | 404 | Audio Fingerprint Generator | Audio file | Acoustic fingerprint hash | 0.005 |
 | 405 | Video Keyframe Extractor | Video, interval | Keyframe images at intervals | 0.005 |
-| 406 | Document Language Detector | Document file | Language + confidence per section | 0.002 |
+| 406 | ✅ Document Language Detector | Document file | Language + confidence per section | 0.002 |
 | 407 | Data Anonymizer | Dataset, columns to anonymize | Anonymized dataset (k-anonymity) | 0.005 |
 | 408 | CSV Schema Inferrer | CSV file | Column types, nullable, unique, patterns | 0.002 |
-| 409 | JSON Flattener | Nested JSON | Flat key-value pairs | 0.001 |
+| 409 | ✅ JSON Flattener | Nested JSON | Flat key-value pairs | 0.001 |
 | 410 | XML Schema Validator | XML, XSD schema | Valid/invalid + errors | 0.002 |
 | 411 | Email Header Analyzer | Raw email headers | Sender path, SPF/DKIM/DMARC status | 0.002 |
 | 412 | iCalendar Parser | ICS file | Structured events list | 0.001 |
@@ -645,7 +647,7 @@ We need 100 more to reach 500. Here's the expansion:
 | 425 | Stock Fundamental Data Lookup | Ticker | Revenue, EPS, P/E, market cap, sector | 0.003 |
 | 426 | Economic Indicator Lookup | Indicator (GDP, CPI, etc.), country | Time series data | 0.003 |
 | 427 | Central Bank Rate Lookup | Country/central bank | Current rate + historical changes | 0.002 |
-| 428 | SWIFT/BIC Lookup | SWIFT code or bank name | Bank name, country, branch | 0.001 |
+| 428 | ✅ SWIFT/BIC Lookup | SWIFT code or bank name | Bank name, country, branch | 0.001 |
 | 429 | Commodity Price Lookup | Commodity (gold, oil, etc.) | Current price, 52w high/low, unit | 0.001 |
 | 430 | Real Estate Index Lookup | Market (city/state/national) | Price index, YoY change, median price | 0.003 |
 
@@ -668,15 +670,15 @@ We need 100 more to reach 500. Here's the expansion:
 
 | # | Service | Input | Output | $/Call |
 |---|---------|-------|--------|--------|
-| 441 | Git Diff Parser | Git diff text | Structured file changes + stats | 0.002 |
+| 441 | ✅ Git Diff Parser | Git diff text | Structured file changes + stats | 0.002 |
 | 442 | Git Commit Stats | Repo URL, date range | Commit count, contributors, frequency | 0.003 |
 | 443 | Container Registry Lookup | Image name | Tags, sizes, last push, vulnerabilities | 0.003 |
 | 444 | Terraform Plan Parser | Terraform plan output | Resources to add/change/destroy | 0.003 |
-| 445 | GitHub Actions Workflow Validator | Workflow YAML | Valid/invalid + errors + suggestions | 0.002 |
+| 445 | ✅ GitHub Actions Workflow Validator | Workflow YAML | Valid/invalid + errors + suggestions | 0.002 |
 | 446 | Package Size Analyzer | npm/pip package name | Install size, dependency tree, alternatives | 0.003 |
 | 447 | API Endpoint Lister | OpenAPI spec | All endpoints with methods + params | 0.002 |
 | 448 | Database Connection Tester | Connection string | Connect success/fail + latency + version | 0.002 |
-| 449 | CIDR Calculator | IP range/CIDR | Usable IPs, network address, broadcast | 0.001 |
+| 449 | ✅ CIDR Calculator | IP range/CIDR | Usable IPs, network address, broadcast | 0.001 |
 | 450 | Uptime Ping | URL/IP, count | Avg latency, packet loss, status | 0.001 |
 
 ### 5.5 Advanced Healthcare & Science (10 services)
@@ -686,8 +688,8 @@ We need 100 more to reach 500. Here's the expansion:
 | 451 | PubMed Article Fetcher | PMID or search query | Title, abstract, authors, journal, DOI | 0.003 |
 | 452 | Gene/Protein Lookup | Gene name or ID | Function, location, associated diseases | 0.005 |
 | 453 | Chemical Compound Lookup | Name or SMILES/InChI | Structure, properties, safety data | 0.005 |
-| 454 | Unit Converter (Scientific) | Value, unit (nanomoles, etc.) | Converted + SI equivalent | 0.001 |
-| 455 | Periodic Table Lookup | Element name/symbol/number | Properties (mass, config, electronegativity) | 0.0005 |
+| 454 | ✅ Unit Converter (Scientific) | Value, unit (nanomoles, etc.) | Converted + SI equivalent | 0.001 |
+| 455 | ✅ Periodic Table Lookup | Element name/symbol/number | Properties (mass, config, electronegativity) | 0.0005 |
 | 456 | Disease-Gene Association Lookup | Disease name | Associated genes + evidence strength | 0.005 |
 | 457 | Protein Structure Fetcher | PDB ID | Structure data + visualization URL | 0.005 |
 | 458 | WHO Disease Classification | Disease name | ICD-11 code + classification hierarchy | 0.002 |
@@ -702,7 +704,7 @@ We need 100 more to reach 500. Here's the expansion:
 | 462 | Court Docket Search | Case number, court | Docket entries + filings | 0.01 |
 | 463 | Business License Lookup | Business name, state | License status, type, expiry | 0.005 |
 | 464 | Patent Citation Network | Patent number | Citing/cited patents + relationship graph | 0.01 |
-| 465 | Tax Treaty Lookup | Country A, Country B | Treaty provisions + withholding rates | 0.003 |
+| 465 | ✅ Tax Treaty Lookup | Country A, Country B | Treaty provisions + withholding rates | 0.003 |
 | 466 | Export Control Classifier | Product description | ECCN classification + license requirements | 0.005 |
 | 467 | Political Donation Lookup | Name or organization | FEC donation records | 0.005 |
 | 468 | Lobbying Disclosure Search | Organization or issue | Lobbying filings + expenditures | 0.005 |
@@ -714,14 +716,14 @@ We need 100 more to reach 500. Here's the expansion:
 | # | Service | Input | Output | $/Call |
 |---|---------|-------|--------|--------|
 | 471 | Product Review Star Distributor | Reviews list | Star distribution, avg, fake review risk | 0.003 |
-| 472 | Return Rate Estimator | Product category, price, description | Estimated return rate + reasons | 0.005 |
+| 472 | ✅ Return Rate Estimator | Product category, price, description | Estimated return rate + reasons | 0.005 |
 | 473 | Cross-Border Tax Calculator | Origin, destination, product, value | All taxes + duties + total landed cost | 0.005 |
 | 474 | Pallet Load Optimizer | Box dimensions list, pallet size | Load arrangement + utilization % | 0.005 |
-| 475 | Delivery Window Calculator | Origin, destination, carrier, ship date | Earliest/latest delivery dates | 0.002 |
+| 475 | ✅ Delivery Window Calculator | Origin, destination, carrier, ship date | Earliest/latest delivery dates | 0.002 |
 | 476 | Product Weight Estimator | Product category, dimensions | Estimated weight range | 0.002 |
-| 477 | Marketplace Fee Calculator | Platform (Amazon/eBay/etc), price, category | Platform fees + net revenue | 0.003 |
+| 477 | ✅ Marketplace Fee Calculator | Platform (Amazon/eBay/etc), price, category | Platform fees + net revenue | 0.003 |
 | 478 | Country Import Restriction Checker | Product type, destination country | Allowed/restricted/banned + documentation | 0.005 |
-| 479 | Packaging Recommender | Product dimensions, fragility | Box size + packing material + cost | 0.003 |
+| 479 | ✅ Packaging Recommender | Product dimensions, fragility | Box size + packing material + cost | 0.003 |
 | 480 | Last-Mile Cost Estimator | Destination zip, weight, service level | Delivery cost estimate | 0.003 |
 
 ### 5.8 Advanced Network & Platform (20 services)
@@ -877,7 +879,7 @@ We need 100 more to reach 500. Here's the expansion:
 
 | # | Agent | What It Does | Services It Chains | Framework |
 |---|-------|-------------|-------------------|-----------|
-| 81 | Code Review Agent | Reviews pull requests for bugs, security issues, performance, and best practices | Static Analyzer, Dependency Scanner, License Scanner, Code Complexity, Git Diff Parser | LangGraph |
+| 81 | ✅ Code Review Agent | Reviews pull requests for bugs, security issues, performance, and best practices | Static Analyzer, Dependency Scanner, License Scanner, Code Complexity, Git Diff Parser | LangGraph |
 | 82 | Bug Triage Agent | Categorizes incoming bugs by severity, assigns to components, finds related past bugs | Stack Trace Parser, Log Pattern Extractor, Text Classifier, Text Similarity Scorer | CrewAI |
 | 83 | Documentation Generator Agent | Generates API docs, architecture diagrams, and user guides from codebases | API Endpoint Lister, OpenAPI Validator, Code Complexity, Mermaid Diagram, Markdown to PDF | LangChain |
 | 84 | Deployment Pipeline Agent | Manages deployment decisions — runs checks, validates readiness, recommends deploy/rollback | Dependency Scanner, API Latency Measurer, Uptime Ping, Database Connection Tester, Report | LangGraph |
