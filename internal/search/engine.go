@@ -424,6 +424,100 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 		}
 	}
 
+	// ---- Exact-match pass --------------------------------------------------
+	//
+	// The keyword-result loop above only fires for entities that BM25 (or
+	// the fallback tokenizer) bothered to return. For sparse, hyphen-heavy
+	// names like 'url-to-text', the tokenizer often splits the query into
+	// tokens whose IDF is too low to surface the exact-name match. Result:
+	// querying 'url-to-text' against a service named 'url-to-text' returns
+	// `local=0`, the boost loop never runs, and the user sees no results.
+	//
+	// To fix that, after keyword + semantic merge, scan ALL local entities
+	// for exact case-insensitive matches against:
+	//   - req.Query  vs agent.Name / Category / Tags  (when query non-empty)
+	//   - req.Category exactly       (when category filter set, no query)
+	//   - req.Tags overlap exactly   (when tag filter set, no query)
+	// and inject them as candidates with TextRelevance=2.5.
+	//
+	// This is also what makes pure category/tag/no-query browse searches
+	// return anything — without it, an empty req.Query feeds the BM25 index
+	// nothing to score against and keyword search returns 0 hits.
+	exactQuery := strings.ToLower(strings.TrimSpace(req.Query))
+	hasCategoryFilter := strings.TrimSpace(req.Category) != ""
+	hasTagFilter := len(req.Tags) > 0
+	browseAll := exactQuery == "" && !hasCategoryFilter && !hasTagFilter
+	allLocal, listErr := e.store.ListEntities("", limit*2, 0)
+	if listErr == nil {
+		for _, agent := range allLocal {
+			if agent == nil || agent.Status == "inactive" {
+				continue
+			}
+			// Apply request-level filters identical to those in the
+			// keyword path so we don't silently include filtered entities.
+			if req.Category != "" && agent.Category != req.Category {
+				continue
+			}
+			if hasTagFilter && !hasAnyTag(agent.Tags, req.Tags) {
+				continue
+			}
+			if req.DeveloperID != "" && agent.DeveloperID != req.DeveloperID {
+				continue
+			}
+			if req.EntityType != "" && agent.EntityType != req.EntityType {
+				continue
+			}
+
+			// Decide whether this agent qualifies for the exact-match
+			// boost path. Three triggers:
+			//   1. browse-all                              — every agent qualifies
+			//   2. category / tag filter without a query   — the filter itself is the match
+			//   3. query exactly matches name/category/tag — classic exact match
+			qualifies := browseAll
+			if !qualifies && hasCategoryFilter && exactQuery == "" {
+				qualifies = true
+			}
+			if !qualifies && hasTagFilter && exactQuery == "" {
+				qualifies = true
+			}
+			if !qualifies && exactQuery != "" &&
+				isExactMatch(req.Query, agent.Name, agent.Category, agent.Tags) {
+				qualifies = true
+			}
+			if !qualifies {
+				continue
+			}
+
+			if existing, ok := candidateMap[agent.EntityID]; ok {
+				// Already seeded by keyword/semantic; bump TextRelevance
+				// up if the exact-match score is higher.
+				if existing.TextRelevance < 2.5 {
+					existing.TextRelevance = 2.5
+				}
+				continue
+			}
+			candidateMap[agent.EntityID] = &ranking.CandidateResult{
+				EntityID:        agent.EntityID,
+				Name:            agent.Name,
+				Summary:         agent.Summary,
+				Category:        agent.Category,
+				Tags:            agent.Tags,
+				EntityURL:       agent.EntityURL,
+				HomeRegistry:    agent.HomeRegistry,
+				Status:          agent.Status,
+				UpdatedAt:       agent.UpdatedAt,
+				DeveloperID:     agent.DeveloperID,
+				TextRelevance:   2.5,
+				TrustScore:      0.5,
+				Availability:    1.0,
+				EntityType:      agent.EntityType,
+				ServiceEndpoint: agent.ServiceEndpoint,
+				OpenAPIURL:      agent.OpenAPIURL,
+				EntityPricing:   agent.EntityPricing,
+			}
+		}
+	}
+
 	var candidates []*ranking.CandidateResult
 	for _, c := range candidateMap {
 		candidates = append(candidates, c)
