@@ -1242,8 +1242,29 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.Query == "" && req.DeveloperID == "" {
-		writeError(w, http.StatusBadRequest, "query or a filter (developer_handle, developer_id, fqan) is required")
+	// Accept search if ANY filter is present. The previous rule —
+	// "must have query OR developer_id" — rejected category/tag/entity_type
+	// only searches even though the SearchRequest schema lists those as
+	// filters. That made `{"category":"scraping"}` return HTTP 400, which
+	// was confusing for clients that legitimately want to browse a
+	// category. Skills/protocols/languages/models follow the same pattern.
+	hasFilter :=
+		req.Query != "" ||
+			req.DeveloperID != "" ||
+			req.DeveloperHandle != "" ||
+			req.Category != "" ||
+			len(req.Tags) > 0 ||
+			len(req.Skills) > 0 ||
+			len(req.Protocols) > 0 ||
+			len(req.Languages) > 0 ||
+			len(req.Models) > 0 ||
+			req.EntityType != "" ||
+			req.Status != ""
+	if !hasFilter {
+		writeError(w, http.StatusBadRequest,
+			"search requires at least one filter — pass query, category, tags, "+
+				"skills, protocols, languages, models, entity_type, status, "+
+				"developer_handle, developer_id, or fqan")
 		return
 	}
 
