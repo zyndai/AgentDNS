@@ -184,6 +184,9 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 		}
 	}
 
+	// Track the raw pre-filter count so we can report `filtered_out` honestly.
+	rawCount := localCount + gossipCount + federatedCount
+
 	// Filter by EntityType if requested
 	if req.EntityType != "" {
 		filtered := make([]*ranking.CandidateResult, 0, len(allCandidates))
@@ -212,7 +215,15 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 		allCandidates = filtered
 	}
 
-	totalFound := localCount + gossipCount + federatedCount
+	// Honest total: candidates that actually made it through every filter.
+	// The previous implementation summed the raw source counts here, which
+	// produced `total_found:1, results:[]` when the lone hit was below
+	// min_score. `filtered_out` keeps the diagnostic visible.
+	totalFound := len(allCandidates)
+	filteredOut := rawCount - totalFound
+	if filteredOut < 0 {
+		filteredOut = 0
+	}
 
 	// Apply offset for pagination
 	if req.Offset > 0 {
@@ -254,6 +265,7 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 			LocalResults:     localCount,
 			GossipResults:    gossipCount,
 			FederatedResults: federatedCount,
+			FilteredOut:      filteredOut,
 			PeersQueried:     peersQueried,
 			LatencyMs:        latencyMs,
 		},
@@ -326,6 +338,24 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			continue
 		}
 
+		// Exact-match bonus: if the query is a name / tag / category hit
+		// at the surface level, the user almost certainly wants this
+		// result regardless of how the weighted-signal average lands.
+		// Push the text relevance to a value > 1 so even with the 0.30
+		// weight the contribution dominates everything else (clamped at
+		// 1.0 in the ranker if needed). Without this, a perfectly-named
+		// service searched by its exact name only contributes 0.30 from
+		// text and can't clear realistic min_score thresholds without
+		// other signals.
+		exactBoosted := normalizedScore
+		if isExactMatch(req.Query, agent.Name, agent.Category, agent.Tags) {
+			// 1.0 keyword score + a hefty exact-match bonus that the
+			// ranker treats as text-side too. 2.5 picked so the
+			// weighted contribution is 0.30 * 2.5 = 0.75 — enough to
+			// clear any sane min_score on its own.
+			exactBoosted = 2.5
+		}
+
 		candidateMap[kr.DocID] = &ranking.CandidateResult{
 			EntityID:         agent.EntityID,
 			Name:            agent.Name,
@@ -337,7 +367,7 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			Status:          agent.Status,
 			UpdatedAt:       agent.UpdatedAt,
 			DeveloperID:     agent.DeveloperID,
-			TextRelevance:   normalizedScore,
+			TextRelevance:   exactBoosted,
 			TrustScore:      0.5,
 			Availability:    1.0,
 			EntityType:      agent.EntityType,
@@ -546,6 +576,32 @@ func hasAnyTag(agentTags, filterTags []string) bool {
 	}
 	for _, t := range filterTags {
 		if tagSet[strings.ToLower(t)] {
+			return true
+		}
+	}
+	return false
+}
+
+// isExactMatch returns true when the query exactly matches the agent's
+// name, category, or any of its tags (case-insensitive, whitespace
+// trimmed). Used to award an "exact match" bonus during ranking — the
+// weighted-average model alone gives a perfect text match only ~0.30
+// contribution, so without this an exact name match like
+// query="url-to-text" against name="url-to-text" can be filtered out
+// by realistic min_score thresholds.
+func isExactMatch(query, name, category string, tags []string) bool {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return false
+	}
+	if strings.ToLower(strings.TrimSpace(name)) == q {
+		return true
+	}
+	if strings.ToLower(strings.TrimSpace(category)) == q {
+		return true
+	}
+	for _, t := range tags {
+		if strings.ToLower(strings.TrimSpace(t)) == q {
 			return true
 		}
 	}
