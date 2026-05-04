@@ -1,0 +1,86 @@
+[node]
+name = "zns01"
+type = "full"
+data_dir = "~/.zynd/data"
+external_ip = "auto"
+https_endpoint = "https://zns01.zynd.ai"
+
+[mesh]
+listen_port = 4001
+max_peers = 50
+bootstrap_peers = ["35.174.141.188"]
+tls_enabled = true
+
+[gossip]
+max_hops = 10
+max_announcements_per_second = 100
+dedup_window_seconds = 300
+
+[registry]
+postgres_url = "postgres://agentdns:57dd5adecb154da593a1522d6145f3c7@zns01.cydesgswiel0.us-east-1.rds.amazonaws.com:5432/agentdns?sslmode=require"
+max_local_agents = 100000
+
+[search]
+embedding_backend = "onnx"
+embedding_model = "all-MiniLM-L6-v2"
+embedding_dimensions = 384
+embedding_model_dir = "/home/ubuntu/.zynd/models"
+embedding_endpoint = ""
+onnx_runtime_path = ""
+use_improved_keyword = true
+min_score = 0.1
+max_federated_peers = 10
+federated_timeout_ms = 5000
+default_max_results = 20
+
+[search.ranking]
+method = "weighted"
+text_relevance_weight = 0.30
+semantic_similarity_weight = 0.30
+trust_weight = 0.20
+freshness_weight = 0.10
+availability_weight = 0.10
+
+[cache]
+max_agent_cards = 100000
+agent_card_ttl_seconds = 3600
+max_gossip_entries = 2000000
+
+[redis]
+url = "redis://localhost:6379"
+password = ""
+db = 0
+prefix = ""
+
+[trust]
+min_display_score = 0.1
+
+[api]
+listen = "0.0.0.0:8080"
+rate_limit_search = 200
+rate_limit_register = 20
+cors_origins = ["*"]
+
+[bloom]
+expected_tokens = 500000
+false_positive_rate = 0.01
+update_interval_seconds = 300
+
+[onboarding]
+mode = "restricted"
+auth_url = "https://zynd.ai/onboard"
+webhook_secret = "9fb7f197-b4dd-4171-a5f7-54a74a6a465f"
+
+[heartbeat]
+enabled = true
+inactive_threshold_seconds = 300
+sweep_interval_seconds = 60
+max_clock_skew_seconds = 60
+
+[dht]
+enabled = true
+k = 20
+alpha = 3
+republish_interval = 3600
+expire_after = 86400
+lookup_timeout_ms = 5000

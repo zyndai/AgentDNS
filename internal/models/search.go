@@ -24,6 +24,13 @@ type SearchRequest struct {
 }
 
 // SearchResponse is returned to the client with ranked results.
+//
+// TotalFound is the count of candidates that survived ALL filters
+// (entity-type, deduplication, min-score) — i.e. the count the caller
+// would page through. The previous implementation set it to the raw
+// pre-filter count, which produced "total_found:1, results:[]"
+// inconsistencies. Use SearchStats.FilteredOut to see how many local /
+// gossip / federated hits were dropped by min_score.
 type SearchResponse struct {
 	Results     []SearchResult `json:"results"`
 	TotalFound  int            `json:"total_found"`
@@ -68,10 +75,17 @@ type ScoreBreakdown struct {
 }
 
 // SearchStats provides metadata about the search execution.
+//
+// LocalResults / GossipResults / FederatedResults are RAW pre-filter
+// hit counts from each source. FilteredOut is the number of candidates
+// dropped by post-source filters (min-score, dedup, entity-type) — so
+// LocalResults + GossipResults + FederatedResults - FilteredOut
+// equals what's in `Results` (give or take pagination).
 type SearchStats struct {
 	LocalResults     int `json:"local_results"`
 	GossipResults    int `json:"gossip_results"`
 	FederatedResults int `json:"federated_results"`
+	FilteredOut      int `json:"filtered_out"`
 	PeersQueried     int `json:"peers_queried"`
 	LatencyMs        int `json:"latency_ms"`
 }

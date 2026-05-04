@@ -184,6 +184,9 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 		}
 	}
 
+	// Track the raw pre-filter count so we can report `filtered_out` honestly.
+	rawCount := localCount + gossipCount + federatedCount
+
 	// Filter by EntityType if requested
 	if req.EntityType != "" {
 		filtered := make([]*ranking.CandidateResult, 0, len(allCandidates))
@@ -212,7 +215,15 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 		allCandidates = filtered
 	}
 
-	totalFound := localCount + gossipCount + federatedCount
+	// Honest total: candidates that actually made it through every filter.
+	// The previous implementation summed the raw source counts here, which
+	// produced `total_found:1, results:[]` when the lone hit was below
+	// min_score. `filtered_out` keeps the diagnostic visible.
+	totalFound := len(allCandidates)
+	filteredOut := rawCount - totalFound
+	if filteredOut < 0 {
+		filteredOut = 0
+	}
 
 	// Apply offset for pagination
 	if req.Offset > 0 {
@@ -254,6 +265,7 @@ func (e *Engine) Search(req *models.SearchRequest) (*models.SearchResponse, erro
 			LocalResults:     localCount,
 			GossipResults:    gossipCount,
 			FederatedResults: federatedCount,
+			FilteredOut:      filteredOut,
 			PeersQueried:     peersQueried,
 			LatencyMs:        latencyMs,
 		},
