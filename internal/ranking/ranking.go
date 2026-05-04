@@ -70,20 +70,45 @@ type CandidateResult struct {
 
 // RankWeighted scores candidates using the weighted linear combination.
 // final_score = w1*text + w2*semantic + w3*trust + w4*freshness + w5*availability
+//
+// TextRelevance is allowed to exceed 1.0 (the engine sets it to ~2.5 on
+// exact-match boosts), which can push FinalScore above 1.0 too. We clamp
+// the final value to [0, 1] so the API contract stays "score is a 0..1
+// confidence" — sorting still works because clamping is monotonic on the
+// pre-clamp values, and we keep TextRelevance unclamped on the
+// CandidateResult so debugging consumers still see the raw signal.
 func (r *Ranker) RankWeighted(candidates []*CandidateResult) []*CandidateResult {
-	for _, c := range candidates {
-		c.Freshness = computeFreshness(c.UpdatedAt)
-		c.FinalScore = r.cfg.TextRelevanceWeight*c.TextRelevance +
-			r.cfg.SemanticSimilarityWeight*c.SemanticSimilarity +
-			r.cfg.TrustWeight*c.TrustScore +
-			r.cfg.FreshnessWeight*c.Freshness +
-			r.cfg.AvailabilityWeight*c.Availability
+	// Compute raw (un-clamped) score, sort by it, then clamp into [0, 1].
+	// Clamping FIRST would tie all "very strong" matches at 1.0 and lose
+	// the relative ordering between them.
+	type scored struct {
+		c   *CandidateResult
+		raw float64
 	}
-
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].FinalScore > candidates[j].FinalScore
-	})
-
+	tmp := make([]scored, len(candidates))
+	for i, c := range candidates {
+		c.Freshness = computeFreshness(c.UpdatedAt)
+		tmp[i] = scored{
+			c: c,
+			raw: r.cfg.TextRelevanceWeight*c.TextRelevance +
+				r.cfg.SemanticSimilarityWeight*c.SemanticSimilarity +
+				r.cfg.TrustWeight*c.TrustScore +
+				r.cfg.FreshnessWeight*c.Freshness +
+				r.cfg.AvailabilityWeight*c.Availability,
+		}
+	}
+	sort.SliceStable(tmp, func(i, j int) bool { return tmp[i].raw > tmp[j].raw })
+	for i, s := range tmp {
+		clamped := s.raw
+		if clamped > 1.0 {
+			clamped = 1.0
+		}
+		if clamped < 0.0 {
+			clamped = 0.0
+		}
+		s.c.FinalScore = clamped
+		candidates[i] = s.c
+	}
 	return candidates
 }
 
