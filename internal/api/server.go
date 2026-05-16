@@ -929,16 +929,40 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Apply type filter and strip internal fields
-	var results []*models.RegistryRecord
+	var filtered []*models.RegistryRecord
 	for _, a := range agents {
 		if typeFilter != "" && a.EntityType != typeFilter {
 			continue
 		}
 		stripPrivateURLs(a)
-		results = append(results, a)
+		filtered = append(filtered, a)
 	}
-	if results == nil {
-		results = []*models.RegistryRecord{}
+	if filtered == nil {
+		filtered = []*models.RegistryRecord{}
+	}
+
+	// Batch ZNS lookup — single DB call for all entities
+	entityIDs := make([]string, len(filtered))
+	for i, a := range filtered {
+		entityIDs[i] = a.EntityID
+	}
+	znsMap, _ := s.store.GetZNSNamesByAgentIDs(entityIDs)
+
+	type entityResp struct {
+		*models.RegistryRecord
+		FQAN            string `json:"fqan,omitempty"`
+		DeveloperHandle string `json:"developer_handle,omitempty"`
+	}
+	results := make([]entityResp, len(filtered))
+	for i, a := range filtered {
+		er := entityResp{RegistryRecord: a}
+		if znsMap != nil {
+			if name, ok := znsMap[a.EntityID]; ok && name != nil {
+				er.FQAN = name.FQAN
+				er.DeveloperHandle = name.DeveloperHandle
+			}
+		}
+		results[i] = er
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -1144,6 +1168,17 @@ func (s *Server) handleGetEntityCard(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "failed to fetch agent card: "+err.Error())
 		return
+	}
+
+	// Inject fqan if available
+	if name, _ := s.store.GetZNSNameByAgentID(entityID); name != nil {
+		var cardMap map[string]interface{}
+		if json.Unmarshal(rawCard, &cardMap) == nil {
+			cardMap["fqan"] = name.FQAN
+			if enriched, merr := json.Marshal(cardMap); merr == nil {
+				rawCard = enriched
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
