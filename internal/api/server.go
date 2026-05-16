@@ -880,7 +880,6 @@ func (s *Server) handleGetEntity(w http.ResponseWriter, r *http.Request) {
 	// 2. Check gossip entries (remote agents replicated via gossip)
 	gossipEntry, err := s.store.GetGossipEntry(entityID)
 	if err == nil && gossipEntry != nil {
-		gossipEntry.EntityURL = ""
 		gossipEntry.ServiceEndpoint = ""
 		writeJSON(w, http.StatusOK, gossipEntry)
 		return
@@ -890,7 +889,6 @@ func (s *Server) handleGetEntity(w http.ResponseWriter, r *http.Request) {
 	if s.dht != nil && s.dht.FindValueFn != nil {
 		rec := s.dht.FindValueFn(entityID)
 		if rec != nil {
-			rec.EntityURL = ""
 			writeJSON(w, http.StatusOK, rec)
 			return
 		}
@@ -930,16 +928,14 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Apply type filter if provided
+	// Apply type filter and strip internal fields
 	var results []*models.RegistryRecord
-	if typeFilter != "" {
-		for _, a := range agents {
-			if a.EntityType == typeFilter {
-				results = append(results, a)
-			}
+	for _, a := range agents {
+		if typeFilter != "" && a.EntityType != typeFilter {
+			continue
 		}
-	} else {
-		results = agents
+		stripPrivateURLs(a)
+		results = append(results, a)
 	}
 	if results == nil {
 		results = []*models.RegistryRecord{}
@@ -951,15 +947,13 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// stripPrivateURLs blanks the URL fields that should not leak through
-// the public GET /v1/entities/{id} response. The real values stay in
-// the DB and are served only via /v1/entities/{id}/card, which proxies
-// the live card from the entity itself.
+// stripPrivateURLs blanks internal-only URL fields from public responses.
+// entity_url is intentionally kept — it is the public endpoint for the entity.
+// service_endpoint is stripped because it may be an internal/localhost value.
 func stripPrivateURLs(r *models.RegistryRecord) {
 	if r == nil {
 		return
 	}
-	r.EntityURL = ""
 	r.ServiceEndpoint = ""
 }
 
@@ -1573,9 +1567,8 @@ func (s *Server) handleApproveDeveloper(w http.ResponseWriter, r *http.Request) 
 func (s *Server) agentResponseWithFQAN(agent *models.RegistryRecord) interface{} {
 	type agentResp struct {
 		*models.RegistryRecord
-		EntityURL       *struct{} `json:"entity_url,omitempty"` // hide entity_url from response
-		FQAN            string    `json:"fqan,omitempty"`
-		DeveloperHandle string    `json:"developer_handle,omitempty"`
+		FQAN            string `json:"fqan,omitempty"`
+		DeveloperHandle string `json:"developer_handle,omitempty"`
 	}
 	resp := agentResp{RegistryRecord: agent}
 	if name, _ := s.store.GetZNSNameByAgentID(agent.EntityID); name != nil {

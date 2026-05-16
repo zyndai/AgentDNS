@@ -62,10 +62,9 @@ type CandidateResult struct {
 	DeveloperID     string
 
 	// Service directory fields
-	EntityType      string
-	ServiceEndpoint string
-	OpenAPIURL      string
-	EntityPricing  *models.EntityPricing
+	EntityType    string
+	OpenAPIURL    string
+	EntityPricing *models.EntityPricing
 }
 
 // RankWeighted scores candidates using the weighted linear combination.
@@ -205,9 +204,9 @@ func ToSearchResults(candidates []*CandidateResult) []models.SearchResult {
 			FQAN:            c.FQAN,
 			DeveloperHandle: c.DeveloperHandle,
 			EntityType:      c.EntityType,
-			ServiceEndpoint: c.ServiceEndpoint,
+			URL:             c.EntityURL,
 			OpenAPIURL:      c.OpenAPIURL,
-			EntityPricing:  c.EntityPricing,
+			EntityPricing:   c.EntityPricing,
 		}
 	}
 	return results

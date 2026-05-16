@@ -59,10 +59,10 @@ type SearchResult struct {
 	DeveloperHandle string `json:"developer_handle,omitempty"`
 
 	// Service directory fields
-	EntityType      string          `json:"entity_type,omitempty"`
-	ServiceEndpoint string          `json:"service_endpoint,omitempty"`
-	OpenAPIURL      string          `json:"openapi_url,omitempty"`
-	EntityPricing  *EntityPricing `json:"entity_pricing,omitempty"`
+	EntityType    string          `json:"entity_type,omitempty"`
+	URL           string          `json:"url,omitempty"`
+	OpenAPIURL    string          `json:"openapi_url,omitempty"`
+	EntityPricing *EntityPricing  `json:"entity_pricing,omitempty"`
 }
 
 // ScoreBreakdown explains how the score was computed.

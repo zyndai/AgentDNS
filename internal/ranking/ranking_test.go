@@ -1,6 +1,8 @@
 package ranking
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/agentdns/agent-dns/internal/config"
@@ -28,10 +30,10 @@ func TestToSearchResults_EntityFieldsPropagated(t *testing.T) {
 	}
 	candidates := []*CandidateResult{
 		{
-			EntityID:         "zns:svc:001",
+			EntityID:        "zns:svc:001",
 			Name:            "translate-svc",
 			EntityType:      "service",
-			ServiceEndpoint: "https://api.translate.com/v1",
+			EntityURL:       "https://deployer.zynd.ai/service/translate-svc/a2a/v1",
 			OpenAPIURL:      "https://api.translate.com/openapi.json",
 			EntityPricing:   pricing,
 			DeveloperID:     "dev-1",
@@ -49,8 +51,8 @@ func TestToSearchResults_EntityFieldsPropagated(t *testing.T) {
 	if r.EntityType != "service" {
 		t.Errorf("EntityType: got %q, want %q", r.EntityType, "service")
 	}
-	if r.ServiceEndpoint != "https://api.translate.com/v1" {
-		t.Errorf("ServiceEndpoint: got %q", r.ServiceEndpoint)
+	if r.URL != "https://deployer.zynd.ai/service/translate-svc/a2a/v1" {
+		t.Errorf("URL: got %q, want deployer URL", r.URL)
 	}
 	if r.OpenAPIURL != "https://api.translate.com/openapi.json" {
 		t.Errorf("OpenAPIURL: got %q", r.OpenAPIURL)
@@ -130,17 +132,17 @@ func TestToSearchResults_EmptyEntityType(t *testing.T) {
 func TestDeduplicate_PreservesEntityFields(t *testing.T) {
 	candidates := []*CandidateResult{
 		{
-			EntityID:         "zns:svc:001",
-			Name:            "svc-first",
-			EntityType:      "service",
-			ServiceEndpoint: "https://first.com",
-			EntityPricing:   &models.EntityPricing{Model: "free"},
+			EntityID:      "zns:svc:001",
+			Name:          "svc-first",
+			EntityType:    "service",
+			EntityURL:     "https://deployer.zynd.ai/service/first/a2a/v1",
+			EntityPricing: &models.EntityPricing{Model: "free"},
 		},
 		{
-			EntityID:         "zns:svc:001",
-			Name:            "svc-duplicate",
-			EntityType:      "service",
-			ServiceEndpoint: "https://second.com",
+			EntityID:  "zns:svc:001",
+			Name:      "svc-duplicate",
+			EntityType: "service",
+			EntityURL: "https://deployer.zynd.ai/service/second/a2a/v1",
 		},
 	}
 
@@ -148,8 +150,8 @@ func TestDeduplicate_PreservesEntityFields(t *testing.T) {
 	if len(result) != 1 {
 		t.Fatalf("expected 1 after dedup, got %d", len(result))
 	}
-	if result[0].ServiceEndpoint != "https://first.com" {
-		t.Errorf("dedup should keep first occurrence, got endpoint %q", result[0].ServiceEndpoint)
+	if result[0].EntityURL != "https://deployer.zynd.ai/service/first/a2a/v1" {
+		t.Errorf("dedup should keep first occurrence, got EntityURL %q", result[0].EntityURL)
 	}
 	if result[0].EntityPricing == nil {
 		t.Error("dedup should preserve EntityPricing from first occurrence")
@@ -163,22 +165,23 @@ func TestRankWeighted_MixedEntityTypes(t *testing.T) {
 
 	candidates := []*CandidateResult{
 		{
-			EntityID:       "zns:agent1",
+			EntityID:      "zns:agent1",
 			EntityType:    "agent",
+			EntityURL:     "https://deployer.zynd.ai/agent/agent1/a2a/v1",
 			TextRelevance: 0.5,
 			TrustScore:    0.8,
 			Availability:  1.0,
 			UpdatedAt:     models.NowRFC3339(),
 		},
 		{
-			EntityID:         "zns:svc:001",
-			EntityType:      "service",
-			ServiceEndpoint: "https://api.example.com",
-			EntityPricing:   &models.EntityPricing{Model: "per_request"},
-			TextRelevance:   0.9,
-			TrustScore:      0.9,
-			Availability:    1.0,
-			UpdatedAt:       models.NowRFC3339(),
+			EntityID:      "zns:svc:001",
+			EntityType:    "service",
+			EntityURL:     "https://deployer.zynd.ai/service/svc001/a2a/v1",
+			EntityPricing: &models.EntityPricing{Model: "per_request"},
+			TextRelevance: 0.9,
+			TrustScore:    0.9,
+			Availability:  1.0,
+			UpdatedAt:     models.NowRFC3339(),
 		},
 	}
 
@@ -209,16 +212,16 @@ func TestRankRRF_PreservesEntityFields(t *testing.T) {
 
 	candidates := []*CandidateResult{
 		{
-			EntityID:         "zns:svc:001",
-			EntityType:      "service",
-			ServiceEndpoint: "https://api.example.com",
-			OpenAPIURL:      "https://api.example.com/openapi.json",
-			EntityPricing:   &models.EntityPricing{Model: "subscription", BasePriceUSD: 9.99},
-			TextRelevance:   0.8,
-			TrustScore:      0.7,
+			EntityID:      "zns:svc:001",
+			EntityType:    "service",
+			EntityURL:     "https://deployer.zynd.ai/service/svc001/a2a/v1",
+			OpenAPIURL:    "https://api.example.com/openapi.json",
+			EntityPricing: &models.EntityPricing{Model: "subscription", BasePriceUSD: 9.99},
+			TextRelevance: 0.8,
+			TrustScore:    0.7,
 		},
 		{
-			EntityID:       "zns:agent1",
+			EntityID:      "zns:agent1",
 			EntityType:    "agent",
 			TextRelevance: 0.5,
 			TrustScore:    0.6,
@@ -242,8 +245,8 @@ func TestRankRRF_PreservesEntityFields(t *testing.T) {
 	if svc.EntityType != "service" {
 		t.Errorf("EntityType lost: got %q", svc.EntityType)
 	}
-	if svc.ServiceEndpoint != "https://api.example.com" {
-		t.Errorf("ServiceEndpoint lost: got %q", svc.ServiceEndpoint)
+	if svc.EntityURL != "https://deployer.zynd.ai/service/svc001/a2a/v1" {
+		t.Errorf("EntityURL lost: got %q", svc.EntityURL)
 	}
 	if svc.EntityPricing == nil {
 		t.Fatal("EntityPricing lost during RRF ranking")
@@ -316,5 +319,68 @@ func TestDeduplicate_NoDuplicates(t *testing.T) {
 	result := Deduplicate(candidates)
 	if len(result) != 2 {
 		t.Errorf("expected 2, got %d", len(result))
+	}
+}
+
+// --- URL field: entity_url flows to SearchResult.URL for all entity types ---
+
+func TestToSearchResults_URLFromEntityURL_Service(t *testing.T) {
+	const wantURL = "https://deployer.zynd.ai/service/url-shortener-b8d965/a2a/v1"
+	candidates := []*CandidateResult{
+		{
+			EntityID:   "zns:svc:8693895fac8d3fa91e284f7394eb911c",
+			Name:       "url-shortener",
+			EntityType: "service",
+			EntityURL:  wantURL,
+		},
+	}
+
+	results := ToSearchResults(candidates)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	r := results[0]
+	if r.URL != wantURL {
+		t.Errorf("URL: got %q, want %q", r.URL, wantURL)
+	}
+}
+
+func TestToSearchResults_URLFromEntityURL_Agent(t *testing.T) {
+	const wantURL = "https://deployer.zynd.ai/agent/sahil-claude-persona/a2a/v1"
+	candidates := []*CandidateResult{
+		{
+			EntityID:   "zns:5fd2306c29cacf3ad339c754c04d0465",
+			Name:       "sahil-claude-persona",
+			EntityType: "agent",
+			EntityURL:  wantURL,
+		},
+	}
+
+	results := ToSearchResults(candidates)
+	r := results[0]
+	if r.URL != wantURL {
+		t.Errorf("agent URL: got %q, want %q", r.URL, wantURL)
+	}
+}
+
+func TestToSearchResults_NoServiceEndpointInJSON(t *testing.T) {
+	candidates := []*CandidateResult{
+		{
+			EntityID:   "zns:svc:001",
+			EntityType: "service",
+			EntityURL:  "https://deployer.zynd.ai/service/test/a2a/v1",
+		},
+	}
+	results := ToSearchResults(candidates)
+	b, err := json.Marshal(results[0])
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+	out := string(b)
+	if strings.Contains(out, "service_endpoint") {
+		t.Errorf("service_endpoint must not appear in JSON output, got: %s", out)
+	}
+	if !strings.Contains(out, `"url"`) {
+		t.Errorf("url field must appear in JSON output, got: %s", out)
 	}
 }
