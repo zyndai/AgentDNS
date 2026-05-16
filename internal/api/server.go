@@ -1181,14 +1181,20 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			if gossipName != nil {
 				name = &models.ZNSName{
 					FQAN:            gossipName.FQAN,
-					EntityName:       gossipName.EntityName,
+					EntityName:      gossipName.EntityName,
 					DeveloperHandle: gossipName.DeveloperHandle,
 					RegistryHost:    gossipName.RegistryHost,
-					EntityID:         gossipName.EntityID,
+					EntityID:        gossipName.EntityID,
 				}
 			}
 		}
 		if name == nil {
+			// DNS-style routing: FQAN encodes the authoritative registry.
+			// If it belongs to a different registry, forward the query there.
+			if resp := s.resolveFQANRemote(r.Context(), req.FQAN); resp != nil {
+				writeJSON(w, http.StatusOK, resp)
+				return
+			}
 			writeJSON(w, http.StatusOK, &models.SearchResponse{
 				Results:    []models.SearchResult{},
 				TotalFound: 0,
@@ -1197,7 +1203,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		// Build single result from the resolved agent
 		result := models.SearchResult{
-			EntityID:         name.EntityID,
+			EntityID:        name.EntityID,
 			DeveloperID:     name.DeveloperID,
 			FQAN:            name.FQAN,
 			DeveloperHandle: name.DeveloperHandle,
@@ -1212,6 +1218,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			result.Tags = agent.Tags
 			result.HomeRegistry = agent.HomeRegistry
 			result.Status = agent.Status
+			result.URL = agent.EntityURL
 		}
 		writeJSON(w, http.StatusOK, &models.SearchResponse{
 			Results:    []models.SearchResult{result},
@@ -1576,6 +1583,55 @@ func (s *Server) agentResponseWithFQAN(agent *models.RegistryRecord) interface{}
 		resp.DeveloperHandle = name.DeveloperHandle
 	}
 	return resp
+}
+
+// resolveFQANRemote forwards an FQAN search to the authoritative registry
+// when the FQAN's registry host differs from this node. Returns nil if the
+// FQAN belongs to this registry, the remote is unreachable, or parsing fails.
+func (s *Server) resolveFQANRemote(ctx context.Context, fqan string) *models.SearchResponse {
+	registryHost, _, _, err := zns.ParseFQAN(fqan)
+	if err != nil {
+		return nil
+	}
+	myHost := s.cfg.RegistryHost()
+	if registryHost == myHost || registryHost == "" {
+		return nil
+	}
+
+	body, _ := json.Marshal(map[string]string{"fqan": fqan})
+	url := "https://" + registryHost + "/v1/search"
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(body)))
+	if err != nil {
+		return nil
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		log.Printf("fqan: remote lookup %s → %s: %v", fqan, url, err)
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("fqan: remote lookup %s → %s: status %d", fqan, url, resp.StatusCode)
+		return nil
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+	if err != nil {
+		return nil
+	}
+
+	var searchResp models.SearchResponse
+	if err := json.Unmarshal(data, &searchResp); err != nil {
+		return nil
+	}
+	return &searchResp
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
