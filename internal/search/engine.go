@@ -357,23 +357,22 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 		}
 
 		candidateMap[kr.DocID] = &ranking.CandidateResult{
-			EntityID:         agent.EntityID,
-			Name:            agent.Name,
-			Summary:         agent.Summary,
-			Category:        agent.Category,
-			Tags:            agent.Tags,
-			EntityURL:       agent.EntityURL,
-			HomeRegistry:    agent.HomeRegistry,
-			Status:          agent.Status,
-			UpdatedAt:       agent.UpdatedAt,
-			DeveloperID:     agent.DeveloperID,
-			TextRelevance:   exactBoosted,
-			TrustScore:      0.5,
-			Availability:    1.0,
-			EntityType:      agent.EntityType,
-			ServiceEndpoint: agent.ServiceEndpoint,
-			OpenAPIURL:      agent.OpenAPIURL,
-			EntityPricing:  agent.EntityPricing,
+			EntityID:      agent.EntityID,
+			Name:          agent.Name,
+			Summary:       agent.Summary,
+			Category:      agent.Category,
+			Tags:          agent.Tags,
+			EntityURL:     agent.EntityURL,
+			HomeRegistry:  agent.HomeRegistry,
+			Status:        agent.Status,
+			UpdatedAt:     agent.UpdatedAt,
+			DeveloperID:   agent.DeveloperID,
+			TextRelevance: exactBoosted,
+			TrustScore:    0.5,
+			Availability:  1.0,
+			EntityType:    agent.EntityType,
+			OpenAPIURL:    agent.OpenAPIURL,
+			EntityPricing: agent.EntityPricing,
 		}
 	}
 
@@ -403,12 +402,12 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 			}
 
 			candidateMap[sr.DocID] = &ranking.CandidateResult{
-				EntityID:            agent.EntityID,
+				EntityID:           agent.EntityID,
 				Name:               agent.Name,
 				Summary:            agent.Summary,
 				Category:           agent.Category,
 				Tags:               agent.Tags,
-				EntityURL:           agent.EntityURL,
+				EntityURL:          agent.EntityURL,
 				HomeRegistry:       agent.HomeRegistry,
 				Status:             agent.Status,
 				UpdatedAt:          agent.UpdatedAt,
@@ -417,9 +416,8 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 				TrustScore:         0.5,
 				Availability:       1.0,
 				EntityType:         agent.EntityType,
-				ServiceEndpoint:    agent.ServiceEndpoint,
 				OpenAPIURL:         agent.OpenAPIURL,
-				EntityPricing:     agent.EntityPricing,
+				EntityPricing:      agent.EntityPricing,
 			}
 		}
 	}
@@ -497,23 +495,22 @@ func (e *Engine) searchLocal(req *models.SearchRequest, limit int) []*ranking.Ca
 				continue
 			}
 			candidateMap[agent.EntityID] = &ranking.CandidateResult{
-				EntityID:        agent.EntityID,
-				Name:            agent.Name,
-				Summary:         agent.Summary,
-				Category:        agent.Category,
-				Tags:            agent.Tags,
-				EntityURL:       agent.EntityURL,
-				HomeRegistry:    agent.HomeRegistry,
-				Status:          agent.Status,
-				UpdatedAt:       agent.UpdatedAt,
-				DeveloperID:     agent.DeveloperID,
-				TextRelevance:   2.5,
-				TrustScore:      0.5,
-				Availability:    1.0,
-				EntityType:      agent.EntityType,
-				ServiceEndpoint: agent.ServiceEndpoint,
-				OpenAPIURL:      agent.OpenAPIURL,
-				EntityPricing:   agent.EntityPricing,
+				EntityID:      agent.EntityID,
+				Name:          agent.Name,
+				Summary:       agent.Summary,
+				Category:      agent.Category,
+				Tags:          agent.Tags,
+				EntityURL:     agent.EntityURL,
+				HomeRegistry:  agent.HomeRegistry,
+				Status:        agent.Status,
+				UpdatedAt:     agent.UpdatedAt,
+				DeveloperID:   agent.DeveloperID,
+				TextRelevance: 2.5,
+				TrustScore:    0.5,
+				Availability:  1.0,
+				EntityType:    agent.EntityType,
+				OpenAPIURL:    agent.OpenAPIURL,
+				EntityPricing: agent.EntityPricing,
 			}
 		}
 	}
@@ -568,12 +565,12 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 		semanticScore := cosineSimilarity(queryVec, docVec)
 
 		candidates = append(candidates, &ranking.CandidateResult{
-			EntityID:            entry.EntityID,
+			EntityID:           entry.EntityID,
 			Name:               entry.Name,
 			Summary:            entry.Summary,
 			Category:           entry.Category,
 			Tags:               entry.Tags,
-			EntityURL:           entry.EntityURL,
+			EntityURL:          entry.EntityURL,
 			HomeRegistry:       entry.HomeRegistry,
 			Status:             entry.Status,
 			UpdatedAt:          entry.ReceivedAt,
@@ -583,9 +580,8 @@ func (e *Engine) searchGossip(req *models.SearchRequest, limit int) []*ranking.C
 			TrustScore:         0.3,
 			Availability:       0.9,
 			EntityType:         entry.EntityType,
-			ServiceEndpoint:    entry.ServiceEndpoint,
 			OpenAPIURL:         entry.OpenAPIURL,
-			EntityPricing:     entry.EntityPricing,
+			EntityPricing:      entry.EntityPricing,
 		})
 	}
 

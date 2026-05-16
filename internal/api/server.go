@@ -880,7 +880,6 @@ func (s *Server) handleGetEntity(w http.ResponseWriter, r *http.Request) {
 	// 2. Check gossip entries (remote agents replicated via gossip)
 	gossipEntry, err := s.store.GetGossipEntry(entityID)
 	if err == nil && gossipEntry != nil {
-		gossipEntry.EntityURL = ""
 		gossipEntry.ServiceEndpoint = ""
 		writeJSON(w, http.StatusOK, gossipEntry)
 		return
@@ -890,7 +889,6 @@ func (s *Server) handleGetEntity(w http.ResponseWriter, r *http.Request) {
 	if s.dht != nil && s.dht.FindValueFn != nil {
 		rec := s.dht.FindValueFn(entityID)
 		if rec != nil {
-			rec.EntityURL = ""
 			writeJSON(w, http.StatusOK, rec)
 			return
 		}
@@ -930,19 +928,41 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Apply type filter if provided
-	var results []*models.RegistryRecord
-	if typeFilter != "" {
-		for _, a := range agents {
-			if a.EntityType == typeFilter {
-				results = append(results, a)
+	// Apply type filter and strip internal fields
+	var filtered []*models.RegistryRecord
+	for _, a := range agents {
+		if typeFilter != "" && a.EntityType != typeFilter {
+			continue
+		}
+		stripPrivateURLs(a)
+		filtered = append(filtered, a)
+	}
+	if filtered == nil {
+		filtered = []*models.RegistryRecord{}
+	}
+
+	// Batch ZNS lookup — single DB call for all entities
+	entityIDs := make([]string, len(filtered))
+	for i, a := range filtered {
+		entityIDs[i] = a.EntityID
+	}
+	znsMap, _ := s.store.GetZNSNamesByAgentIDs(entityIDs)
+
+	type entityResp struct {
+		*models.RegistryRecord
+		FQAN            string `json:"fqan,omitempty"`
+		DeveloperHandle string `json:"developer_handle,omitempty"`
+	}
+	results := make([]entityResp, len(filtered))
+	for i, a := range filtered {
+		er := entityResp{RegistryRecord: a}
+		if znsMap != nil {
+			if name, ok := znsMap[a.EntityID]; ok && name != nil {
+				er.FQAN = name.FQAN
+				er.DeveloperHandle = name.DeveloperHandle
 			}
 		}
-	} else {
-		results = agents
-	}
-	if results == nil {
-		results = []*models.RegistryRecord{}
+		results[i] = er
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -951,15 +971,13 @@ func (s *Server) handleListEntities(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// stripPrivateURLs blanks the URL fields that should not leak through
-// the public GET /v1/entities/{id} response. The real values stay in
-// the DB and are served only via /v1/entities/{id}/card, which proxies
-// the live card from the entity itself.
+// stripPrivateURLs blanks internal-only URL fields from public responses.
+// entity_url is intentionally kept — it is the public endpoint for the entity.
+// service_endpoint is stripped because it may be an internal/localhost value.
 func stripPrivateURLs(r *models.RegistryRecord) {
 	if r == nil {
 		return
 	}
-	r.EntityURL = ""
 	r.ServiceEndpoint = ""
 }
 
@@ -1152,6 +1170,17 @@ func (s *Server) handleGetEntityCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Inject fqan if available
+	if name, _ := s.store.GetZNSNameByAgentID(entityID); name != nil {
+		var cardMap map[string]interface{}
+		if json.Unmarshal(rawCard, &cardMap) == nil {
+			cardMap["fqan"] = name.FQAN
+			if enriched, merr := json.Marshal(cardMap); merr == nil {
+				rawCard = enriched
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(rawCard)
@@ -1187,14 +1216,20 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			if gossipName != nil {
 				name = &models.ZNSName{
 					FQAN:            gossipName.FQAN,
-					EntityName:       gossipName.EntityName,
+					EntityName:      gossipName.EntityName,
 					DeveloperHandle: gossipName.DeveloperHandle,
 					RegistryHost:    gossipName.RegistryHost,
-					EntityID:         gossipName.EntityID,
+					EntityID:        gossipName.EntityID,
 				}
 			}
 		}
 		if name == nil {
+			// DNS-style routing: FQAN encodes the authoritative registry.
+			// If it belongs to a different registry, forward the query there.
+			if resp := s.resolveFQANRemote(r.Context(), req.FQAN); resp != nil {
+				writeJSON(w, http.StatusOK, resp)
+				return
+			}
 			writeJSON(w, http.StatusOK, &models.SearchResponse{
 				Results:    []models.SearchResult{},
 				TotalFound: 0,
@@ -1203,7 +1238,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		// Build single result from the resolved agent
 		result := models.SearchResult{
-			EntityID:         name.EntityID,
+			EntityID:        name.EntityID,
 			DeveloperID:     name.DeveloperID,
 			FQAN:            name.FQAN,
 			DeveloperHandle: name.DeveloperHandle,
@@ -1218,6 +1253,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			result.Tags = agent.Tags
 			result.HomeRegistry = agent.HomeRegistry
 			result.Status = agent.Status
+			result.URL = agent.EntityURL
 		}
 		writeJSON(w, http.StatusOK, &models.SearchResponse{
 			Results:    []models.SearchResult{result},
@@ -1573,9 +1609,8 @@ func (s *Server) handleApproveDeveloper(w http.ResponseWriter, r *http.Request) 
 func (s *Server) agentResponseWithFQAN(agent *models.RegistryRecord) interface{} {
 	type agentResp struct {
 		*models.RegistryRecord
-		EntityURL       *struct{} `json:"entity_url,omitempty"` // hide entity_url from response
-		FQAN            string    `json:"fqan,omitempty"`
-		DeveloperHandle string    `json:"developer_handle,omitempty"`
+		FQAN            string `json:"fqan,omitempty"`
+		DeveloperHandle string `json:"developer_handle,omitempty"`
 	}
 	resp := agentResp{RegistryRecord: agent}
 	if name, _ := s.store.GetZNSNameByAgentID(agent.EntityID); name != nil {
@@ -1583,6 +1618,55 @@ func (s *Server) agentResponseWithFQAN(agent *models.RegistryRecord) interface{}
 		resp.DeveloperHandle = name.DeveloperHandle
 	}
 	return resp
+}
+
+// resolveFQANRemote forwards an FQAN search to the authoritative registry
+// when the FQAN's registry host differs from this node. Returns nil if the
+// FQAN belongs to this registry, the remote is unreachable, or parsing fails.
+func (s *Server) resolveFQANRemote(ctx context.Context, fqan string) *models.SearchResponse {
+	registryHost, _, _, err := zns.ParseFQAN(fqan)
+	if err != nil {
+		return nil
+	}
+	myHost := s.cfg.RegistryHost()
+	if registryHost == myHost || registryHost == "" {
+		return nil
+	}
+
+	body, _ := json.Marshal(map[string]string{"fqan": fqan})
+	url := "https://" + registryHost + "/v1/search"
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(body)))
+	if err != nil {
+		return nil
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		log.Printf("fqan: remote lookup %s → %s: %v", fqan, url, err)
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("fqan: remote lookup %s → %s: status %d", fqan, url, resp.StatusCode)
+		return nil
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+	if err != nil {
+		return nil
+	}
+
+	var searchResp models.SearchResponse
+	if err := json.Unmarshal(data, &searchResp); err != nil {
+		return nil
+	}
+	return &searchResp
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {

@@ -576,7 +576,6 @@ func (gh *GossipHandler) verifyOriginAuthorization(agentID, originKey string, re
 	}
 	if existing == nil {
 		if requireExisting {
-			log.Printf("gossip: rejecting action for unknown agent %s", agentID)
 			return false
 		}
 		return true
