@@ -1,7 +1,7 @@
 // Package main provides the CLI entry point for Agent DNS.
 //
 //	@title			Agent DNS Registry API
-//	@version		0.2.0
+//	@version		0.3.0
 //	@description	Decentralized Agent Registry Network — register, discover, and resolve AI entities across a federated mesh.
 //
 //	@contact.name	Agent DNS
@@ -51,7 +51,7 @@ import (
 	"github.com/agentdns/agent-dns/internal/store"
 )
 
-const version = "0.2.0"
+const version = "0.3.0"
 
 func main() {
 	if len(os.Args) < 2 {
