@@ -121,7 +121,11 @@ func (gh *GossipHandler) HandleAnnouncement(ann *models.GossipAnnouncement) bool
 	}
 	valid, err := identity.Verify(pubKey, data, ann.Signature)
 	if err != nil || !valid {
-		log.Printf("gossip: invalid signature on announcement for %s: %v", ann.EntityID, err)
+		preview := data
+		if len(preview) > 120 {
+			preview = preview[:120]
+		}
+		log.Printf("gossip: invalid signature on announcement for %s: %v | data[0:120]=%s", ann.EntityID, err, preview)
 		return false
 	}
 

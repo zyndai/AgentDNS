@@ -367,6 +367,23 @@ func cmdStart() {
 	// Wire gossip broadcasting into the gossip handler
 	gossipHandler.SetBroadcastFunc(transport.Broadcast)
 
+	// Re-announce all local entities to every newly connected peer.
+	// This re-populates a peer's gossip index immediately on connection,
+	// which is critical after version upgrades where old-code signatures
+	// can't be verified by new-code peers.
+	transport.SetPeerConnectCallback(func(peerID string) {
+		entities, err := st.ListEntities("", 10000, 0)
+		if err != nil || len(entities) == 0 {
+			return
+		}
+		registryID := kp.RegistryID()
+		pubKey := kp.PublicKeyString()
+		for _, entity := range entities {
+			ann := gossipHandler.CreateAnnouncement(entity, "register", registryID, pubKey, kp.Sign)
+			transport.BroadcastToPeer(peerID, ann)
+		}
+	})
+
 	// Initialize Kademlia DHT
 	var dhtNode *agdht.DHT
 	if cfg.DHT.Enabled {

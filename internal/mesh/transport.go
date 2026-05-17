@@ -54,7 +54,8 @@ type Transport struct {
 	dhtPending   map[string]chan json.RawMessage // requestID → response channel
 	dhtPendingMu sync.Mutex
 
-	eventBus *events.Bus
+	eventBus     *events.Bus
+	onPeerConnect func(peerID string) // called in a goroutine when a new peer is registered
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
@@ -147,6 +148,33 @@ func (t *Transport) SendDHTRequest(peerAddr string, msgBytes json.RawMessage) (j
 // SetEventBus attaches an event bus for publishing peer connect/disconnect events.
 func (t *Transport) SetEventBus(bus *events.Bus) {
 	t.eventBus = bus
+}
+
+// SetPeerConnectCallback registers a function called (in a new goroutine) each time
+// a new peer is successfully registered. Use it to re-announce local entities to the
+// newly connected peer so its gossip index stays current.
+func (t *Transport) SetPeerConnectCallback(fn func(peerID string)) {
+	t.mu.Lock()
+	t.onPeerConnect = fn
+	t.mu.Unlock()
+}
+
+// BroadcastToPeer sends a gossip announcement to a single connected peer.
+func (t *Transport) BroadcastToPeer(peerID string, ann *models.GossipAnnouncement) {
+	t.mu.RLock()
+	pc, ok := t.conns[peerID]
+	t.mu.RUnlock()
+	if !ok {
+		return
+	}
+	gm := GossipMessage{Announcement: ann}
+	if err := pc.send(MsgGossip, &gm); err != nil {
+		idPrefix := peerID
+		if len(idPrefix) > 24 {
+			idPrefix = idPrefix[:24]
+		}
+		log.Printf("mesh: send announcement to %s: %v", idPrefix, err)
+	}
 }
 
 // Listen starts the TCP listener on the configured mesh port.
@@ -378,6 +406,14 @@ func (t *Transport) registerPeer(hello HelloMessage, address string, conn net.Co
 			Name:       hello.Name,
 			Address:    address,
 		})
+	}
+
+	// Fire peer-connect callback in a goroutine so registerPeer returns immediately.
+	t.mu.RLock()
+	fn := t.onPeerConnect
+	t.mu.RUnlock()
+	if fn != nil {
+		go fn(hello.RegistryID)
 	}
 }
 
