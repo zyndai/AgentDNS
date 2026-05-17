@@ -1255,9 +1255,17 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			result.Status = agent.Status
 			result.URL = agent.EntityURL
 		} else {
-			// Entity not in local store (gossip ZNS name only) — forward to
-			// authoritative registry to get the full record.
-			if resp := s.resolveFQANRemote(r.Context(), name.FQAN); resp != nil {
+			// Entity not in local store — check gossip index first (avoids remote HTTP call).
+			if gossipEntry, gerr := s.store.GetGossipEntry(name.EntityID); gerr == nil && gossipEntry != nil && !gossipEntry.Tombstoned {
+				result.Name = gossipEntry.Name
+				result.Summary = gossipEntry.Summary
+				result.Category = gossipEntry.Category
+				result.Tags = gossipEntry.Tags
+				result.HomeRegistry = gossipEntry.HomeRegistry
+				result.Status = gossipEntry.Status
+				result.URL = gossipEntry.EntityURL
+			} else if resp := s.resolveFQANRemote(r.Context(), name.FQAN); resp != nil {
+				// Gossip entry missing — forward to authoritative registry.
 				writeJSON(w, http.StatusOK, resp)
 				return
 			}
