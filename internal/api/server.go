@@ -1244,7 +1244,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			DeveloperHandle: name.DeveloperHandle,
 			Score:           1.0,
 		}
-		// Enrich with agent details
+		// Enrich with agent details from local store
 		agent, err := s.store.GetEntity(name.EntityID)
 		if err == nil && agent != nil {
 			result.Name = agent.Name
@@ -1254,6 +1254,13 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			result.HomeRegistry = agent.HomeRegistry
 			result.Status = agent.Status
 			result.URL = agent.EntityURL
+		} else {
+			// Entity not in local store (gossip ZNS name only) — forward to
+			// authoritative registry to get the full record.
+			if resp := s.resolveFQANRemote(r.Context(), name.FQAN); resp != nil {
+				writeJSON(w, http.StatusOK, resp)
+				return
+			}
 		}
 		writeJSON(w, http.StatusOK, &models.SearchResponse{
 			Results:    []models.SearchResult{result},
