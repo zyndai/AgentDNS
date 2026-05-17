@@ -1214,10 +1214,13 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		registryHost, _, _, parseErr := zns.ParseFQAN(req.FQAN)
 		myHost := s.cfg.RegistryHost()
 		if parseErr == nil && registryHost != "" && registryHost != myHost {
+			log.Printf("fqan: forwarding %q → %s", req.FQAN, registryHost)
 			if resp := s.resolveFQANRemote(r.Context(), req.FQAN); resp != nil {
+				log.Printf("fqan: remote ok %q → %d result(s)", req.FQAN, len(resp.Results))
 				writeJSON(w, http.StatusOK, resp)
 				return
 			}
+			log.Printf("fqan: remote failed %q → empty", req.FQAN)
 			writeJSON(w, http.StatusOK, &models.SearchResponse{Results: []models.SearchResult{}, TotalFound: 0})
 			return
 		}
@@ -1225,6 +1228,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		// FQAN belongs to this registry — resolve from local ZNS store only.
 		name, _ := s.store.GetZNSName(req.FQAN)
 		if name == nil {
+			log.Printf("fqan: local miss %q", req.FQAN)
 			writeJSON(w, http.StatusOK, &models.SearchResponse{Results: []models.SearchResult{}, TotalFound: 0})
 			return
 		}
@@ -1244,6 +1248,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			result.Status = agent.Status
 			result.URL = agent.EntityURL
 		}
+		log.Printf("fqan: local hit %q → entity %s", req.FQAN, result.EntityID)
 		writeJSON(w, http.StatusOK, &models.SearchResponse{Results: []models.SearchResult{result}, TotalFound: 1})
 		return
 	}
