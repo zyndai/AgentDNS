@@ -1207,36 +1207,31 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Short-circuit: exact FQAN lookup
+	// Short-circuit: exact FQAN lookup.
+	// DNS-style: if FQAN belongs to a different registry, forward there immediately.
+	// Gossip is not used for FQAN resolution — only the authoritative registry has the source of truth.
 	if req.FQAN != "" {
-		name, _ := s.store.GetZNSName(req.FQAN)
-		if name == nil {
-			// Try gossip
-			gossipName, _ := s.store.GetGossipZNSName(req.FQAN)
-			if gossipName != nil {
-				name = &models.ZNSName{
-					FQAN:            gossipName.FQAN,
-					EntityName:      gossipName.EntityName,
-					DeveloperHandle: gossipName.DeveloperHandle,
-					RegistryHost:    gossipName.RegistryHost,
-					EntityID:        gossipName.EntityID,
-				}
-			}
-		}
-		if name == nil {
-			// DNS-style routing: FQAN encodes the authoritative registry.
-			// If it belongs to a different registry, forward the query there.
+		registryHost, _, _, parseErr := zns.ParseFQAN(req.FQAN)
+		myHost := s.cfg.RegistryHost()
+		if parseErr == nil && registryHost != "" && registryHost != myHost {
+			log.Printf("fqan: forwarding %q → %s", req.FQAN, registryHost)
 			if resp := s.resolveFQANRemote(r.Context(), req.FQAN); resp != nil {
+				log.Printf("fqan: remote ok %q → %d result(s)", req.FQAN, len(resp.Results))
 				writeJSON(w, http.StatusOK, resp)
 				return
 			}
-			writeJSON(w, http.StatusOK, &models.SearchResponse{
-				Results:    []models.SearchResult{},
-				TotalFound: 0,
-			})
+			log.Printf("fqan: remote failed %q → empty", req.FQAN)
+			writeJSON(w, http.StatusOK, &models.SearchResponse{Results: []models.SearchResult{}, TotalFound: 0})
 			return
 		}
-		// Build single result from the resolved agent
+
+		// FQAN belongs to this registry — resolve from local ZNS store only.
+		name, _ := s.store.GetZNSName(req.FQAN)
+		if name == nil {
+			log.Printf("fqan: local miss %q", req.FQAN)
+			writeJSON(w, http.StatusOK, &models.SearchResponse{Results: []models.SearchResult{}, TotalFound: 0})
+			return
+		}
 		result := models.SearchResult{
 			EntityID:        name.EntityID,
 			DeveloperID:     name.DeveloperID,
@@ -1244,9 +1239,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			DeveloperHandle: name.DeveloperHandle,
 			Score:           1.0,
 		}
-		// Enrich with agent details
-		agent, err := s.store.GetEntity(name.EntityID)
-		if err == nil && agent != nil {
+		if agent, err := s.store.GetEntity(name.EntityID); err == nil && agent != nil {
 			result.Name = agent.Name
 			result.Summary = agent.Summary
 			result.Category = agent.Category
@@ -1255,10 +1248,8 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			result.Status = agent.Status
 			result.URL = agent.EntityURL
 		}
-		writeJSON(w, http.StatusOK, &models.SearchResponse{
-			Results:    []models.SearchResult{result},
-			TotalFound: 1,
-		})
+		log.Printf("fqan: local hit %q → entity %s", req.FQAN, result.EntityID)
+		writeJSON(w, http.StatusOK, &models.SearchResponse{Results: []models.SearchResult{result}, TotalFound: 1})
 		return
 	}
 

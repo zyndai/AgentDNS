@@ -1,7 +1,7 @@
 // Package main provides the CLI entry point for Agent DNS.
 //
 //	@title			Agent DNS Registry API
-//	@version		0.2.0
+//	@version		0.3.0
 //	@description	Decentralized Agent Registry Network — register, discover, and resolve AI entities across a federated mesh.
 //
 //	@contact.name	Agent DNS
@@ -51,7 +51,7 @@ import (
 	"github.com/agentdns/agent-dns/internal/store"
 )
 
-const version = "0.2.0"
+const version = "0.3.0"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -366,6 +366,23 @@ func cmdStart() {
 
 	// Wire gossip broadcasting into the gossip handler
 	gossipHandler.SetBroadcastFunc(transport.Broadcast)
+
+	// Re-announce all local entities to every newly connected peer.
+	// This re-populates a peer's gossip index immediately on connection,
+	// which is critical after version upgrades where old-code signatures
+	// can't be verified by new-code peers.
+	transport.SetPeerConnectCallback(func(peerID string) {
+		entities, err := st.ListEntities("", 10000, 0)
+		if err != nil || len(entities) == 0 {
+			return
+		}
+		registryID := kp.RegistryID()
+		pubKey := kp.PublicKeyString()
+		for _, entity := range entities {
+			ann := gossipHandler.CreateAnnouncement(entity, "register", registryID, pubKey, kp.Sign)
+			transport.BroadcastToPeer(peerID, ann)
+		}
+	})
 
 	// Initialize Kademlia DHT
 	var dhtNode *agdht.DHT

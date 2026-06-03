@@ -26,7 +26,7 @@ jobs:
             cd /home/azureuser/AgentDNS
 
             echo "==> Pulling latest code..."
-            git pull origin main
+            git pull origin development
 
             echo "==> Building binary..."
             go mod download
@@ -75,7 +75,7 @@ jobs:
             cd /home/azureuser/AgentDNS
 
             echo "==> Pulling latest code..."
-            git pull origin main
+            git pull origin development
 
             echo "==> Building binary..."
             go mod download
