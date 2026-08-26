@@ -468,6 +468,15 @@ func (s *PostgresStore) UpdateEntity(agent *models.RegistryRecord) error {
 }
 
 func (s *PostgresStore) DeleteEntity(agentID string, owner string) error {
+	// Delete ZNS name bindings first. zns_names.entity_id has a FK to
+	// entities(entity_id) WITHOUT ON DELETE CASCADE, so deleting the entity
+	// while a name binding exists fails with SQLSTATE 23503. zns_versions
+	// cascades off zns_names, so this also clears version history.
+	if _, err := s.pool.Exec(context.Background(),
+		`DELETE FROM zns_names WHERE entity_id = $1`, agentID); err != nil {
+		return fmt.Errorf("failed to delete name bindings: %w", err)
+	}
+
 	ct, err := s.pool.Exec(context.Background(),
 		`DELETE FROM entities WHERE entity_id = $1 AND owner = $2`, agentID, owner)
 	if err != nil {

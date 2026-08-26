@@ -586,3 +586,37 @@ func TestStore_UpdateRegistryVerificationTier(t *testing.T) {
 		t.Errorf("expected tier 'mesh-verified', got %q", got.VerificationTier)
 	}
 }
+
+func TestStore_DeleteEntity_RemovesNameBinding(t *testing.T) {
+	s := newZNSTestStore(t)
+	createTestDeveloper(t, s, "zns:dev:cascade1", "cascade-dev")
+	createTestAgent(t, s, "zns:cascadeagent1")
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	name := &models.ZNSName{
+		FQAN:            "test.example.com/cascade-dev/my-agent",
+		EntityName:       "my-agent",
+		DeveloperHandle: "cascade-dev",
+		RegistryHost:    "test.example.com",
+		EntityID:         "zns:cascadeagent1",
+		DeveloperID:     "zns:dev:cascade1",
+		CurrentVersion:  "1.0.0",
+		RegisteredAt:    now,
+		UpdatedAt:       now,
+		Signature:       "ed25519:sig",
+	}
+	if err := s.CreateZNSName(name); err != nil {
+		t.Fatalf("CreateZNSName() error: %v", err)
+	}
+
+	// Deleting the entity must cascade to the name binding.
+	// Regression: previously the zns_names.entity_id FK (no ON DELETE CASCADE)
+	// caused DeleteEntity to fail with SQLSTATE 23503.
+	if err := s.DeleteEntity("zns:cascadeagent1", "did:key:testowner"); err != nil {
+		t.Fatalf("failed to delete agent with name binding: %v", err)
+	}
+
+	if got, _ := s.GetZNSNameByAgentID("zns:cascadeagent1"); got != nil {
+		t.Errorf("name binding should be deleted when entity is deleted")
+	}
+}
